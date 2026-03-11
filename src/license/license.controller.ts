@@ -12,6 +12,11 @@ export class LicenseController {
     return this.licenseService.create(createLicenseDto);
   }
 
+  @Get('health')
+  checkHealth() {
+    return this.licenseService.checkHealth();
+  }
+
   @Get()
   findAll() {
     return this.licenseService.findAll();
@@ -31,4 +36,8 @@ export class LicenseController {
   remove(@Param('id') id: string) {
     return this.licenseService.remove(+id);
   }
+
+  
+
+
 }

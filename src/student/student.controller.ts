@@ -32,4 +32,7 @@ export class StudentController {
   remove(@Param('id') id: string) {
     return this.studentService.remove(+id);
   }
+
+  
+
 }

@@ -2,10 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { CreateLicenseDto } from './dto/create-license.dto';
 import { UpdateLicenseDto } from './dto/update-license.dto';
 
+
 @Injectable()
 export class LicenseService {
-  create(createLicenseDto: CreateLicenseDto) {
-    return 'This action adds a new license';
+  async create(createLicenseDto: CreateLicenseDto) {
+    const response = await fetch(`${process.env.BASE_URL_API_LICENSE}/api/v1/license/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(createLicenseDto)
+    });
   }
 
   findAll() {
@@ -22,5 +29,16 @@ export class LicenseService {
 
   remove(id: number) {
     return `This action removes a #${id} license`;
+  }
+
+  async checkHealth() {
+    try {
+      const res = await fetch("http://localhost:8000/health");
+      const data = await res.json();
+      console.log("Resposta:", data);
+      return data;
+    } catch (error) {
+      return { status: 'error', message: 'License API is not healthy' };
+    }
   }
 }
