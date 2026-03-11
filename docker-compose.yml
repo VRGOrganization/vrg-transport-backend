@@ -14,6 +14,7 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3000
       - MONGODB_URI=mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@mongodb:27017/${MONGODB_DATABASE}?authSource=admin
+      - MONGODB_IMAGE_URI=mongodb://${MONGODB_IMAGE_USER}:${MONGODB_IMAGE_PASSWORD}@mongodb-images:27017/${MONGODB_IMAGE_DATABASE}?authSource=admin
     depends_on:
       mongodb:
         condition: service_healthy
