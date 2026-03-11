@@ -17,6 +17,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      mongodb-images:
+        condition: service_healthy
     networks:
       - vrg-network
     healthcheck:
@@ -69,6 +71,41 @@ services:
     user: mongodb
     command: mongod --auth
 
+  mongodb-images:
+    image: mongo:7-jammy
+    container_name: vrg-transport-mongodb-images
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${MONGODB_IMAGE_PORT:-27018}:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_IMAGE_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_IMAGE_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGODB_IMAGE_DATABASE}
+    volumes:
+      - mongodb_images_data:/data/db
+      - mongodb_images_config:/data/configdb
+    networks:
+      - vrg-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # Segurança: não roda como root
+    user: mongodb
+    command: mongod --auth
+
 volumes:
   mongodb_data:
     driver: local
@@ -76,6 +113,12 @@ volumes:
   mongodb_config:
     driver: local
     name: vrg-transport-mongodb-config
+  mongodb_images_data:
+    driver: local
+    name: vrg-transport-mongodb-images-data
+  mongodb_images_config:
+    driver: local
+    name: vrg-transport-mongodb-images-config
 
 networks:
   vrg-network:
