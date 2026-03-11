@@ -5,6 +5,9 @@ import { UsersModule } from './user/user.module';
 import { ImagesModule } from './images/images.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { StudentModule } from './student/student.module';
+import { EmployeeModule } from './employee/employee.module';
+import { LicenseModule } from './license/license.module';
 
 @Module({
   imports: [
@@ -12,7 +15,7 @@ import { AppService } from './app.service';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    MongooseModule.forRoot(
+    /* MongooseModule.forRoot(
       process.env.MONGODB_URI ||
         `mongodb://${process.env.MONGODB_USER}:${process.env.MONGODB_PASSWORD}@${process.env.MONGODB_HOST || 'localhost'}:${process.env.MONGODB_PORT || '27017'}/${process.env.MONGODB_DATABASE}?authSource=admin`,
     ),
@@ -25,6 +28,11 @@ import { AppService } from './app.service';
     ),
     UsersModule,
     ImagesModule,
+    ), */
+    /* UsersModule, */
+    StudentModule,
+    EmployeeModule,
+    LicenseModule,
   ],
   controllers: [AppController],
   providers: [AppService],
