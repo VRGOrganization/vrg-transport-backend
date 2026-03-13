@@ -1,10 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { CreateLicenseDto } from './dto/create-license.dto';
 import { UpdateLicenseDto } from './dto/update-license.dto';
+import { StudentService } from 'src/student/student.service';
+
 
 
 @Injectable()
 export class LicenseService {
+  constructor(
+  ){
+  }
+
   async create(createLicenseDto: CreateLicenseDto) {
     const response = await fetch(`${process.env.BASE_URL_API_LICENSE}/api/v1/license/create`, {
       method: 'POST',
@@ -13,6 +19,16 @@ export class LicenseService {
       },
       body: JSON.stringify(createLicenseDto)
     });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create license: ${response.statusText}`);
+    }
+
+    try{
+      
+    }catch(error){
+    }
+
   }
 
   findAll() {
