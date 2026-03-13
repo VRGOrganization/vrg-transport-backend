@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from './user/user.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { StudentsModule } from './studant/student.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AppService } from './app.service';
         `mongodb://${process.env.MONGODB_USER}:${process.env.MONGODB_PASSWORD}@${process.env.MONGODB_HOST || 'localhost'}:${process.env.MONGODB_PORT || '27017'}/${process.env.MONGODB_DATABASE}?authSource=admin`,
     ),
     UsersModule,
+    StudentsModule
   ],
   controllers: [AppController],
   providers: [AppService],
