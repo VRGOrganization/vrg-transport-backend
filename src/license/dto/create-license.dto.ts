@@ -1,46 +1,44 @@
-import { Student } from 'src/student/entities/student.entity';
-import { IsNotEmpty, IsString, IsPhoneNumber, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString} from 'class-validator';
 
 export class CreateLicenseDto {
-    @IsNotEmpty()
-    @IsUUID()
-    student_id: string;
 
-    @IsNotEmpty()
-    @IsString()
-    name: string;
+  @IsNotEmpty()
+  @IsString()
+  id: string;
 
-    @IsNotEmpty()
-    @IsString()
-    degree: string;
+  @IsNotEmpty()
+  @IsString()
+  name: string;
 
-    @IsNotEmpty()
-    @IsString()
-    institution: string;
+  @IsNotEmpty()
+  @IsString()
+  degree: string;
 
-    @IsNotEmpty()
-    @IsString()
-    shift: string;
+  @IsNotEmpty()
+  @IsString()
+  institution: string;
 
-    @IsNotEmpty()
-    @IsString()
-    telephone: string;
+  @IsNotEmpty()
+  @IsString()
+  shift: string;
 
-    @IsNotEmpty()
-    @IsString()
-    blood_type: string;
+  @IsNotEmpty()
+  @IsString()
+  telephone: string;
 
-    @IsNotEmpty()
-    @IsString()
-    bus_number: string;
+  @IsNotEmpty()
+  @IsString()
+  blood_type: string;
 
-    @IsNotEmpty()
-    @IsString()
-    photo: string;
+  @IsNotEmpty()
+  @IsString()
+  bus: string;
 
-    @IsNotEmpty()
-    @IsUUID()
-    employee_id: string;
+  @IsNotEmpty()
+  @IsString()
+  photo: string;
 
-    
+  /* @IsNotEmpty()
+  @IsString()
+  employeeId: string; */
 }

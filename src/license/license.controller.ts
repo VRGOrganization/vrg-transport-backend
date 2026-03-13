@@ -9,10 +9,10 @@ export class LicenseController {
     private readonly licenseService: LicenseService
   ) {}
 
-  @Post()
-  create(@Body() createLicenseDto: CreateLicenseDto) {
+  @Post('/create')
+  async create(@Body() createLicenseDto: CreateLicenseDto) {
     try{
-      const l = this.licenseService.create(createLicenseDto);
+      const l = await this.licenseService.create(createLicenseDto);
       if(!l){
         return {
           statusCode: 400,
@@ -40,26 +40,7 @@ export class LicenseController {
     return this.licenseService.checkHealth();
   }
 
-  @Get()
-  findAll() {
-    return this.licenseService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.licenseService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateLicenseDto: UpdateLicenseDto) {
-    return this.licenseService.update(+id, updateLicenseDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.licenseService.remove(+id);
-  }
-
+  
   
 
 

@@ -1,57 +1,61 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type { ILicenseRepository } from './interfaces/repository.interface';
+import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { CreateLicenseDto } from './dto/create-license.dto';
-import { UpdateLicenseDto } from './dto/update-license.dto';
-import { StudentService } from 'src/student/student.service';
-
+import { License } from './schemas/license.schema';
 
 
 @Injectable()
 export class LicenseService {
   constructor(
-  ){
-  }
+    @Inject(LICENSE_REPOSITORY)
+    private readonly licenseRepository: ILicenseRepository<License>,
+  ) {}
 
   async create(createLicenseDto: CreateLicenseDto) {
-    const response = await fetch(`${process.env.BASE_URL_API_LICENSE}/api/v1/license/create`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(createLicenseDto)
-    });
+    try {
+      const response = await fetch(
+        `${process.env.BASE_URL_API_LICENSE}/api/v1/license/create`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-KEY': '3401ecac7c12ab3ee5bb3d04b4d325c1',
+          },
+          body: JSON.stringify(createLicenseDto),
+        },
+      );
 
-    if (!response.ok) {
-      throw new Error(`Failed to create license: ${response.statusText}`);
-    }
+      if (!response.ok) {
+        throw new Error(`Failed to create license: ${response.statusText}`);
+      }
 
-    try{
+      const data = await response.json();
       
-    }catch(error){
+      const dataLicense = {
+        studentId: "asdasd",
+        employeeId: "asdasdasd",
+        imageLicense: data.image,
+        status: 'active',
+        existing: true,
+        expirationDate: new Date(),
+      }
+
+      const r = await this.licenseRepository.create(dataLicense);
+      if(!r){
+        throw new Error('Failed to save license in database');
+      }
+      return r;
+    } catch (error) {
+      console.error('Error creating license:', error);
+      throw error;
     }
-
-  }
-
-  findAll() {
-    return `This action returns all license`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} license`;
-  }
-
-  update(id: number, updateLicenseDto: UpdateLicenseDto) {
-    return `This action updates a #${id} license`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} license`;
   }
 
   async checkHealth() {
     try {
-      const res = await fetch("http://localhost:8000/health");
+      const res = await fetch(`${process.env.BASE_URL_API_LICENSE}/health`);
       const data = await res.json();
-      console.log("Resposta:", data);
       return data;
     } catch (error) {
       return { status: 'error', message: 'License API is not healthy' };

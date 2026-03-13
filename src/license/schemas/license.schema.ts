@@ -1,31 +1,28 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
 
-@Schema()
+export type LicenseDocument = License & Document;
+
+@Schema({ timestamps: true })
 export class License {
 
-  @Prop()
+  @Prop({ required: true })
   studentId: string;
 
-  @Prop()
+  @Prop({ required: true })
   employeeId: string;
 
-  @Prop()
+  @Prop({ required: true })
   imageLicense: string;
 
-  @Prop()
+  @Prop({ required: true, enum: ['active', 'inactive', 'expired'], default: 'active' })
   status: string;
 
-  @Prop()
+  @Prop({ default: true })
   existing: boolean;
 
-  @Prop()
+  @Prop({ required: true })
   expirationDate: Date;
-
-  @Prop({ default: Date.now })
-  createdAt: Date;
-
-  @Prop({ default: Date.now })
-  updatedAt: Date;
 }
 
 export const LicenseSchema = SchemaFactory.createForClass(License);

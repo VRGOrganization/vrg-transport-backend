@@ -1,9 +1,8 @@
-import { License } from "../schemas/license.schema";
+export const LICENSE_REPOSITORY = 'LICENSE_REPOSITORY';
 
 export interface ILicenseRepository<T> {
-    create(license: License): Promise<License>;
-    findAll(): Promise<License[]>;
-    findOne(id: string): Promise<License | null>;
-    update(id: string, license: License): Promise<License>;
-    remove(id: string): Promise<void>;
+  create(data: Partial<T>): Promise<T>;
+  findAll(): Promise<T[]>;
+  findOne(id: string): Promise<T | null>;
+  remove(id: string): Promise<void>;
 }

@@ -16,7 +16,7 @@ import { LicenseModule } from './license/license.module';
       envFilePath: '.env',
     }),
     MongooseModule.forRoot(
-      process.env.MONGODB_URI || `mongodb+srv://vrgsolutions3_db_user:${process.env.DBPASSWORD}@vrg-transport.w8zzjnd.mongodb.net/transport-api?appName=Vrg-Transport`,
+      process.env.MONGODB_URI || `mongodb+srv://vrgsolutions3_db_user:${process.env.DBPASSWORD}@vrg-transport.w8zzjnd.mongodb.net/Transport-Api?appName=Vrg-Transport`,
         
     ),
     MongooseModule.forRoot(
