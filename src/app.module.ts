@@ -2,9 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from './user/user.module';
+import { ImagesModule } from './image/image.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { StudentsModule } from './studant/student.module';
+import { StudentModule } from './student/student.module';
+import { EmployeeModule } from './employee/employee.module';
+import { LicenseModule } from './license/license.module';
 
 @Module({
   imports: [
@@ -13,11 +16,20 @@ import { StudentsModule } from './studant/student.module';
       envFilePath: '.env',
     }),
     MongooseModule.forRoot(
-      process.env.MONGODB_URI ||
-        `mongodb://${process.env.MONGODB_USER}:${process.env.MONGODB_PASSWORD}@${process.env.MONGODB_HOST || 'localhost'}:${process.env.MONGODB_PORT || '27017'}/${process.env.MONGODB_DATABASE}?authSource=admin`,
+      process.env.MONGODB_URI || `mongodb+srv://vrgsolutions3_db_user:${process.env.DBPASSWORD}@vrg-transport.w8zzjnd.mongodb.net/Transport-Api?appName=Vrg-Transport`,
+        
     ),
+    MongooseModule.forRoot(
+      process.env.MONGODB_URI_IMAGE || `mongodb+srv://vrgsolutions3_db_user:${process.env.DBPASSWORD}@vrg-transport.w8zzjnd.mongodb.net/transport-images?appName=Vrg-Transport`,
+      {
+        connectionName: 'images',
+      },
+    ),
+    ImagesModule,
     UsersModule,
-    StudentsModule
+    StudentModule,
+    EmployeeModule,
+    LicenseModule,
   ],
   controllers: [AppController],
   providers: [AppService],
