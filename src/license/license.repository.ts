@@ -18,14 +18,30 @@ export class LicenseRepository implements ILicenseRepository<License> {
   }
 
   async findAll(): Promise<License[]> {
-    return this.licenseModel.find().exec();
+    return (await this.licenseModel.find()).filter(license => license.existing);
   }
 
   async findOne(id: string): Promise<License | null> {
     return this.licenseModel.findById(id).exec();
   }
 
-  async remove(id: string): Promise<void> {
-    await this.licenseModel.findByIdAndDelete(id).exec();
+  async remove(id: string): Promise<boolean> {
+  const result = await this.licenseModel.findByIdAndUpdate(
+    id,
+    { 
+      status: 'inactive',
+      existing: false,
+    },
+    { new: true }
+  ).exec();
+  return !!result;
+}
+
+  async update(id: string, data: Partial<License>): Promise<License | null> {
+    return this.licenseModel.findByIdAndUpdate(id, data, { new: true }).exec();
+  }
+
+  async findOneByStudentId(studentId: string): Promise<License | null> {
+    return this.licenseModel.findOne({ studentId }).exec();
   }
 }

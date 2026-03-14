@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Image, ImageDocument } from './images.schema';
+import { Image, ImageDocument } from './image.schema';
 import { CreateImageDto } from './create-image.dto';
 import { UpdateImageDto } from './update-image.dto';
 

@@ -7,7 +7,7 @@ import {
   Patch,
   Delete,
 } from '@nestjs/common';
-import { ImagesService } from './images.service';
+import { ImagesService } from './image.service';
 import { CreateImageDto } from './create-image.dto';
 import { UpdateImageDto } from './update-image.dto';
 

@@ -8,6 +8,10 @@ export class CreateLicenseDto {
 
   @IsNotEmpty()
   @IsString()
+  employee_id: string;
+
+  @IsNotEmpty()
+  @IsString()
   name: string;
 
   @IsNotEmpty()
@@ -38,7 +42,5 @@ export class CreateLicenseDto {
   @IsString()
   photo: string;
 
-  /* @IsNotEmpty()
-  @IsString()
-  employeeId: string; */
+  
 }
