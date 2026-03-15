@@ -18,7 +18,7 @@ export class LicenseRepository implements ILicenseRepository<License> {
   }
 
   async findAll(): Promise<License[]> {
-    return (await this.licenseModel.find()).filter(license => license.existing);
+    return await this.licenseModel.find({ existing: true }).exec();
   }
 
   async findOne(id: string): Promise<License | null> {
@@ -26,16 +26,11 @@ export class LicenseRepository implements ILicenseRepository<License> {
   }
 
   async remove(id: string): Promise<boolean> {
-  const result = await this.licenseModel.findByIdAndUpdate(
-    id,
-    { 
-      status: 'inactive',
-      existing: false,
-    },
-    { new: true }
-  ).exec();
-  return !!result;
-}
+    const result = await this.licenseModel
+      .findByIdAndUpdate(id, { status: 'inactive', existing: false }, { new: true })
+      .exec();
+    return !!result;
+  }
 
   async update(id: string, data: Partial<License>): Promise<License | null> {
     return this.licenseModel.findByIdAndUpdate(id, data, { new: true }).exec();
