@@ -3,10 +3,6 @@ import { IsNotEmpty, IsString, IsOptional, IsBoolean } from 'class-validator';
 export class CreateStudentDto {
   @IsNotEmpty()
   @IsString()
-  id: string;
-
-  @IsNotEmpty()
-  @IsString()
   name: string;
 
   @IsNotEmpty()

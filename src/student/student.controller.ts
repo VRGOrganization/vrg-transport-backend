@@ -58,23 +58,6 @@ export class StudentController {
     }
   }
 
-  @Get('student-id/:studentId')
-  async findOneByStudentId(@Param('studentId') studentId: string) {
-    try {
-      const student = await this.studentService.findOneByStudentId(studentId);
-      return {
-        statusCode: 200,
-        message: 'Student retrieved successfully',
-        data: student,
-      };
-    } catch (error) {
-      return {
-        statusCode: error.status || 404,
-        message: error.message,
-      };
-    }
-  }
-
   @Patch(':id')
   async update(@Param('id') id: string, @Body() updateStudentDto: UpdateStudentDto) {
     try {
@@ -92,46 +75,10 @@ export class StudentController {
     }
   }
 
-  @Patch('student-id/:studentId')
-  async updateByStudentId(
-    @Param('studentId') studentId: string,
-    @Body() updateStudentDto: UpdateStudentDto,
-  ) {
-    try {
-      const student = await this.studentService.updateByStudentId(studentId, updateStudentDto);
-      return {
-        statusCode: 200,
-        message: 'Student updated successfully',
-        data: student,
-      };
-    } catch (error) {
-      return {
-        statusCode: error.status || 400,
-        message: error.message,
-      };
-    }
-  }
-
   @Delete(':id')
   async remove(@Param('id') id: string) {
     try {
       const result = await this.studentService.remove(id);
-      return {
-        statusCode: 200,
-        message: result.message,
-      };
-    } catch (error) {
-      return {
-        statusCode: error.status || 404,
-        message: error.message,
-      };
-    }
-  }
-
-  @Delete('student-id/:studentId')
-  async removeByStudentId(@Param('studentId') studentId: string) {
-    try {
-      const result = await this.studentService.removeByStudentId(studentId);
       return {
         statusCode: 200,
         message: result.message,

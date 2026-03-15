@@ -5,9 +5,6 @@ export type StudentDocument = HydratedDocument<Student>;
 
 @Schema({ timestamps: true, collection: 'students' })
 export class Student {
-  @Prop({ required: true, unique: true })
-  id: string;
-
   @Prop({ required: true })
   name: string;
 
@@ -36,5 +33,4 @@ export class Student {
 export const StudentSchema = SchemaFactory.createForClass(Student);
 
 // Índices para melhor performance
-StudentSchema.index({ id: 1 });
 StudentSchema.index({ name: 1 });

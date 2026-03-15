@@ -16,9 +16,6 @@ export class StudentService {
       const student = await this.studentRepository.create(createStudentDto);
       return student;
     } catch (error) {
-      if (error.code === 11000) {
-        throw new Error('Student with this ID already exists');
-      }
       throw error;
     }
   }
@@ -35,14 +32,6 @@ export class StudentService {
     return student;
   }
 
-  async findOneByStudentId(studentId: string): Promise<Student> {
-    const student = await this.studentRepository.findOneByStudentId(studentId);
-    if (!student) {
-      throw new NotFoundException(`Student with student ID ${studentId} not found`);
-    }
-    return student;
-  }
-
   async update(id: string, updateStudentDto: UpdateStudentDto): Promise<Student> {
     const student = await this.studentRepository.update(id, updateStudentDto);
     if (!student) {
@@ -51,26 +40,10 @@ export class StudentService {
     return student;
   }
 
-  async updateByStudentId(studentId: string, updateStudentDto: UpdateStudentDto): Promise<Student> {
-    const student = await this.studentRepository.updateByStudentId(studentId, updateStudentDto);
-    if (!student) {
-      throw new NotFoundException(`Student with student ID ${studentId} not found`);
-    }
-    return student;
-  }
-
   async remove(id: string): Promise<{ message: string }> {
     const result = await this.studentRepository.remove(id);
     if (!result) {
       throw new NotFoundException(`Student with ID ${id} not found`);
-    }
-    return { message: 'Student removed successfully' };
-  }
-
-  async removeByStudentId(studentId: string): Promise<{ message: string }> {
-    const result = await this.studentRepository.removeByStudentId(studentId);
-    if (!result) {
-      throw new NotFoundException(`Student with student ID ${studentId} not found`);
     }
     return { message: 'Student removed successfully' };
   }
