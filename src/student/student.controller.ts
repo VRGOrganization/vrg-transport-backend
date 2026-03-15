@@ -3,36 +3,144 @@ import { StudentService } from './student.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 
-
 @Controller('student')
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
   @Post()
-  create(@Body() createStudentDto: CreateStudentDto) {
-    return this.studentService.create(createStudentDto);
+  async create(@Body() createStudentDto: CreateStudentDto) {
+    try {
+      const student = await this.studentService.create(createStudentDto);
+      return {
+        statusCode: 201,
+        message: 'Student created successfully',
+        data: student,
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || 400,
+        message: error.message,
+      };
+    }
   }
 
   @Get()
-  findAll() {
-    return this.studentService.findAll();
+  async findAll() {
+    try {
+      const students = await this.studentService.findAll();
+      return {
+        statusCode: 200,
+        message: 'Students retrieved successfully',
+        data: students,
+      };
+    } catch (error) {
+      return {
+        statusCode: 500,
+        message: error.message,
+      };
+    }
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.studentService.findOne(+id);
+  async findOne(@Param('id') id: string) {
+    try {
+      const student = await this.studentService.findOne(id);
+      return {
+        statusCode: 200,
+        message: 'Student retrieved successfully',
+        data: student,
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || 404,
+        message: error.message,
+      };
+    }
+  }
+
+  @Get('student-id/:studentId')
+  async findOneByStudentId(@Param('studentId') studentId: string) {
+    try {
+      const student = await this.studentService.findOneByStudentId(studentId);
+      return {
+        statusCode: 200,
+        message: 'Student retrieved successfully',
+        data: student,
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || 404,
+        message: error.message,
+      };
+    }
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateStudentDto: UpdateStudentDto) {
-    return this.studentService.update(+id, updateStudentDto);
+  async update(@Param('id') id: string, @Body() updateStudentDto: UpdateStudentDto) {
+    try {
+      const student = await this.studentService.update(id, updateStudentDto);
+      return {
+        statusCode: 200,
+        message: 'Student updated successfully',
+        data: student,
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || 400,
+        message: error.message,
+      };
+    }
+  }
+
+  @Patch('student-id/:studentId')
+  async updateByStudentId(
+    @Param('studentId') studentId: string,
+    @Body() updateStudentDto: UpdateStudentDto,
+  ) {
+    try {
+      const student = await this.studentService.updateByStudentId(studentId, updateStudentDto);
+      return {
+        statusCode: 200,
+        message: 'Student updated successfully',
+        data: student,
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || 400,
+        message: error.message,
+      };
+    }
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.studentService.remove(+id);
+  async remove(@Param('id') id: string) {
+    try {
+      const result = await this.studentService.remove(id);
+      return {
+        statusCode: 200,
+        message: result.message,
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || 404,
+        message: error.message,
+      };
+    }
   }
 
-  
-
+  @Delete('student-id/:studentId')
+  async removeByStudentId(@Param('studentId') studentId: string) {
+    try {
+      const result = await this.studentService.removeByStudentId(studentId);
+      return {
+        statusCode: 200,
+        message: result.message,
+      };
+    } catch (error) {
+      return {
+        statusCode: error.status || 404,
+        message: error.message,
+      };
+    }
+  }
 }
