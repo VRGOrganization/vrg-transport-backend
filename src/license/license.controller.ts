@@ -6,6 +6,8 @@ import {
   Patch,
   Param,
   Delete,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { LicenseService } from './license.service';
 import { CreateLicenseDto } from './dto/create-license.dto';
@@ -20,10 +22,13 @@ export class LicenseController {
     try {
       const l = await this.licenseService.create(createLicenseDto);
       if (!l) {
-        return {
-          statusCode: 400,
-          message: 'Failed to create license',
-        };
+        throw new HttpException(
+          {
+            statusCode: 400,
+            message: 'Failed to create license',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
       return {
         statusCode: 201,
@@ -31,11 +36,16 @@ export class LicenseController {
         data: l,
       };
     } catch (error) {
-      return {
-        statusCode: 500,
-        message: 'Internal server error',
-        error: error.message,
-      };
+      const errorMessage =
+        error instanceof Error ? error.message : 'Internal server error';
+      throw new HttpException(
+        {
+          statusCode: 500,
+          message: 'Internal server error',
+          error: errorMessage,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -54,11 +64,16 @@ export class LicenseController {
         data: licenses,
       };
     } catch (error) {
-      return {
-        statusCode: 500,
-        message: 'Internal server error',
-        error: error.message,
-      };
+      const errorMessage =
+        error instanceof Error ? error.message : 'Internal server error';
+      throw new HttpException(
+        {
+          statusCode: 500,
+          message: 'Internal server error',
+          error: errorMessage,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -72,10 +87,13 @@ export class LicenseController {
         data: l,
       };
     } catch (error) {
-      return {
-        statusCode: 404,
-        message: 'License not found for student ID: ' + id,
-      };
+      throw new HttpException(
+        {
+          statusCode: 404,
+          message: 'License not found for student ID: ' + id,
+        },
+        HttpStatus.NOT_FOUND,
+      );
     }
   }
 
@@ -89,23 +107,33 @@ export class LicenseController {
           message: 'License removed successfully',
         };
       } else {
-        return {
-          statusCode: 404,
-          message: 'License not found for ID: ' + id,
-        };
+        throw new HttpException(
+          {
+            statusCode: 404,
+            message: 'License not found for ID: ' + id,
+          },
+          HttpStatus.NOT_FOUND,
+        );
       }
     } catch (error) {
-      return {
-        statusCode: 500,
-        message: 'Internal server error',
-        error: error.message,
-      };
+      const errorMessage =
+        error instanceof Error ? error.message : 'Internal server error';
+      throw new HttpException(
+        {
+          statusCode: 500,
+          message: 'Internal server error',
+          error: errorMessage,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
-
   @Patch('/update/:id')
-  async updateLicense(@Param('id') id: string, @Body() CreateLicenseDto: CreateLicenseDto) {
+  async updateLicense(
+    @Param('id') id: string,
+    @Body() CreateLicenseDto: CreateLicenseDto,
+  ) {
     try {
       const result = await this.licenseService.update(id, CreateLicenseDto);
       if (result) {
@@ -115,17 +143,25 @@ export class LicenseController {
           data: result,
         };
       } else {
-        return {
-          statusCode: 404,
-          message: 'License not found for ID: ' + id,
-        };
+        throw new HttpException(
+          {
+            statusCode: 404,
+            message: 'License not found for ID: ' + id,
+          },
+          HttpStatus.NOT_FOUND,
+        );
       }
     } catch (error) {
-      return {
-        statusCode: 500,
-        message: 'Internal server error',
-        error: error.message,
-      };
+      const errorMessage =
+        error instanceof Error ? error.message : 'Internal server error';
+      throw new HttpException(
+        {
+          statusCode: 500,
+          message: 'Internal server error',
+          error: errorMessage,
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }
