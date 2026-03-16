@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { LicenseService } from './license.service';
 import { CreateLicenseDto } from './dto/create-license.dto';
-import { UpdateLicenseDto } from './dto/update-license.dto';
 
 @Controller('license')
 export class LicenseController {
@@ -17,26 +16,8 @@ export class LicenseController {
 
   @Post('/create')
   async create(@Body() createLicenseDto: CreateLicenseDto) {
-    try {
-      const l = await this.licenseService.create(createLicenseDto);
-      if (!l) {
-        return {
-          statusCode: 400,
-          message: 'Failed to create license',
-        };
-      }
-      return {
-        statusCode: 201,
-        message: 'License created successfully',
-        data: l,
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: 'Internal server error',
-        error: error.message,
-      };
-    }
+    return await this.licenseService.create(createLicenseDto);
+    
   }
 
   @Get('/health')
@@ -46,86 +27,23 @@ export class LicenseController {
 
   @Get('/all')
   async getAllLicenses() {
-    try {
-      const licenses = await this.licenseService.getAll();
-      return {
-        statusCode: 200,
-        message: 'Licenses retrieved successfully',
-        data: licenses,
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: 'Internal server error',
-        error: error.message,
-      };
-    }
+    return this.licenseService.getAll();
   }
 
   @Get('/search/:id')
   async findLicenseByStudent(@Param('id') id: string) {
-    try {
-      const l = await this.licenseService.getLicenseByStudentId(id);
-      return {
-        statusCode: 200,
-        message: 'License found successfully',
-        data: l,
-      };
-    } catch (error) {
-      return {
-        statusCode: 404,
-        message: 'License not found for student ID: ' + id,
-      };
-    }
+    return this.licenseService.getLicenseByStudentId(id);
+
   }
 
   @Delete('/remove/:id')
   async removeLicense(@Param('id') id: string) {
-    try {
-      const result = await this.licenseService.remove(id);
-      if (result) {
-        return {
-          statusCode: 200,
-          message: 'License removed successfully',
-        };
-      } else {
-        return {
-          statusCode: 404,
-          message: 'License not found for ID: ' + id,
-        };
-      }
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: 'Internal server error',
-        error: error.message,
-      };
-    }
+    return this.licenseService.remove(id);
+    
   }
-
 
   @Patch('/update/:id')
   async updateLicense(@Param('id') id: string, @Body() CreateLicenseDto: CreateLicenseDto) {
-    try {
-      const result = await this.licenseService.update(id, CreateLicenseDto);
-      if (result) {
-        return {
-          statusCode: 200,
-          message: 'License updated successfully',
-          data: result,
-        };
-      } else {
-        return {
-          statusCode: 404,
-          message: 'License not found for ID: ' + id,
-        };
-      }
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: 'Internal server error',
-        error: error.message,
-      };
-    }
+    return this.licenseService.update(id, CreateLicenseDto);
   }
 }
