@@ -93,6 +93,10 @@ npm run docker:clean   # Remover containers e volumes
 - `GET /users` - Listar usuários
 - `GET /users/:id` - Buscar usuário por ID
 
+## Tracing e Correlation ID
+
+Todas as requisições HTTP recebem um `x-correlation-id`. Se o header vier no request, ele é preservado; caso contrário, o backend gera um novo e devolve no response. Esse ID é usado para rastrear logs de erros por requisição no MongoDB.
+
 ## Tecnologias
 
 - NestJS
