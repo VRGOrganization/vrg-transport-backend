@@ -1,24 +1,21 @@
 import { UserRole } from '../../common/interfaces/user-roles.enum';
 
 export interface JwtPayload {
-  email: string;
+  sub: string;
   role: UserRole;
+  //identicador legivel por role - usado no validate() da strategy
+  identifier: string;
   
+}
+
+// auth.interface.ts
+export class AuthenticatedUser {  // class em vez de interface
+  id: string;
+  role: UserRole;
+  identifier: string;
 }
 
 export interface LoginResponse {
   access_token: string;
-  user: {
- 
-    email: string;
-    name: string;
-    role: UserRole;
-  };
-}
-
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
+  user: AuthenticatedUser;
 }

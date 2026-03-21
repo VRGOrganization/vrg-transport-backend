@@ -2,48 +2,67 @@ import {
   Controller,
   Get,
   Post,
-  Body,
   Patch,
-  Param,
   Delete,
+  Body,
+  Param,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { LicenseService } from './license.service';
 import { CreateLicenseDto } from './dto/create-license.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { UserRole } from '../common/interfaces/user-roles.enum';
 
 @Controller('license')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
 export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}
 
   @Post('/create')
-  async create(@Body() createLicenseDto: CreateLicenseDto) {
-    return await this.licenseService.create(createLicenseDto);
-    
+  @HttpCode(HttpStatus.CREATED)
+  async create(@Body() dto: CreateLicenseDto, @CurrentUser() user: any) {
+    return this.licenseService.create(dto, user.id);
   }
 
   @Get('/health')
+  @Roles(UserRole.ADMIN)
   checkHealth() {
     return this.licenseService.checkHealth();
   }
 
   @Get('/all')
-  async getAllLicenses() {
+  async findAll() {
     return this.licenseService.getAll();
   }
 
-  @Get('/search/:id')
-  async findLicenseByStudent(@Param('id') id: string) {
-    return this.licenseService.getLicenseByStudentId(id);
-
+  @Get('/searchByStudent/:studentId')
+  async findByStudent(@Param('studentId') studentId: string) {
+    return this.licenseService.getLicenseByStudentId(studentId);
   }
 
-  @Delete('/remove/:id')
-  async removeLicense(@Param('id') id: string) {
-    return this.licenseService.remove(id);
-    
+  @Get('/:id')
+  async findOne(@Param('id') id: string) {
+    return this.licenseService.getLicenseById(id);
   }
 
   @Patch('/update/:id')
-  async updateLicense(@Param('id') id: string, @Body() CreateLicenseDto: CreateLicenseDto) {
-    return this.licenseService.update(id, CreateLicenseDto);
+  async update(
+    @Param('id') id: string,
+    @Body() dto: CreateLicenseDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.licenseService.update(id, dto, user.id);
+  }
+
+  @Delete('/delete/:id')
+  @HttpCode(HttpStatus.OK)
+  async remove(@Param('id') id: string) {
+    return this.licenseService.remove(id);
   }
 }

@@ -1,76 +1,99 @@
-import { 
-  Controller, 
-  Post, 
-  Body, 
-  HttpCode, 
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
   HttpStatus,
-  UseGuards,
   Get,
-  Request
+  UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
+import {
+  StudentLoginDto,
+  EmployeeLoginDto,
+  AdminLoginDto,
+  RegisterStudentDto,
+  VerifyEmailDto,
+  ResendCodeDto,
+} from './dto/auth.dto';
+import { Public } from './decorators/public.decorator';
 import { Roles } from './decorators/roles.decorator';
-import { UserRole } from '../common/interfaces/user-roles.enum';
+import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
-import { Public } from './decorators/public.decorator';
-import { CurrentUser } from './decorators/current-user.decorator';
+import { UserRole } from '../common/interfaces/user-roles.enum';
+import type { AuthenticatedUser } from './interfaces/auth.interface';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // ─── Student ──────────────────────────────────────────────────────────────
+
   @Public()
-  @Post('login')
+  @Post('student/register')
+  @HttpCode(HttpStatus.CREATED)
+  registerStudent(@Body() dto: RegisterStudentDto) {
+    return this.authService.registerStudent(dto);
+  }
+
+  @Public()
+  @Post('student/verify')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  verifyStudentEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyStudentEmail(dto);
   }
 
   @Public()
-  @Post('register')
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  @Post('student/resend-code')
+  @HttpCode(HttpStatus.OK)
+  resendVerificationCode(@Body() dto: ResendCodeDto) {
+    return this.authService.resendVerificationCode(dto);
   }
 
-  @Get('profile')
+  @Public()
+  @Post('student/login')
+  @HttpCode(HttpStatus.OK)
+  loginStudent(@Body() dto: StudentLoginDto) {
+    return this.authService.loginStudent(dto);
+  }
+
+  // ─── Employee ─────────────────────────────────────────────────────────────
+
+  @Public()
+  @Post('employee/login')
+  @HttpCode(HttpStatus.OK)
+  loginEmployee(@Body() dto: EmployeeLoginDto) {
+    return this.authService.loginEmployee(dto);
+  }
+
+  // ─── Admin ────────────────────────────────────────────────────────────────
+
+  @Public()
+  @Post('admin/login')
+  @HttpCode(HttpStatus.OK)
+  loginAdmin(@Body() dto: AdminLoginDto) {
+    return this.authService.loginAdmin(dto);
+  }
+
+  // ─── Shared ───────────────────────────────────────────────────────────────
+
+  /**
+   * Retorna o perfil do usuário autenticado.
+   * Disponível para todos os roles — cada um vê seu próprio dado.
+   */
+  @Get('me')
   @UseGuards(JwtAuthGuard)
-  getProfile(@CurrentUser() user: any) {
-    return {
-      message: 'Perfil recuperado com sucesso',
-      user,
-    };
+  getMe(@CurrentUser() user: AuthenticatedUser) {
+    return user;
   }
 
-  @Get('admin-only')
+  // ─── Exemplo de rota restrita ─────────────────────────────────────────────
+
+  @Get('admin/dashboard')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  getAdminData() {
-    return {
-      message: 'Esta área é exclusiva para administradores',
-      data: { secret: 'Informação ultrassecreta de administradores' },
-    };
-  }
-
-  @Get('employee-only')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  getEmployeeData() {
-    return {
-      message: 'Esta área é exclusiva para funcionários',
-      data: { info: 'Informações de funcionários' },
-    };
-  }
-
-  @Get('student-only')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.STUDENT)
-  getStudentData() {
-    return {
-      message: 'Esta área é exclusiva para estudantes',
-      data: { info: 'Informações de estudantes' },
-    };
+  adminDashboard(@CurrentUser() user: AuthenticatedUser) {
+    return { message: 'Área administrativa', admin: user.identifier };
   }
 }

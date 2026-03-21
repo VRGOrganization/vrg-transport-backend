@@ -4,40 +4,32 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { UsersModule } from '../user/user.module';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { StudentModule } from '../student/student.module';
+import { EmployeeModule } from '../employee/employee.module';
+import { AdminModule } from '../admin/admin.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
-    UsersModule,
+    StudentModule,
+    EmployeeModule,
+    AdminModule,
+    MailModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => {
-        const expiresIn = configService.get<string>('JWT_EXPIRES_IN') || '7d';
-        
-        return {
-          secret: configService.get<string>('JWT_SECRET'),
-          signOptions: {
-            expiresIn: expiresIn as any, 
-          },
-        };
-      },
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.getOrThrow<string>('JWT_SECRET'),
+        signOptions: {
+          expiresIn: parseInt(configService.get<string>('JWT_EXPIRES_IN', '28800'), 10) || 28800,
+        },
+      }),
     }),
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService, 
-    JwtStrategy,
-    {
-      provide: 'APP_GUARD',
-      useClass: JwtAuthGuard,
-    },
-    RolesGuard,
-  ],
-  exports: [AuthService],
+  providers: [AuthService, JwtStrategy],
+  exports: [JwtModule],
 })
 export class AuthModule {}

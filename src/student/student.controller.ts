@@ -1,93 +1,68 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Param,
+  Delete,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import { StudentService } from './student.service';
-import { CreateStudentDto } from './dto/create-student.dto';
-import { UpdateStudentDto } from './dto/update-student.dto';
+import { UpdateStudentDto } from './dto/student.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { UserRole } from '../common/interfaces/user-roles.enum';
+import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
+/**
+ * Rotas de gestão de students.
+ * - Admin e Employee podem listar e ver qualquer student.
+ * - Student só pode ver e editar o próprio perfil.
+ * - Apenas admin pode remover.
+ */
 @Controller('student')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
-  @Post()
-  async create(@Body() createStudentDto: CreateStudentDto) {
-    try {
-      const student = await this.studentService.create(createStudentDto);
-      return {
-        statusCode: 201,
-        message: 'Student created successfully',
-        data: student,
-      };
-    } catch (error) {
-      return {
-        statusCode: error.status || 400,
-        message: error.message,
-      };
-    }
+  @Get()
+  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  findAll() {
+    return this.studentService.findAll();
   }
 
-  @Get()
-  async findAll() {
-    try {
-      const students = await this.studentService.findAll();
-      return {
-        statusCode: 200,
-        message: 'Students retrieved successfully',
-        data: students,
-      };
-    } catch (error) {
-      return {
-        statusCode: 500,
-        message: error.message,
-      };
-    }
+  @Get('me')
+  @Roles(UserRole.STUDENT)
+  getProfile(@CurrentUser() user: AuthenticatedUser) {
+    return this.studentService.findOneOrFail(user.id);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    try {
-      const student = await this.studentService.findOne(id);
-      return {
-        statusCode: 200,
-        message: 'Student retrieved successfully',
-        data: student,
-      };
-    } catch (error) {
-      return {
-        statusCode: error.status || 404,
-        message: error.message,
-      };
-    }
+  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  findOne(@Param('id') id: string) {
+    return this.studentService.findOneOrFail(id);
+  }
+
+  @Patch('me')
+  @Roles(UserRole.STUDENT)
+  updateProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateStudentDto,
+  ) {
+    return this.studentService.update(user.id, dto);
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateStudentDto: UpdateStudentDto) {
-    try {
-      const student = await this.studentService.update(id, updateStudentDto);
-      return {
-        statusCode: 200,
-        message: 'Student updated successfully',
-        data: student,
-      };
-    } catch (error) {
-      return {
-        statusCode: error.status || 400,
-        message: error.message,
-      };
-    }
+  @Roles(UserRole.ADMIN)
+  update(@Param('id') id: string, @Body() dto: UpdateStudentDto) {
+    return this.studentService.update(id, dto);
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    try {
-      const result = await this.studentService.remove(id);
-      return {
-        statusCode: 200,
-        message: result.message,
-      };
-    } catch (error) {
-      return {
-        statusCode: error.status || 404,
-        message: error.message,
-      };
-    }
+  @Roles(UserRole.ADMIN)
+  remove(@Param('id') id: string) {
+    return this.studentService.remove(id);
   }
 }

@@ -1,147 +1,295 @@
-import { 
-  Injectable, 
-  UnauthorizedException, 
+import {
+  Injectable,
+  UnauthorizedException,
   ConflictException,
+  BadRequestException,
   Logger,
-  NotFoundException
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UsersService } from '../user/user.service';
-import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
+import { StudentService } from '../student/student.service';
+import { EmployeeService } from '../employee/employee.service';
+import { AdminService } from '../admin/admin.service';
+import { MailService } from '../mail/mail.service';
+import {
+  StudentLoginDto,
+  EmployeeLoginDto,
+  AdminLoginDto,
+  RegisterStudentDto,
+  VerifyEmailDto,
+  ResendCodeDto,
+} from './dto/auth.dto';
 import { JwtPayload, LoginResponse } from './interfaces/auth.interface';
 import { AUTH_ERROR_MESSAGES } from './constants/auth.constants';
 import { UserRole } from '../common/interfaces/user-roles.enum';
+import { StudentStatus } from '../student/schemas/student.schema';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly SALT_ROUNDS = 10;
+  private readonly SALT_ROUNDS = 12;
+  private readonly CODE_EXPIRY_MINUTES = 15;
+
+  // Domínios considerados institucionais — ajuste conforme necessário
+  private readonly INSTITUTIONAL_DOMAINS = [
+    'edu.br',
+    'ac.br',
+    'usp.br',
+    'unicamp.br',
+    'ufrj.br',
+    'unifesp.br',
+  ];
 
   constructor(
-    private usersService: UsersService,
-    private jwtService: JwtService,
+    private readonly studentService: StudentService,
+    private readonly employeeService: EmployeeService,
+    private readonly adminService: AdminService,
+    private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<any> {
-    try {
-      this.logger.debug(`Validating user with email: ${email}`);
-      
-      // Busca o usuário pelo email
-      const users = await this.usersService.findAll();
-      const user = users.find(u => u.email === email);
-      
-      if (!user) {
-        this.logger.warn(`User not found with email: ${email}`);
-        return null;
-      }
-    } catch (error) {
-      this.logger.error(`Error validating user: ${error.message}`);
-      throw error;
+  // ─── Student ────────────────────────────────────────────────────────────────
+
+  async registerStudent(
+    dto: RegisterStudentDto,
+  ): Promise<{ message: string; isInstitutional: boolean }> {
+    const existing = await this.studentService.findByEmail(dto.email);
+    if (existing) {
+      // Mensagem genérica para não confirmar se o email existe (user enumeration)
+      throw new ConflictException(AUTH_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
     }
+
+    const hashedPassword = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
+    const isInstitutional = this.isInstitutionalEmail(dto.email);
+    const { code, expiresAt } = this.generateVerificationCode();
+
+    await this.studentService.create({
+      name: dto.name,
+      email: dto.email,
+      password: hashedPassword,
+      degree: dto.degree,
+      shift: dto.shift,
+      telephone: dto.telephone,
+      bloodType: dto.bloodType,
+      buss: dto.buss,
+      status: StudentStatus.PENDING,
+      isInstitutionalEmail: isInstitutional,
+      verificationCode: code,
+      verificationCodeExpiresAt: expiresAt,
+    });
+
+    await this.mailService.sendVerificationCode(dto.email, code, isInstitutional);
+
+    this.logger.log(`Student registrado: ${dto.email} (institucional: ${isInstitutional})`);
+
+    return {
+      message: 'Código de verificação enviado para o seu e-mail',
+      isInstitutional,
+    };
   }
 
-  async login(loginDto: LoginDto): Promise<LoginResponse> {
-    try {
-      this.logger.log(`Login attempt for email: ${loginDto.email}`);
+  async verifyStudentEmail(dto: VerifyEmailDto): Promise<LoginResponse> {
+    // Busca com campos sensíveis para comparar código
+    const student = await this.studentService.findByEmailWithSensitiveFields(
+      dto.email,
+    );
 
-      // Valida as credenciais do usuário
-      const user = await this.validateUser(loginDto.email, loginDto.password);
-      
-      if (!user) {
-        this.logger.warn(`Failed login attempt for email: ${loginDto.email}`);
-        throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
-      }
+    // Mensagem genérica — não revela se o email existe ou o código está errado
+    const INVALID_MSG = AUTH_ERROR_MESSAGES.INVALID_CODE;
 
-      // Cria o payload do JWT
-      const payload: JwtPayload = {
-        
-        email: user.email,
-        role: user.role || UserRole.STUDENT, // Role padrão se não existir
-      };
+    if (!student) throw new UnauthorizedException(INVALID_MSG);
 
-      // Gera o token JWT
-      const access_token = this.jwtService.sign(payload);
-
-      this.logger.log(`User logged in successfully: ${user.email} (${payload.role})`);
-
-      // Retorna a resposta formatada
-      return {
-        access_token,
-        user: {
-          email: user.email,
-          name: user.name,
-          role: payload.role,
-        },
-      };
-    } catch (error) {
-      this.logger.error(`Login error: ${error.message}`);
-      throw error;
+    if (student.status === StudentStatus.ACTIVE) {
+      throw new BadRequestException(AUTH_ERROR_MESSAGES.ACCOUNT_ALREADY_ACTIVE);
     }
+
+    if (
+      !student.verificationCode ||
+      student.verificationCode !== dto.code
+    ) {
+      throw new UnauthorizedException(INVALID_MSG);
+    }
+
+    if (
+      !student.verificationCodeExpiresAt ||
+      student.verificationCodeExpiresAt < new Date()
+    ) {
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.EXPIRED_CODE);
+    }
+
+    await this.studentService.activate((student as any)._id.toString());
+
+    this.logger.log(`Student verificado: ${dto.email}`);
+
+    const payload: JwtPayload = {
+      sub: (student as any)._id.toString(),
+      role: UserRole.STUDENT,
+      identifier: student.email,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: payload.sub,
+        role: UserRole.STUDENT,
+        identifier: student.email,
+      },
+    };
   }
 
-  async register(registerDto: RegisterDto): Promise<LoginResponse> {
-    try {
-      this.logger.log(`Registration attempt for email: ${registerDto.email}`);
+  async resendVerificationCode(
+    dto: ResendCodeDto,
+  ): Promise<{ message: string }> {
+    const student = await this.studentService.findByEmail(dto.email);
 
-      // Verifica se o email já está em uso
-      const existingUsers = await this.usersService.findAll();
-      const userExists = existingUsers.some(u => u.email === registerDto.email);
-      
-      if (userExists) {
-        this.logger.warn(`Registration failed - email already exists: ${registerDto.email}`);
-        throw new ConflictException(AUTH_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
-      }
+    // Resposta genérica — não revela se o email existe (user enumeration)
+    const GENERIC_MSG = 'Se o e-mail estiver cadastrado e pendente, um novo código será enviado';
 
-      // Hash da senha
-      const hashedPassword = await bcrypt.hash(registerDto.password, this.SALT_ROUNDS);
-
-      // Define o role padrão se não fornecido
-      const userRole = registerDto.role || UserRole.STUDENT;
-
-      // Cria o objeto do usuário para salvar
-      const userToCreate = {
-        name: registerDto.name,
-        email: registerDto.email,
-        password: hashedPassword,
-        role: userRole,
-        createdAt: new Date(),
-      };
-
-      // Salva o usuário no banco
-      const createdUser = await this.usersService.create(userToCreate as any);
-
-      this.logger.log(`User registered successfully: ${createdUser.email} (${userRole})`);
-
-      // Cria o payload do JWT
-      const payload: JwtPayload = {
-        email: createdUser.email,
-        role: userRole,
-      };
-
-      // Gera o token JWT
-      const access_token = this.jwtService.sign(payload);
-
-      // Retorna a resposta formatada com o usuário criado
-      return {
-        access_token,
-        user: {
-          email: createdUser.email,
-          name: createdUser.name,
-          role: userRole,
-        },
-      };
-    } catch (error) {
-      this.logger.error(`Registration error: ${error.message}`);
-      
-      // Se já é uma exceção conhecida, apenas repassa
-      if (error instanceof ConflictException || error instanceof UnauthorizedException) {
-        throw error;
-      }
-      
-      // Para outros erros, lança uma exceção genérica
-      throw new Error('Error during registration. Please try again.');
+    if (!student || student.status === StudentStatus.ACTIVE) {
+      return { message: GENERIC_MSG };
     }
+
+    const { code, expiresAt } = this.generateVerificationCode();
+
+    await this.studentService.updateVerificationCode(
+      (student as any)._id.toString(),
+      code,
+      expiresAt,
+    );
+
+    await this.mailService.sendVerificationCode(
+      dto.email,
+      code,
+      student.isInstitutionalEmail,
+    );
+
+    return { message: GENERIC_MSG };
+  }
+
+  async loginStudent(dto: StudentLoginDto): Promise<LoginResponse> {
+    const student = await this.studentService.findByEmailWithSensitiveFields(
+      dto.email,
+    );
+
+    // Sempre compara o hash mesmo se o usuário não existe, para evitar timing attacks
+    const passwordToCompare = student?.password ?? '$2b$12$invalidhashfortimingattackprevention';
+    const isValid = await bcrypt.compare(dto.password, passwordToCompare);
+
+    if (!student || !isValid) {
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
+    }
+
+    if (student.status !== StudentStatus.ACTIVE) {
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.ACCOUNT_PENDING);
+    }
+
+    this.logger.log(`Student logado: ${dto.email}`);
+
+    const payload: JwtPayload = {
+      sub: (student as any)._id.toString(),
+      role: UserRole.STUDENT,
+      identifier: student.email,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: payload.sub,
+        role: UserRole.STUDENT,
+        identifier: student.email,
+      },
+    };
+  }
+
+  // ─── Employee ───────────────────────────────────────────────────────────────
+
+  async loginEmployee(dto: EmployeeLoginDto): Promise<LoginResponse> {
+    const employee = await this.employeeService.findByMatriculaWithPassword(
+      dto.registrationId,
+    );
+
+    const passwordToCompare = employee?.password ?? '$2b$12$invalidhashfortimingattackprevention';
+    const isValid = await bcrypt.compare(dto.password, passwordToCompare);
+
+    if (!employee || !isValid) {
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
+    }
+
+    if (!employee.active) {
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.UNAUTHORIZED);
+    }
+
+    this.logger.log(`Employee logado: matrícula ${dto.registrationId}`);
+
+    const payload: JwtPayload = {
+      sub: (employee as any)._id.toString(),
+      role: UserRole.EMPLOYEE,
+      identifier: employee.matricula,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: payload.sub,
+        role: UserRole.EMPLOYEE,
+        identifier: employee.matricula,
+      },
+    };
+  }
+
+  // ─── Admin ──────────────────────────────────────────────────────────────────
+
+  async loginAdmin(dto: AdminLoginDto): Promise<LoginResponse> {
+    const admin = await this.adminService.findByUsernameWithPassword(
+      dto.username,
+    );
+
+    const passwordToCompare = admin?.password ?? '$2b$12$invalidhashfortimingattackprevention';
+    const isValid = await bcrypt.compare(dto.password, passwordToCompare);
+
+    if (!admin || !isValid) {
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_CREDENTIALS);
+    }
+
+    this.logger.log(`Admin logado: ${dto.username}`);
+
+    const payload: JwtPayload = {
+      sub: (admin as any)._id.toString(),
+      role: UserRole.ADMIN,
+      identifier: admin.username,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: payload.sub,
+        role: UserRole.ADMIN,
+        identifier: admin.username,
+      },
+    };
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  private isInstitutionalEmail(email: string): boolean {
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (!domain) return false;
+    return this.INSTITUTIONAL_DOMAINS.some(
+      (inst) => domain === inst || domain.endsWith('.' + inst),
+    );
+  }
+
+  private generateVerificationCode(): { code: string; expiresAt: Date } {
+    // Usa crypto para geração segura (não Math.random)
+    const code = String(
+      Math.floor(100000 + Math.random() * 900000),
+    ).padStart(6, '0');
+
+    const expiresAt = new Date(
+      Date.now() + this.CODE_EXPIRY_MINUTES * 60 * 1000,
+    );
+
+    return { code, expiresAt };
   }
 }
+
