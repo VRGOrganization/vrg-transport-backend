@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'; // para documentação futura
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -37,6 +38,17 @@ async function bootstrap() {
 
   //Filters
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  //Swagger setup
+  const config = new DocumentBuilder()
+    .setTitle('VRG Transport API')
+    .setDescription('Documentação da API de gestão de transporte e carteirinhas')
+    .setVersion('1.0')
+    .addBearerAuth() // habilita o campo de token JWT no Swagger UI
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document); // UI disponível em /api/docs
 
   
   //Start server
