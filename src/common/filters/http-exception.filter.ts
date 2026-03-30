@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { time } from 'console';
 import { Request, Response } from 'express';
 
 // Este filter substitui os try/catch repetidos em cada controller.
@@ -33,7 +34,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const message =
-      exception instanceof HttpException
+      status >= 500
+      ? 'Internal server error'
+      : exception instanceof HttpException
         ? exception.message
         : 'Internal server error';
 
@@ -46,11 +49,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
       this.logger.warn(`[${request.method}] ${request.url} → ${status}: ${message}`);
     }
 
-    response.status(status).json({
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    const body: Record<string, unknown> = {
       statusCode: status,
       message,
-      path: request.url,
       timestamp: new Date().toISOString(),
-    });
+    }
+
+    // path em producao para evitar expor rotas internas, mas útil em dev para debug
+    if(!isProduction){
+      body.path = request.url;
+    }
+
+    response.status(status).json(body);
+
   }
 }

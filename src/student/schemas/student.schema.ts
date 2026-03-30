@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { BloodType, Shift } from '../../common/interfaces/student-attributes.enum';
 
 export type StudentDocument = HydratedDocument<Student>;
 
@@ -17,24 +18,24 @@ export class Student {
   email: string;
 
   @Prop({ required: true })
-  password: string; // bcrypt hash — nunca retornar ao client
+  password: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ required: false, trim: true })
   degree: string;
 
-  @Prop({ required: true, trim: true })
-  shift: string;
+  @Prop({ required: false, trim: true, enum: Object.values(Shift) })
+  shift: Shift;
 
   @Prop({ required: true, trim: true })
   telephone: string;
 
-  @Prop({ required: true, trim: true })
-  bloodType: string;
+  @Prop({ required: false, trim: true, enum: Object.values(BloodType) })
+  bloodType: BloodType;
 
-  @Prop({ required: true, trim: true })
-  buss: string;
+  @Prop({ required: false, trim: true })
+  bus: string;
 
-  @Prop({ type: String, default: null })
+  @Prop({ required: false, type: String, default: null })
   photo: string | null;
 
   @Prop({
@@ -53,6 +54,21 @@ export class Student {
   @Prop({ type: Date, default: null, select: false })
   verificationCodeExpiresAt: Date | null;
 
+  @Prop({ type: Number, default: 0, select: false })
+  verificationCodeAttempts: number;
+
+  @Prop({ type: Date, default: null, select: false })
+  verificationCodeLockedUntil: Date | null;
+
+  @Prop({ type: Date, default: null, select: false })
+  verificationCodeLastSentAt: Date | null;
+
+  @Prop({ type: String, default: null, select: false })
+  refreshTokenHash: string | null;
+
+  @Prop({ type: Number, default: 0, select: false })
+  refreshTokenVersion: number;
+
   @Prop({ default: true })
   active: boolean;
 }
@@ -66,6 +82,11 @@ StudentSchema.set('toJSON', {
     delete ret.password;
     delete ret.verificationCode;
     delete ret.verificationCodeExpiresAt;
+    delete ret.verificationCodeAttempts;
+    delete ret.verificationCodeLockedUntil;
+    delete ret.verificationCodeLastSentAt;
+    delete ret.refreshTokenHash;
+    delete ret.refreshTokenVersion;
     return ret;
   },
 });

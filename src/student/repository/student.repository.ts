@@ -33,22 +33,31 @@ export class StudentRepository implements IStudentRepository<Student> {
    * Usado exclusivamente no login e verificação de código.
    * Força a inclusão de campos com select: false (password, verificationCode).
    */
-  async findByEmailWithSensitiveFields(email: string): Promise<Student | null> {
+   async findByEmailWithSensitiveFields(email: string): Promise<Student | null> {
     return this.studentModel
       .findOne({ email })
-      .select('+password +verificationCode +verificationCodeExpiresAt')
+      .select(
+        '+password ' +
+        '+verificationCode ' +
+        '+verificationCodeExpiresAt ' +
+        '+verificationCodeAttempts ' +
+        '+verificationCodeLockedUntil ' +
+        '+verificationCodeLastSentAt ' +
+        '+refreshTokenHash ' +
+        '+refreshTokenVersion',
+      )
       .exec();
   }
 
   async update(id: string, data: Partial<Student>): Promise<Student | null> {
-    return this.studentModel
-      .findByIdAndUpdate(id, data, { new: true })
-      .exec();
-  }
+  return this.studentModel
+    .findByIdAndUpdate(id, { $set: data }, { new: true })
+    .exec();
+}
 
   async remove(id: string): Promise<boolean> {
     const result = await this.studentModel
-      .findByIdAndUpdate(id, { active: false }, { new: true })
+      .findByIdAndUpdate(id, { $set: { active: false } }, { new: true })
       .exec();
     return !!result;
   }

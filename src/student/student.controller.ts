@@ -15,15 +15,11 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
+import { ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
-/**
- * Rotas de gestão de students.
- * - Admin e Employee podem listar e ver qualquer student.
- * - Student só pode ver e editar o próprio perfil.
- * - Apenas admin pode remover.
- */
 @ApiTags('Students')
+@ApiBearerAuth()
 @Controller('student')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class StudentController {
@@ -31,44 +27,36 @@ export class StudentController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'List all students', description: 'Returns a list of all registered students. Accessible by admin and employee roles.' })
-  @ApiResponse({ status: 200, description: 'List of all registered students.' })
-  @ApiResponse({ status: 401, description: 'Not authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiOperation({ summary: 'List all students' })
+  @ApiResponse({ status: 200, description: 'List of students.' })
   findAll() {
     return this.studentService.findAll();
   }
 
   @Get('me')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Get student profile', description: 'Returns the profile of the authenticated student.' })
-  @ApiResponse({ status: 200, description: 'Student profile retrieved successfully.' })
-  @ApiResponse({ status: 401, description: 'Not authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiOperation({ summary: 'Get own profile' })
+  @ApiResponse({ status: 200, description: 'Student profile.' })
   getProfile(@CurrentUser() user: AuthenticatedUser) {
     return this.studentService.findOneOrFail(user.id);
   }
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'Find student by ID', description: 'Returns the data of a specific student. Requires ADMIN or EMPLOYEE role.' })
-  @ApiParam({ name: 'id', description: 'Student ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
+  @ApiOperation({ summary: 'Find student by ID' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiResponse({ status: 200, description: 'Student data.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
-  @ApiResponse({ status: 404, description: 'Student not found.' })
-  findOne(@Param('id') id: string) {
+  @ApiResponse({ status: 400, description: 'Invalid ID.' })
+  @ApiResponse({ status: 404, description: 'Not found.' })
+  findOne(@Param('id', MongoObjectIdPipe) id: string) {
     return this.studentService.findOneOrFail(id);
   }
 
   @Patch('me')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Update my profile', description: 'Updates the data of the authenticated student.' })
+  @ApiOperation({ summary: 'Update own profile' })
   @ApiBody({ type: UpdateStudentDto })
-  @ApiResponse({ status: 200, description: 'Profile updated successfully.' })
-  @ApiResponse({ status: 400, description: 'Invalid data.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
+  @ApiResponse({ status: 200, description: 'Profile updated.' })
   updateProfile(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateStudentDto,
@@ -78,27 +66,27 @@ export class StudentController {
 
   @Patch(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Update student by ID', description: 'Updates the data of a specific student. Exclusive to ADMIN.' })
-  @ApiParam({ name: 'id', description: 'Student ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
+  @ApiOperation({ summary: 'Update student by ID (admin only)' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiBody({ type: UpdateStudentDto })
-  @ApiResponse({ status: 200, description: 'Student updated successfully.' })
-  @ApiResponse({ status: 400, description: 'Invalid data.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions (requires ADMIN role).' })
-  @ApiResponse({ status: 404, description: 'Student not found.' })
-  update(@Param('id') id: string, @Body() dto: UpdateStudentDto) {
+  @ApiResponse({ status: 200, description: 'Student updated.' })
+  @ApiResponse({ status: 400, description: 'Invalid data or ID.' })
+  @ApiResponse({ status: 404, description: 'Not found.' })
+  update(
+    @Param('id', MongoObjectIdPipe) id: string,
+    @Body() dto: UpdateStudentDto,
+  ) {
     return this.studentService.update(id, dto);
   }
 
   @Delete(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Remove student', description: 'Removes a student by ID. Exclusive to ADMIN.' })
-  @ApiParam({ name: 'id', description: 'Student ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
-  @ApiResponse({ status: 200, description: 'Student removed successfully.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions (requires ADMIN role).' })
-  @ApiResponse({ status: 404, description: 'Student not found.' })
-  remove(@Param('id') id: string) {
+  @ApiOperation({ summary: 'Remove student (admin only)' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
+  @ApiResponse({ status: 200, description: 'Student removed.' })
+  @ApiResponse({ status: 400, description: 'Invalid ID.' })
+  @ApiResponse({ status: 404, description: 'Not found.' })
+  remove(@Param('id', MongoObjectIdPipe) id: string) {
     return this.studentService.remove(id);
   }
 }

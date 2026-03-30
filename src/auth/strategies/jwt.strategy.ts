@@ -20,39 +20,53 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private employeeService: EmployeeService,
     private adminService: AdminService,
   ) {
-    const jwtSecret = configService.getOrThrow<string>('JWT_SECRET');
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: jwtSecret,
+      secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
     });
   }
 
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
-    const { sub, role, identifier } = payload;
+    const { sub, role, identifier, tokenUse } = payload;
 
+    //Rejeita qualquer token que não seja de acesso, impede uso direto de refresh tokens (ex: refresh tokens)
+    if(tokenUse !== 'access') throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
+
+    //Valida o usuário com base no papel e identificador (email/matrícula/username)
     try {
       switch (role) {
+        //Valida o estudante, verifica se o status é ativo e se o email corresponde ao do token
         case UserRole.STUDENT: {
-          const student = await this.studentService.findByEmail(identifier);
-          if (!student || student.status !== StudentStatus.ACTIVE) {
+          const student = await this.studentService.findById(sub)
+          if (
+            !student || 
+            student.status !== StudentStatus.ACTIVE || 
+            student.email !== identifier
+          ) {
             throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
           }
           break;
         }
 
+        //Valida o funcionário, verifica se a matrícula corresponde ao do token e se o funcionário está ativo
         case UserRole.EMPLOYEE: {
-          const employee = await this.employeeService.findByMatricula(identifier);
-          if (!employee || !employee.active) {
+          const employee = await this.employeeService.findById(sub);
+          if (
+            !employee || 
+            !employee.active ||
+            employee.registrationId !== identifier
+          ) {
             throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
           }
           break;
         }
 
+        //Valida o admin, verifica se o username corresponde ao do token
         case UserRole.ADMIN: {
-          const admin = await this.adminService.findByUsername(identifier);
-          if (!admin) {
+          const admin = await this.adminService.findById(sub);
+          if (!admin || admin.username !== identifier) {
             throw new UnauthorizedException(AUTH_ERROR_MESSAGES.INVALID_TOKEN);
           }
           break;

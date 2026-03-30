@@ -5,12 +5,12 @@ import { EmployeeController } from './employee.controller';
 import { EmployeeRepository } from './repository/employee.repository';
 import { Employee, EmployeeSchema } from './schema/employee.schema';
 import { EMPLOYEE_REPOSITORY } from './interface/repository.interface';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Employee.name, schema: EmployeeSchema },
-    ]),
+    CommonModule,
+    MongooseModule.forFeature([{ name: Employee.name, schema: EmployeeSchema }]),
   ],
   controllers: [EmployeeController],
   providers: [

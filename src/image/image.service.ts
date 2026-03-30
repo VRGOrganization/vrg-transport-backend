@@ -18,7 +18,6 @@ export class ImagesService {
   ) {}
 
   async create(dto: CreateImageDto): Promise<Image> {
-    // Não permite duplicata de (studentId + photoType)
     const existing = await this.imageModel.findOne({
       studentId: dto.studentId,
       photoType: dto.photoType,
@@ -34,6 +33,10 @@ export class ImagesService {
       throw new BadRequestException(
         'photo3x4 é obrigatório para o tipo ProfilePhoto',
       );
+    }
+
+    if (dto.photo3x4) {
+      this.assertValidImageDataUrl(dto.photo3x4);
     }
 
     const image = new this.imageModel({
@@ -74,21 +77,62 @@ export class ImagesService {
     return image;
   }
 
+
+  private pickDefined(dto: UpdateImageDto): Partial<UpdateImageDto> {
+    const update = Object.fromEntries(
+      Object.entries(dto).filter(([, value]) => value !== undefined),
+    );
+
+    if (Object.keys(update).length === 0) {
+      throw new BadRequestException(
+        'Envie ao menos um campo para atualização',
+      );
+    }
+
+    return update as Partial<UpdateImageDto>;
+  }
+
   async update(id: string, dto: UpdateImageDto): Promise<Image> {
+    const update = this.pickDefined(dto);
+
+    if (update.photo3x4) {
+      this.assertValidImageDataUrl(update.photo3x4);
+    }
+
     const image = await this.imageModel
-      .findByIdAndUpdate(id, dto, { new: true })
+      .findByIdAndUpdate(
+        id,
+        { $set: update },
+        {
+          new: true,
+          runValidators: true,
+          context: 'query',
+        },
+      )
       .exec();
 
     if (!image) throw new NotFoundException(`Imagem ${id} não encontrada`);
     return image;
   }
 
-  async updateByStudentId(studentId: string, dto: UpdateImageDto): Promise<Image> {
+  async updateByStudentId(
+    studentId: string,
+    dto: UpdateImageDto,
+  ): Promise<Image> {
+    const update = this.pickDefined(dto);
+    if (update.photo3x4) {
+      this.assertValidImageDataUrl(update.photo3x4);
+    }
+
     const image = await this.imageModel
       .findOneAndUpdate(
         { studentId, photoType: PhotoType.ProfilePhoto, active: true },
-        dto,
-        { new: true },
+        { $set: update },
+        {
+          new: true,
+          runValidators: true,
+          context: 'query',
+        },
       )
       .exec();
 
@@ -103,7 +147,11 @@ export class ImagesService {
 
   async remove(id: string): Promise<{ message: string }> {
     const result = await this.imageModel
-      .findByIdAndUpdate(id, { active: false }, { new: true })
+      .findByIdAndUpdate(
+        id,
+        { $set: { active: false } },
+        { new: true, runValidators: true },
+      )
       .exec();
 
     if (!result) throw new NotFoundException(`Imagem ${id} não encontrada`);
@@ -112,7 +160,10 @@ export class ImagesService {
 
   async removeByStudentId(studentId: string): Promise<{ message: string }> {
     const result = await this.imageModel
-      .updateMany({ studentId }, { active: false })
+      .updateMany(
+        { studentId },
+        { $set: { active: false } },
+      )
       .exec();
 
     if (result.modifiedCount === 0) {
@@ -122,5 +173,48 @@ export class ImagesService {
     }
 
     return { message: 'Imagens do student removidas com sucesso' };
+  }
+
+  private assertValidImageDataUrl(dataUrl: string): void {
+    const match = /^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/.exec(dataUrl);
+    if (!match) {
+      throw new BadRequestException('Formato de imagem inválido');
+    }
+
+    const mime = match[1].toLowerCase();
+    const buffer = Buffer.from(match[2], 'base64');
+
+    if (buffer.length === 0) {
+      throw new BadRequestException('Imagem inválida');
+    }
+
+    const isJpeg =
+      buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+
+    const isPng =
+      buffer.length >= 8 &&
+      buffer
+        .subarray(0, 8)
+        .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+
+    const isWebp =
+      buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+
+    const valid =
+      mime === 'jpeg' || mime === 'jpg'
+        ? isJpeg
+        : mime === 'png'
+          ? isPng
+          : mime === 'webp'
+            ? isWebp
+            : false;
+
+    if (!valid) {
+      throw new BadRequestException(
+        'Conteúdo da imagem não confere com o tipo informado',
+      );
+    }
   }
 }

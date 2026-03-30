@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { License } from './schemas/license.schema';
-import { ILicenseRepository } from './interfaces/repository.interface';
+import { License } from '../schemas/license.schema';
+import { ILicenseRepository } from '../interfaces/repository.interface';
 
 @Injectable()
 export class LicenseRepository implements ILicenseRepository<License> {
@@ -27,13 +27,14 @@ export class LicenseRepository implements ILicenseRepository<License> {
 
   async remove(id: string): Promise<boolean> {
     const result = await this.licenseModel
-      .findByIdAndUpdate(id, { status: 'inactive', existing: false }, { new: true })
+      .findByIdAndUpdate(id, {$set: { status: 'inactive', existing: false }}, { new: true })
       .exec();
     return !!result;
   }
 
   async update(id: string, data: Partial<License>): Promise<License | null> {
-    return this.licenseModel.findByIdAndUpdate(id, data, { new: true }).exec();
+    return this.licenseModel.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true, context: 'query' })
+    .exec();
   }
 
   async findOneByStudentId(studentId: string): Promise<License | null> {

@@ -6,11 +6,10 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Employee } from './schema/employee.schema';
-import {
-  EMPLOYEE_REPOSITORY,
-} from './interface/repository.interface';
+import { EMPLOYEE_REPOSITORY } from './interface/repository.interface';
 import type { IEmployeeRepository } from './interface/repository.interface';
 import { CreateEmployeeDto, UpdateEmployeeDto } from './dto/create-employee.dto';
+import { AuditLogService } from '../common/audit/audit-log.service';
 
 @Injectable()
 export class EmployeeService {
@@ -19,32 +18,43 @@ export class EmployeeService {
   constructor(
     @Inject(EMPLOYEE_REPOSITORY)
     private readonly employeeRepository: IEmployeeRepository<Employee>,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   async create(dto: CreateEmployeeDto): Promise<Employee> {
     const [emailExists, registrationIdExists] = await Promise.all([
       this.employeeRepository.findByEmail(dto.email),
-      this.employeeRepository.findByMatricula(dto.registrationId),
+      this.employeeRepository.findByRegistrationId(dto.registrationId),
     ]);
 
     if (emailExists) {
       throw new ConflictException('Já existe um funcionário com este e-mail');
     }
     if (registrationIdExists) {
-      throw new ConflictException(
-        'Já existe um funcionário com esta matrícula',
-      );
+      throw new ConflictException('Já existe um funcionário com esta matrícula');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
 
-    // Mapeia registrationId (DTO) → matricula (schema)
-    return this.employeeRepository.create({
+    const created = await this.employeeRepository.create({
       name: dto.name,
       email: dto.email,
-      matricula: dto.registrationId,
+      registrationId: dto.registrationId,
       password: hashedPassword,
+      refreshTokenHash: null,
+      refreshTokenVersion: 0,
     });
+
+    await this.auditLog.record({
+      action: 'employee.create',
+      outcome: 'success',
+      target: {
+        employeeId: (created as any)._id?.toString?.() ?? undefined,
+        email: created.email,
+      },
+    });
+
+    return created;
   }
 
   async findAll(): Promise<Employee[]> {
@@ -55,14 +65,12 @@ export class EmployeeService {
     return this.employeeRepository.findById(id);
   }
 
-  async findByMatricula(matricula: string): Promise<Employee | null> {
-    return this.employeeRepository.findByMatricula(matricula);
+  async findByRegistrationId(registrationId: string): Promise<Employee | null> {
+    return this.employeeRepository.findByRegistrationId(registrationId);
   }
 
-  async findByMatriculaWithPassword(
-    matricula: string,
-  ): Promise<Employee | null> {
-    return this.employeeRepository.findByMatriculaWithPassword(matricula);
+  async findByRegistrationIdWithPassword(registrationId: string): Promise<Employee | null> {
+    return this.employeeRepository.findByRegistrationIdWithPassword(registrationId);
   }
 
   async findOneOrFail(id: string): Promise<Employee> {
@@ -74,15 +82,41 @@ export class EmployeeService {
   }
 
   async update(id: string, dto: UpdateEmployeeDto): Promise<Employee> {
-    if (dto.password) {
-      dto.password = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
+    const updatePayload = { ...dto };
+
+    if (updatePayload.password) {
+      updatePayload.password = await bcrypt.hash(updatePayload.password, this.SALT_ROUNDS);
     }
 
-    const employee = await this.employeeRepository.update(id, dto);
+    const employee = await this.employeeRepository.update(id, updatePayload);
     if (!employee) {
       throw new NotFoundException(`Funcionário ${id} não encontrado`);
     }
+
+    await this.auditLog.record({
+      action: 'employee.update',
+      outcome: 'success',
+      target: { employeeId: id },
+      metadata: { fields: Object.keys(updatePayload) },
+    });
+
     return employee;
+  }
+
+  
+  async updateRefreshToken(id: string, hash: string, version: number): Promise<void> {
+    await this.employeeRepository.update(id, {
+      refreshTokenHash: hash,
+      refreshTokenVersion: version,
+    } as Partial<Employee>);
+  }
+
+  
+  async clearRefreshToken(id: string): Promise<void> {
+    await this.employeeRepository.update(id, {
+      refreshTokenHash: null,
+      refreshTokenVersion: Date.now(),
+    } as Partial<Employee>);
   }
 
   async deactivate(id: string): Promise<{ message: string }> {
@@ -90,6 +124,13 @@ export class EmployeeService {
     if (!result) {
       throw new NotFoundException(`Funcionário ${id} não encontrado`);
     }
+
+    await this.auditLog.record({
+      action: 'employee.deactivate',
+      outcome: 'success',
+      target: { employeeId: id },
+    });
+
     return { message: 'Funcionário desativado com sucesso' };
   }
 }

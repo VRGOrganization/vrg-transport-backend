@@ -61,9 +61,17 @@ export class MailService {
 
 
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class MailService {
+  constructor(
+    private readonly configService: ConfigService,
+  ) {
+     if (this.configService.get<string>('NODE_ENV') === 'production') {
+      throw new Error('MailService stub não pode rodar em produção');
+    }
+  }
   private readonly logger = new Logger(MailService.name);
 
   async sendVerificationCode(

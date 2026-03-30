@@ -1,5 +1,6 @@
 import {
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsString,
   MinLength,
@@ -7,13 +8,23 @@ import {
   Matches,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
+import { BloodType, Shift } from '../../common/interfaces/student-attributes.enum';
 
 export class StudentLoginDto {
+  @ApiProperty({
+    example: 'user@email.com',
+    description: 'E-mail do estudante',
+  })
   @IsEmail({}, { message: 'E-mail inválido' })
   @IsNotEmpty()
   @Transform(({ value }) => value?.toLowerCase().trim())
   email: string;
 
+  @ApiProperty({
+    example: 'Senha123',
+    description: 'Senha do estudante',
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
@@ -21,11 +32,19 @@ export class StudentLoginDto {
 }
 
 export class EmployeeLoginDto {
+  @ApiProperty({
+    example: 'EMP123456',
+    description: 'Matrícula do funcionário',
+  })
   @IsString()
   @IsNotEmpty({ message: 'Matrícula é obrigatória' })
   @Transform(({ value }) => value?.trim())
   registrationId: string;
 
+  @ApiProperty({
+    example: 'Senha123',
+    description: 'Senha do funcionário',
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
@@ -33,11 +52,19 @@ export class EmployeeLoginDto {
 }
 
 export class AdminLoginDto {
+  @ApiProperty({
+    example: 'admin',
+    description: 'Username do administrador',
+  })
   @IsString()
   @IsNotEmpty({ message: 'Username é obrigatório' })
   @Transform(({ value }) => value?.toLowerCase().trim())
   username: string;
 
+  @ApiProperty({
+    example: 'Admin123',
+    description: 'Senha do administrador',
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
@@ -45,17 +72,29 @@ export class AdminLoginDto {
 }
 
 export class RegisterStudentDto {
+  @ApiProperty({
+    example: 'João Silva',
+    description: 'Nome completo do estudante',
+  })
   @IsString()
   @IsNotEmpty({ message: 'Nome é obrigatório' })
   @MaxLength(100)
   @Transform(({ value }) => value?.trim())
   name: string;
 
+  @ApiProperty({
+    example: 'joao@email.com',
+    description: 'E-mail do estudante',
+  })
   @IsEmail({}, { message: 'E-mail inválido' })
   @IsNotEmpty()
   @Transform(({ value }) => value?.toLowerCase().trim())
   email: string;
 
+  @ApiProperty({
+    example: 'Senha123',
+    description: 'Senha forte (mín. 8 caracteres, maiúscula, minúscula e número)',
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(8, { message: 'Senha deve ter no mínimo 8 caracteres' })
@@ -65,35 +104,63 @@ export class RegisterStudentDto {
   })
   password: string;
 
+  /* @ApiProperty({
+    example: 'Engenharia de Software',
+    description: 'Curso do estudante',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  degree: string;
+  degree: string; */
 
+  
+  /* @IsEnum(Shift, { message: 'Turno inválido' })
+  @ApiProperty({ enum: Shift, enumName: 'Shift' })
+  @IsNotEmpty()
+  shift: Shift; */
+
+  @ApiProperty({
+    example: '+55 22 99999-9999',
+    description: 'Telefone do estudante',
+  })
   @IsString()
   @IsNotEmpty()
-  shift: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @Matches(/^\+?[\d\s\-()]{10,15}$/, { message: 'Telefone inválido' })
+  @Transform(({ value }) => value?.replace(/\D/g, '')) // remove tudo que não for número
+  @Matches(/^\d{10,13}$/, { message: 'Telefone inválido' })
   telephone: string;
 
-  @IsString()
+ /*  @ApiProperty({
+    example: 'O+',
+    description: 'Tipo sanguíneo',
+    enum: BloodType,
+  }) */
+  /* @IsEnum(BloodType, { message: 'Tipo sanguíneo inválido' })
   @IsNotEmpty()
-  bloodType: string;
+  bloodType: BloodType; */
 
+  /* @ApiProperty({
+    example: '05',
+    description: 'Ônibus utilizado pelo estudante',
+  })
   @IsString()
   @IsNotEmpty()
-  buss: string;
+  bus: string; */
 }
 
 export class VerifyEmailDto {
+  @ApiProperty({
+    example: 'user@email.com',
+    description: 'E-mail do usuário',
+  })
   @IsEmail({}, { message: 'E-mail inválido' })
   @IsNotEmpty()
   @Transform(({ value }) => value?.toLowerCase().trim())
   email: string;
 
+  @ApiProperty({
+    example: '123456',
+    description: 'Código de verificação (6 dígitos)',
+  })
   @IsString()
   @IsNotEmpty()
   @Matches(/^\d{6}$/, { message: 'Código deve ter 6 dígitos' })
@@ -101,8 +168,22 @@ export class VerifyEmailDto {
 }
 
 export class ResendCodeDto {
+  @ApiProperty({
+    example: 'user@email.com',
+    description: 'E-mail para reenvio do código',
+  })
   @IsEmail({}, { message: 'E-mail inválido' })
   @IsNotEmpty()
   @Transform(({ value }) => value?.toLowerCase().trim())
   email: string;
+}
+
+export class RefreshTokenDto {
+  @ApiProperty({
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description: 'Refresh token JWT',
+  })
+  @IsString()
+  @IsNotEmpty()
+  refresh_token: string;
 }

@@ -1,3 +1,9 @@
+/*
+  Roles Guard eh responsavel por verificar se o usuario tem a role necessaria para acessar determinada rota. 
+  Ele deve ser aplicado apos o JwtAuthGuard, pois ele depende do usuario estar presente no request, 
+  o que eh garantido pelo JwtAuthGuard. Se o usuario nao tiver a role necessaria, ele retorna um ForbiddenException.
+*/
+
 import {
   Injectable,
   CanActivate,

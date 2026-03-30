@@ -24,16 +24,16 @@ export class EmployeeRepository implements IEmployeeRepository<Employee> {
     return this.employeeModel.findById(id).exec();
   }
 
-  async findByMatricula(matricula: string): Promise<Employee | null> {
-    return this.employeeModel.findOne({ matricula, active: true }).exec();
+  async findByRegistrationId(registrationId: string): Promise<Employee | null> {
+    return this.employeeModel
+      .findOne({ registrationId: registrationId, active: true })
+      .exec();
   }
 
-  async findByMatriculaWithPassword(
-    matricula: string,
-  ): Promise<Employee | null> {
+  async findByRegistrationIdWithPassword(registrationId: string) {
     return this.employeeModel
-      .findOne({ matricula, active: true })
-      .select('+password')
+      .findOne({ registrationId, active: true })
+      .select('+password +refreshTokenHash +refreshTokenVersion')
       .exec();
   }
 
@@ -42,14 +42,14 @@ export class EmployeeRepository implements IEmployeeRepository<Employee> {
   }
 
   async update(id: string, data: Partial<Employee>): Promise<Employee | null> {
-    return this.employeeModel
-      .findByIdAndUpdate(id, data, { new: true })
-      .exec();
+  return this.employeeModel
+    .findByIdAndUpdate(id, { $set: data }, { new: true })
+    .exec();
   }
 
   async deactivate(id: string): Promise<boolean> {
     const result = await this.employeeModel
-      .findByIdAndUpdate(id, { active: false }, { new: true })
+      .findByIdAndUpdate(id, { $set: { active: false } }, { new: true })
       .exec();
     return !!result;
   }

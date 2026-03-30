@@ -15,6 +15,7 @@ import {
   RegisterStudentDto,
   VerifyEmailDto,
   ResendCodeDto,
+  RefreshTokenDto,
 } from './dto/auth.dto';
 import {
   ApiTags,
@@ -30,110 +31,133 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import type { AuthenticatedUser } from './interfaces/auth.interface';
+import { RateLimitGuard } from './guards/rate-limit.guard';
+import { RateLimit } from './decorators/rate-limit.decorator';
 
 @ApiTags('Auth')
 @Controller('auth')
+@UseGuards(RateLimitGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  //Student
-
   @Public()
+  @RateLimit({ points: 3, windowMs: 60_000, keyPrefix: 'auth:register' })
   @Post('student/register')
-  @ApiOperation({ summary: 'Register a new student', description: 'Registers a new student and sends a verification code by email.' })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new student' })
   @ApiBody({ type: RegisterStudentDto })
   @ApiResponse({ status: 201, description: 'Student registered successfully.' })
-  @ApiResponse({ status: 400, description: 'Invalid student data.' })
   @ApiResponse({ status: 409, description: 'E-mail already registered.' })
-  @HttpCode(HttpStatus.CREATED)
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
   registerStudent(@Body() dto: RegisterStudentDto) {
     return this.authService.registerStudent(dto);
   }
 
   @Public()
+  @RateLimit({ points: 5, windowMs: 60_000, keyPrefix: 'auth:verify' })
   @Post('student/verify')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify student email', description: 'Verifies the student email using the provided verification code.' })
+  @ApiOperation({ summary: 'Verify student email via OTP' })
   @ApiBody({ type: VerifyEmailDto })
-  @ApiResponse({ status: 200, description: 'Email verified successfully.' })
-  @ApiResponse({ status: 400, description: 'Invalid verification code.' })
+  @ApiResponse({ status: 200, description: 'Email verified.' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired code.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
   verifyStudentEmail(@Body() dto: VerifyEmailDto) {
     return this.authService.verifyStudentEmail(dto);
   }
 
   @Public()
+  @RateLimit({ points: 3, windowMs: 60_000, keyPrefix: 'auth:resend' })
   @Post('student/resend-code')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Resend verification code', description: 'Resends the verification code to the student email.' })
+  @ApiOperation({ summary: 'Resend verification code' })
   @ApiBody({ type: ResendCodeDto })
-  @ApiResponse({ status: 200, description: 'Verification code sent successfully.' })
-  @ApiResponse({ status: 404, description: 'Student not found.' })
+  @ApiResponse({ status: 200, description: 'Code sent if applicable.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
   resendVerificationCode(@Body() dto: ResendCodeDto) {
     return this.authService.resendVerificationCode(dto);
   }
 
   @Public()
+  @RateLimit({ points: 5, windowMs: 60_000, keyPrefix: 'auth:student-login' })
   @Post('student/login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Student login', description: 'Authenticates a student and returns an access token.' })
+  @ApiOperation({ summary: 'Student login' })
   @ApiBody({ type: StudentLoginDto })
-  @ApiResponse({ status: 200, description: 'Login successful, returns access token.' })
+  @ApiResponse({ status: 200, description: 'Login successful.' })
   @ApiResponse({ status: 401, description: 'Invalid credentials.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
   loginStudent(@Body() dto: StudentLoginDto) {
     return this.authService.loginStudent(dto);
   }
 
-  //Employee
-
   @Public()
+  @RateLimit({ points: 5, windowMs: 60_000, keyPrefix: 'auth:employee-login' })
   @Post('employee/login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Employee login', description: 'Authenticates an employee and returns an access token.' })
+  @ApiOperation({ summary: 'Employee login' })
   @ApiBody({ type: EmployeeLoginDto })
-  @ApiResponse({ status: 200, description: 'Login successful, returns access token.' })
+  @ApiResponse({ status: 200, description: 'Login successful.' })
   @ApiResponse({ status: 401, description: 'Invalid credentials.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
   loginEmployee(@Body() dto: EmployeeLoginDto) {
     return this.authService.loginEmployee(dto);
   }
 
-  //Admin
-
   @Public()
+  @RateLimit({ points: 3, windowMs: 60_000, keyPrefix: 'auth:admin-login' })
   @Post('admin/login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Admin login', description: 'Authenticates an admin and returns an access token.' })
+  @ApiOperation({ summary: 'Admin login' })
   @ApiBody({ type: AdminLoginDto })
-  @ApiResponse({ status: 200, description: 'Login successful, returns access token.' })
+  @ApiResponse({ status: 200, description: 'Login successful.' })
   @ApiResponse({ status: 401, description: 'Invalid credentials.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
   loginAdmin(@Body() dto: AdminLoginDto) {
     return this.authService.loginAdmin(dto);
   }
 
-  // Shared
+  @Public()
+  @RateLimit({ points: 10, windowMs: 60_000, keyPrefix: 'auth:refresh' })
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh session tokens' })
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiResponse({ status: 200, description: 'New token pair issued.' })
+  @ApiResponse({ status: 401, description: 'Invalid or revoked refresh token.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshToken(dto);
+  }
 
-  /**
-   * Retorna o perfil do usuário autenticado.
-   * Disponível para todos os roles — cada um vê seu próprio dado.
-   */
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get authenticated user profile', description: 'Returns the profile of the authenticated user.' })
-  @ApiResponse({ status: 200, description: 'User profile retrieved successfully.' })
+  @ApiOperation({ summary: 'Get authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'User profile.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   getMe(@CurrentUser() user: AuthenticatedUser) {
     return user;
   }
 
-  //Exemplo de rota restrita
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Logout — revokes refresh token' })
+  @ApiResponse({ status: 200, description: 'Logged out.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  logout(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.logout(user);
+  }
+
   @Get('admin/dashboard')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Admin dashboard', description: 'Access to the admin dashboard, restricted to admin users.' })
-  @ApiResponse({ status: 200, description: 'Access granted to admin dashboard.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden. User does not have the required role.' })
+  @ApiOperation({ summary: 'Admin dashboard — restricted' })
+  @ApiResponse({ status: 200, description: 'Access granted.' })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
   adminDashboard(@CurrentUser() user: AuthenticatedUser) {
     return { message: 'Admin Dashboard', admin: user.identifier };
   }

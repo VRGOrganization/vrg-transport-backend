@@ -1,14 +1,14 @@
 import { UserRole } from '../../common/interfaces/user-roles.enum';
 
+
 export interface JwtPayload {
   sub: string;
   role: UserRole;
-  //identicador legivel por role - usado no validate() da strategy
   identifier: string;
+  tokenUse: 'access' | 'refresh';
   
 }
 
-// auth.interface.ts
 export class AuthenticatedUser {  // class em vez de interface
   id: string;
   role: UserRole;
@@ -17,5 +17,6 @@ export class AuthenticatedUser {  // class em vez de interface
 
 export interface LoginResponse {
   access_token: string;
+  refresh_token: string;
   user: AuthenticatedUser;
 }

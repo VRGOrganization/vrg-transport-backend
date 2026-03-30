@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -16,22 +16,30 @@ import { MailModule } from './mail/mail.module';
 
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { RateLimitGuard } from './auth/guards/rate-limit.guard';
+import { CommonModule } from './common/common.module';
+import { validateSecurityConfig } from './common/config/security.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: [`.env.${process.env.NODE_ENV}`, '.env'],
+      validate: validateSecurityConfig,
     }),
-    MongooseModule.forRoot(
-      process.env.MONGODB_URI ||
-        `mongodb+srv://vrgsolutions3_db_user:${process.env.DBPASSWORD}@vrg-transport.w8zzjnd.mongodb.net/Transport-Api?appName=Vrg-Transport`,
-    ),
-    MongooseModule.forRoot(
-      process.env.MONGODB_URI_IMAGE ||
-        `mongodb+srv://vrgsolutions3_db_user:${process.env.DBPASSWORD}@vrg-transport.w8zzjnd.mongodb.net/transport-images?appName=Vrg-Transport`,
-      { connectionName: 'images' },
-    ),
+    MongooseModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (c: ConfigService) => ({
+        uri: c.getOrThrow('MONGODB_URI'),
+      }),
+    }),
+    MongooseModule.forRootAsync({
+      connectionName: 'images',
+      inject: [ConfigService],
+      useFactory: (c: ConfigService) => ({
+        uri: c.getOrThrow('MONGODB_URI_IMAGE'),
+      }),
+    }),
     AuthModule,
     StudentModule,
     EmployeeModule,
@@ -39,6 +47,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     LicenseModule,
     ImagesModule,
     MailModule,
+    CommonModule,
   ],
   controllers: [AppController],
   providers: [
@@ -46,14 +55,9 @@ import { RolesGuard } from './auth/guards/roles.guard';
     // Guards globais: JwtAuthGuard verifica o token em todas as rotas.
     // Rotas públicas usam @Public() para sair do guard.
     // RolesGuard verifica o role apenas nas rotas com @Roles().
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
-    },
+    { provide: APP_GUARD, useClass: RateLimitGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}

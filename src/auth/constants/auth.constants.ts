@@ -18,4 +18,8 @@ export const AUTH_ERROR_MESSAGES = {
   INVALID_CODE: 'Código de verificação inválido',
   EXPIRED_CODE: 'Código de verificação expirado',
   ACCOUNT_ALREADY_ACTIVE: 'Esta conta já foi verificada',
+  REFRESH_TOKEN_INVALID: 'Refresh token inválido',
+  SESSION_REVOKED: 'Sessão revogada. Faça login novamente.',
+  // Detecta se o token foi reutilizado, indicando possível roubo de token
+  TOKEN_REUSE_DETECTED: 'Sessão inválida. Faça login novamente.',
 } as const;

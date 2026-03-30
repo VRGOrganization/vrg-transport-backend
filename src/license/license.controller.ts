@@ -17,7 +17,9 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
+import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Licenses')
 @Controller('license')
@@ -34,7 +36,7 @@ export class LicenseController {
   @ApiResponse({ status: 400, description: 'Invalid data.' })
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
-  async create(@Body() dto: CreateLicenseDto, @CurrentUser() user: any) {
+  async create(@Body() dto: CreateLicenseDto, @CurrentUser() user: AuthenticatedUser) {
     return this.licenseService.create(dto, user.id);
   }
 
@@ -66,7 +68,7 @@ export class LicenseController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).' })
   @ApiResponse({ status: 404, description: 'License not found for this student.' })
-  async findByStudent(@Param('studentId') studentId: string) {
+  async findByStudent(@Param('studentId', MongoObjectIdPipe) studentId: string) {
     return this.licenseService.getLicenseByStudentId(studentId);
   }
 
@@ -77,7 +79,7 @@ export class LicenseController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).' })
   @ApiResponse({ status: 404, description: 'License not found.' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', MongoObjectIdPipe) id: string) {
     return this.licenseService.getLicenseById(id);
   }
 
@@ -91,7 +93,7 @@ export class LicenseController {
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).' })
   @ApiResponse({ status: 404, description: 'License not found.' })
   async update(
-    @Param('id') id: string,
+    @Param('id', MongoObjectIdPipe) id: string,
     @Body() dto: CreateLicenseDto,
     @CurrentUser() user: any,
   ) {
@@ -105,8 +107,9 @@ export class LicenseController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).' })
   @ApiResponse({ status: 404, description: 'License not found.' })
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id', MongoObjectIdPipe) id: string) {
     return this.licenseService.remove(id);
   }
 }

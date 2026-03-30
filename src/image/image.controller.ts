@@ -18,6 +18,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
+import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Images')
 @Controller('image')
@@ -54,7 +56,7 @@ export class ImagesController {
   @ApiResponse({ status: 200, description: 'Images for the authenticated student.' })
   @ApiResponse({ status: 401, description: 'Not authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
-  findMyImages(@CurrentUser() user: any) {
+  findMyImages(@CurrentUser() user: AuthenticatedUser) {
     return this.imagesService.findByStudentId(user.id);
   }
 
@@ -77,7 +79,7 @@ export class ImagesController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
   @ApiResponse({ status: 404, description: 'Student not found.' })
-  findByStudentId(@Param('studentId') studentId: string) {
+  findByStudentId(@Param('studentId', MongoObjectIdPipe) studentId: string) {
     return this.imagesService.findByStudentId(studentId);
   }
 
@@ -89,7 +91,7 @@ export class ImagesController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
   @ApiResponse({ status: 404, description: 'Image not found.' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', MongoObjectIdPipe) id: string) {
     return this.imagesService.findOne(id);
   }
 
@@ -104,7 +106,7 @@ export class ImagesController {
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
   @ApiResponse({ status: 404, description: 'Student or image not found.' })
   updateByStudentId(
-    @Param('studentId') studentId: string,
+    @Param('studentId', MongoObjectIdPipe) studentId: string,
     @Body() dto: UpdateImageDto,
   ) {
     return this.imagesService.updateByStudentId(studentId, dto);
@@ -120,7 +122,7 @@ export class ImagesController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
   @ApiResponse({ status: 404, description: 'Image not found.' })
-  update(@Param('id') id: string, @Body() dto: UpdateImageDto) {
+  update(@Param('id', MongoObjectIdPipe) id: string, @Body() dto: UpdateImageDto) {
     return this.imagesService.update(id, dto);
   }
 
@@ -133,7 +135,7 @@ export class ImagesController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires ADMIN role).' })
   @ApiResponse({ status: 404, description: 'Student not found.' })
-  removeByStudentId(@Param('studentId') studentId: string) {
+  removeByStudentId(@Param('studentId', MongoObjectIdPipe) studentId: string) {
     return this.imagesService.removeByStudentId(studentId);
   }
 
@@ -146,7 +148,7 @@ export class ImagesController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires ADMIN role).' })
   @ApiResponse({ status: 404, description: 'Image not found.' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', MongoObjectIdPipe) id: string) {
     return this.imagesService.remove(id);
   }
 }

@@ -2,8 +2,20 @@ import mongoose from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 import * as readline from 'readline';
+import * as path from 'path';
 
+
+// 🔥 Define ambiente e carrega env correta
+const env = process.env.NODE_ENV || 'development';
+
+dotenv.config({
+  path: path.resolve(__dirname, '../../.env.' + env),
+});
+
+// fallback opcional (caso não exista o específico)
 dotenv.config();
+
+console.log(`Ambiente: ${env}`);
 
 const AdminSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -20,13 +32,17 @@ const ask = (question: string): Promise<string> =>
   new Promise((resolve) => rl.question(question, resolve));
 
 async function seedAdmin() {
-  const uri =
-    process.env.MONGODB_URI ||
-    `mongodb+srv://vrgsolutions3_db_user:${process.env.DBPASSWORD}@vrg-transport.w8zzjnd.mongodb.net/Transport-Api`;
+  const uri = process.env.MONGODB_URI;
 
-  console.log('\n🔌 Conectando ao MongoDB...');
+  if (!uri) {
+    throw new Error(
+      `MONGODB_URI não encontrado no ambiente (${env}). Verifique o arquivo .env.${env}`
+    );
+  }
+
+  console.log('\nConectando ao MongoDB...');
   await mongoose.connect(uri);
-  console.log('✅ Conectado\n');
+  console.log('Conectado\n');
 
   const AdminModel = mongoose.model('Admin', AdminSchema);
 
@@ -37,20 +53,23 @@ async function seedAdmin() {
   rl.close();
 
   if (!name.trim() || !username.trim() || !password.trim()) {
-    console.error('\n❌ Todos os campos são obrigatórios');
+    console.error('\nTodos os campos são obrigatórios');
     await mongoose.disconnect();
     process.exit(1);
   }
 
   if (password.length < 8) {
-    console.error('\n❌ Senha deve ter no mínimo 8 caracteres');
+    console.error('\nSenha deve ter no mínimo 8 caracteres');
     await mongoose.disconnect();
     process.exit(1);
   }
 
-  const existing = await AdminModel.findOne({ username: username.toLowerCase() });
+  const existing = await AdminModel.findOne({
+    username: username.toLowerCase(),
+  });
+
   if (existing) {
-    console.error(`\n⚠️  Admin "${username}" já existe`);
+    console.error(`\nAdmin já existe`);
     await mongoose.disconnect();
     process.exit(1);
   }
@@ -63,11 +82,11 @@ async function seedAdmin() {
     password: hashedPassword,
   });
 
-  console.log(`\n✅ Admin "${username}" criado com sucesso`);
+  console.log(`\nAdmin criado com sucesso `);
   await mongoose.disconnect();
 }
 
 seedAdmin().catch((err) => {
-  console.error('\n❌ Erro:', err.message);
+  console.error('\nErro:', err.message);
   process.exit(1);
 });

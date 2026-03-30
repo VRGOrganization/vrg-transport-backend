@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadGatewayException,
   Logger,
+  GatewayTimeoutException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ILicenseRepository } from './interfaces/repository.interface';
@@ -11,6 +12,9 @@ import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { CreateLicenseDto } from './dto/create-license.dto';
 import { License, LicenseStatus } from './schemas/license.schema';
 import { nowInBR, addMonthsBR } from '../common/utils/date.utils';
+import { StudentService } from 'src/student/student.service';
+import { AuditLogService } from '../common/audit/audit-log.service';
+
 
 @Injectable()
 export class LicenseService {
@@ -21,46 +25,59 @@ export class LicenseService {
   constructor(
     @Inject(LICENSE_REPOSITORY)
     private readonly licenseRepository: ILicenseRepository<License>,
+    private readonly studentService: StudentService,
     private readonly configService: ConfigService,
+    private readonly auditLog: AuditLogService,
   ) {
-    this.apiUrl = this.configService.getOrThrow<string>('BASE_URL_API_LICENSE');
-    this.apiKey = this.configService.getOrThrow<string>('X_API_KEY');
+    this.apiUrl = this.configService.getOrThrow<string>('LICENSE_API_URL');
+    this.apiKey = this.configService.getOrThrow<string>('LICENSE_API_KEY');
   }
 
   async checkHealth() {
     const res = await fetch(`${this.apiUrl}/health`);
     return res.json();
   }
-
   /**
    * @param dto        Dados da licença vindos do client
    * @param employeeId ID extraído do JWT no controller — nunca do body
    */
   async create(dto: CreateLicenseDto, employeeId: string): Promise<License> {
-    const response = await fetch(`${this.apiUrl}/api/v1/license/create`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': this.apiKey,
-      },
-      body: JSON.stringify(dto),
-    });
-
-    if (!response.ok) {
-      this.logger.error(`License API error: ${response.status} ${response.statusText}`);
-      throw new BadGatewayException('Erro ao comunicar com o serviço de licenças');
+    const student = await this.studentService.findOneOrFail(dto.id);
+    if(!student) {
+      throw new NotFoundException('Student não encontrado')
     }
 
-    const data = await response.json();
+    const studentId = (student as any)._id.toString();
 
+    const payload = {
+      id: studentId,
+      employee_id: employeeId,
+      name: student.name,
+      degree: student.degree,
+      institution: dto.institution,
+      shift: student.shift,
+      telephone: student.telephone,
+      blood_type: student.bloodType,
+      bus: student.bus,
+      photo: dto.photo,      
+    }
+
+    const data = await this.callLicenseApi(payload);
+    await this.auditLog.record({
+      action: 'license.create',
+      outcome: 'success',
+      actor: { id: employeeId, role: 'employee' },
+      target: { studentId },
+    })
+    
     return this.licenseRepository.create({
-      studentId: dto.id,
-      employeeId,
-      imageLicense: data.image,
+      studentId,
+      employeeId, 
+      imageLicense: data.license_image_url,
       status: LicenseStatus.ACTIVE,
       existing: true,
       expirationDate: addMonthsBR(nowInBR(), 7),
-    });
+    })
   }
 
   async getLicenseByStudentId(studentId: string): Promise<License> {
@@ -92,9 +109,45 @@ export class LicenseService {
   }
 
   async update(id: string, dto: CreateLicenseDto, employeeId: string): Promise<License> {
-    // Cria primeiro — se a API externa falhar, o registro antigo permanece ativo
     const newLicense = await this.create(dto, employeeId);
-    await this.remove(id);
-    return newLicense;
+
+    try {
+      await this.remove(id);
+      return newLicense;
+    } catch (error) {
+      await this.licenseRepository.remove((newLicense as any)._id.toString()).catch(() => undefined);
+      throw error;
+    }
+  }
+
+
+  private async callLicenseApi(payload: Record<string, unknown>){
+    const timeout = this.configService.get('LICENSE_API_TIMEOUT_MS', 5000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    try{
+      const response = await fetch(`${this.apiUrl}/api/v1/license/create`,{
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-KEY': this.apiKey,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        this.logger.error(`License API error: ${response.status} ${response.statusText}`);
+        throw new BadGatewayException('Erro ao comunicar com o serviço de licenças');
+      }
+      return response.json();
+    }catch(err){
+      if(err instanceof Error && err.name === 'AbortError') {
+        throw new GatewayTimeoutException('Serviço de licenças indisponível');
+      }
+      throw new BadGatewayException('Erro ao comunicar com o serviço de licenças');
+    }finally{
+      clearTimeout(timer);
+    }
   }
 }

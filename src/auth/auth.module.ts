@@ -9,9 +9,12 @@ import { StudentModule } from '../student/student.module';
 import { EmployeeModule } from '../employee/employee.module';
 import { AdminModule } from '../admin/admin.module';
 import { MailModule } from '../mail/mail.module';
+import { CommonModule } from '../common/common.module';
+import { StringValue } from 'ms'
 
 @Module({
   imports: [
+    CommonModule,
     StudentModule,
     EmployeeModule,
     AdminModule,
@@ -23,7 +26,7 @@ import { MailModule } from '../mail/mail.module';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: parseInt(configService.get<string>('JWT_EXPIRES_IN', '28800'), 10) || 28800,
+          expiresIn: configService.getOrThrow<string>('JWT_EXPIRES_IN') as StringValue,
         },
       }),
     }),
