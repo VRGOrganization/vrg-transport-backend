@@ -3,9 +3,9 @@
 */
 
 export enum Shift{
-    MORNING = 'Matutino',
-    AFTERNOON = 'Vespertino',
-    NIGHT = 'Noturno',
+    MORNING = 'Manhã',
+    AFTERNOON = 'Tarde',
+    NIGHT = 'Noite',
     FULL_TIME = 'Integral'
 }
 
