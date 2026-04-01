@@ -41,7 +41,8 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @RateLimit({ points: 3, windowMs: 60_000, keyPrefix: 'auth:register' })
+  // TODO: mudar pra 3 dps dos testes
+  @RateLimit({ points: 20, windowMs: 60_000, keyPrefix: 'auth:register' })
   @Post('student/register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new student' })

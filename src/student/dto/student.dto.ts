@@ -33,7 +33,7 @@ export class CreateStudentDto {
   @ApiProperty({
     enum: Shift,
     enumName: 'Shift',
-    example: 'MORNING',
+    example: Shift.MORNING,
     description: 'Turno do estudante',
   })
   @IsEnum(Shift, { message: 'shift inválido' })

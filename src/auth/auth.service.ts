@@ -77,16 +77,14 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
     const isInstitutional = this.isInstitutionalEmail(dto.email);
     const { code, codeHash, expiresAt } = this.generateVerificationCode();
+    // TODO: Remover isso depois
+    this.logger.debug(`[DEV ONLY] Verification code for ${dto.email}: ${code}`);
 
     await this.studentService.create({
       name: dto.name,
       email: dto.email,
       password: hashedPassword,
       telephone: dto.telephone,
-      /* degree: dto.degree,
-      shift: dto.shift,
-      bloodType: dto.bloodType,
-      bus: dto.bus, */
       status: StudentStatus.PENDING,
       isInstitutionalEmail: isInstitutional,
       verificationCode: codeHash,
