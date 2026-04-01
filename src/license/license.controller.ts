@@ -18,10 +18,11 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Licenses')
+@ApiBearerAuth()
 @Controller('license')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)

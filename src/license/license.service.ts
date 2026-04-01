@@ -73,7 +73,7 @@ export class LicenseService {
     return this.licenseRepository.create({
       studentId,
       employeeId, 
-      imageLicense: data.license_image_url,
+      imageLicense: data.image,
       status: LicenseStatus.ACTIVE,
       existing: true,
       expirationDate: addMonthsBR(nowInBR(), 7),
