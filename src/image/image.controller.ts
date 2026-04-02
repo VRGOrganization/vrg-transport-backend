@@ -11,7 +11,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ImagesService } from './image.service';
-import { CreateImageDto, UpdateImageDto } from './dto/image.dto';
+import { CreateImageDto, UpdateImageDto, UploadMyDocumentDto } from './dto/image.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -48,6 +48,22 @@ export class ImagesController {
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
   findAll() {
     return this.imagesService.findAll();
+  }
+
+  @Post('me')
+  @Roles(UserRole.STUDENT)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Upload my document', description: 'Student uploads a document (profile photo, enrollment proof, course schedule).' })
+  @ApiBody({ type: UploadMyDocumentDto })
+  @ApiResponse({ status: 201, description: 'Document uploaded successfully.' })
+  @ApiResponse({ status: 400, description: 'Invalid data or file format.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  @ApiResponse({ status: 409, description: 'Document of this type already exists.' })
+  uploadMyDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UploadMyDocumentDto,
+  ) {
+    return this.imagesService.createForStudent(user.id, dto);
   }
 
   @Get('me')
