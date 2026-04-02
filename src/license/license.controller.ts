@@ -29,6 +29,16 @@ import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}
 
+  @Get('/me')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get own license', description: 'Returns the license associated with the authenticated student.' })
+  @ApiResponse({ status: 200, description: 'Student license.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  @ApiResponse({ status: 404, description: 'License not found for this student.' })
+  async getMyLicense(@CurrentUser() user: AuthenticatedUser) {
+    return this.licenseService.getLicenseByStudentId(user.id);
+  }
+
   @Post('/create')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create License', description: 'Emits a new student license. Requires EMPLOYEE or ADMIN role.' })
