@@ -3,6 +3,7 @@ export const EMPLOYEE_REPOSITORY = 'EMPLOYEE_REPOSITORY';
 export interface IEmployeeRepository<T> {
   create(data: Partial<T>): Promise<T>;
   findAll(): Promise<T[]>;
+  findAllInactive(): Promise<T[]>;
   findById(id: string): Promise<T | null>;
   findByRegistrationId(registrationId: string): Promise<T | null>;
   findByRegistrationIdWithPassword(registrationId: string): Promise<T | null>;
