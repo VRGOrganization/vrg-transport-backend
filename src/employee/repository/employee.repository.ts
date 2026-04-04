@@ -20,6 +20,10 @@ export class EmployeeRepository implements IEmployeeRepository<Employee> {
     return this.employeeModel.find({ active: true }).exec();
   }
 
+  async findAllInactive(): Promise<Employee[]> {
+    return this.employeeModel.find({ active: false }).exec();
+  }
+
   async findById(id: string): Promise<Employee | null> {
     return this.employeeModel.findById(id).exec();
   }

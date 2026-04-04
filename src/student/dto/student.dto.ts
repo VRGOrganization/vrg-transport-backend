@@ -1,5 +1,6 @@
 import {
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsEnum,
   MaxLength,
@@ -7,7 +8,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { PartialType } from '@nestjs/swagger';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BloodType, Shift } from '../../common/interfaces/student-attributes.enum';
 
 export class CreateStudentDto {
@@ -69,6 +70,16 @@ export class CreateStudentDto {
   @IsNotEmpty()
   @MaxLength(100)
   bus: string;
+
+  @ApiPropertyOptional({
+    example: 'UENF',
+    description: 'Instituição de ensino do estudante',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  @Transform(({ value }) => value?.trim())
+  institution?: string;
 }
 
 export class UpdateStudentDto extends PartialType(CreateStudentDto) {}

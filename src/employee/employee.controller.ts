@@ -43,6 +43,13 @@ export class EmployeeController {
     return this.employeeService.findAll();
   }
 
+  @Get('inactive')
+  @ApiOperation({ summary: 'List all inactive employees (admin only)' })
+  @ApiResponse({ status: 200, description: 'List of inactive employees.' })
+  findAllInactive() {
+    return this.employeeService.findAllInactive();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Find employee by ID' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })

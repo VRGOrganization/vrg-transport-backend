@@ -7,7 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Image, ImageDocument } from './schema/image.schema';
-import { CreateImageDto, UpdateImageDto } from './dto/image.dto';
+import { CreateImageDto, UpdateImageDto, UploadMyDocumentDto } from './dto/image.dto';
 import { PhotoType } from './types/photoType.enum';
 
 @Injectable()
@@ -47,6 +47,10 @@ export class ImagesService {
     });
 
     return image.save();
+  }
+
+  async createForStudent(studentId: string, dto: UploadMyDocumentDto): Promise<Image> {
+    return this.create({ studentId, photoType: dto.photoType, photo3x4: dto.photo3x4 });
   }
 
   async findAll(): Promise<Image[]> {
