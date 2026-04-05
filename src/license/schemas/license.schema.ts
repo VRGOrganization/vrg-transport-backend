@@ -42,4 +42,3 @@ export class License {
 export const LicenseSchema = SchemaFactory.createForClass(License);
 
 LicenseSchema.index({ studentId: 1 });
-LicenseSchema.index({ verificationCode: 1 });
