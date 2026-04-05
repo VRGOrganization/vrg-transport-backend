@@ -11,7 +11,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ImagesService } from './image.service';
-import { CreateImageDto, UpdateImageDto } from './dto/image.dto';
+import { CreateImageDto, UpdateImageDto, UploadMyDocumentDto } from './dto/image.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';

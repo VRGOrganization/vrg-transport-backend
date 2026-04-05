@@ -41,6 +41,9 @@ export class Student {
   @Prop({ required: false, trim: true })
   bus: string;
 
+  @Prop({ required: false, trim: true })
+  institution: string;
+
   @Prop({ required: false, type: String, default: null })
   photo: string | null;
 
@@ -87,6 +90,7 @@ StudentSchema.index({ name: 1 });
 
 // Remove password e campos sensíveis de qualquer serialização JSON
 StudentSchema.set('toJSON', {
+  virtuals: true,
   transform: (_doc, ret: any) => {
     delete ret.cpfHash;
     delete ret.password;

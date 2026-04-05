@@ -131,6 +131,8 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
     const isInstitutional = this.isInstitutionalEmail(dto.email);
     const { code, codeHash, expiresAt } = this.generateVerificationCode();
+    // TODO: Remover isso depois
+    this.logger.debug(`[DEV ONLY] Verification code for ${dto.email}: ${code}`);
 
     // TODO: remover em produção
     this.logger.debug(`[DEV ONLY] Verification code for ${dto.email}: ${code}`);

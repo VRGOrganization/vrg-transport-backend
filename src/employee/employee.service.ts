@@ -61,6 +61,10 @@ export class EmployeeService {
     return this.employeeRepository.findAll();
   }
 
+  async findAllInactive(): Promise<Employee[]> {
+    return this.employeeRepository.findAllInactive();
+  }
+
   async findById(id: string): Promise<Employee | null> {
     return this.employeeRepository.findById(id);
   }
