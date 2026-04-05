@@ -73,7 +73,7 @@ export class LicenseService {
     return this.licenseRepository.create({
       studentId,
       employeeId, 
-      imageLicense: data.license_image_url,
+      imageLicense: data.image,
       status: LicenseStatus.ACTIVE,
       existing: true,
       expirationDate: addMonthsBR(nowInBR(), 7),
@@ -83,7 +83,7 @@ export class LicenseService {
   async getLicenseByStudentId(studentId: string): Promise<License> {
     const license = await this.licenseRepository.findOneByStudentId(studentId);
     if (!license) {
-      throw new NotFoundException(`Licença não encontrada para o student ${studentId}`);
+      throw new NotFoundException();
     }
     return license;
   }

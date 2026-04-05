@@ -13,7 +13,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  // ── Segurança e hardening 
+  // ── Segurança e hardening
   // Configurações de segurança e hardening da aplicação.
   const trustProxy = configService.get<number>('TRUST_PROXY_HOPS', 1);
   app.set('trust proxy', trustProxy);
@@ -25,9 +25,14 @@ async function bootstrap() {
   app.use(json({ limit: '2mb' }));
 
   // ── Helmet — headers HTTP defensivos
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginOpenerPolicy: false,
+    }),
+  );
 
-  // ── CORS 
+  // ── CORS
   // Usa getOrThrow para garantir que a variável está definida.
   // validateSecurityConfig já bloqueia wildcard na inicialização,
   // mas getOrThrow garante que a app não sobe sem a variável presente.
@@ -59,7 +64,7 @@ async function bootstrap() {
       },
       validationError: {
         target: false, // não expõe o objeto recebido no erro
-        value: false,  // não expõe o valor inválido no erro
+        value: false, // não expõe o valor inválido no erro
       },
     }),
   );
@@ -76,7 +81,9 @@ async function bootstrap() {
   if (enableSwagger && !isProduction) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('VRG Transport API')
-      .setDescription('Documentação da API de gestão de transporte e carteirinhas')
+      .setDescription(
+        'Documentação da API de gestão de transporte e carteirinhas',
+      )
       .setVersion('1.0')
       .addBearerAuth()
       .build();
@@ -86,7 +93,7 @@ async function bootstrap() {
     logger.log('Swagger disponível em /api/docs (dev only)');
   }
 
-  // ── Start 
+  // ── Start
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);
   logger.log(`Aplicação rodando em: http://localhost:${port}/api/v1`);

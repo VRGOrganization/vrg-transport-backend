@@ -14,9 +14,9 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
 import { ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Students')
 @ApiBearerAuth()

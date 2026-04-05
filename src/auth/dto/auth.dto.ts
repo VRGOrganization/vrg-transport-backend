@@ -1,6 +1,5 @@
 import {
   IsEmail,
-  IsEnum,
   IsNotEmpty,
   IsString,
   MinLength,
@@ -9,7 +8,6 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-import { BloodType, Shift } from '../../common/interfaces/student-attributes.enum';
 
 export class StudentLoginDto {
   @ApiProperty({
@@ -104,47 +102,15 @@ export class RegisterStudentDto {
   })
   password: string;
 
-  /* @ApiProperty({
-    example: 'Engenharia de Software',
-    description: 'Curso do estudante',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
-  degree: string; */
-
-  
-  /* @IsEnum(Shift, { message: 'Turno inválido' })
-  @ApiProperty({ enum: Shift, enumName: 'Shift' })
-  @IsNotEmpty()
-  shift: Shift; */
-
   @ApiProperty({
     example: '+55 22 99999-9999',
     description: 'Telefone do estudante',
   })
   @IsString()
   @IsNotEmpty()
-  @Transform(({ value }) => value?.replace(/\D/g, '')) // remove tudo que não for número
+  @Transform(({ value }) => value?.replace(/\D/g, ''))
   @Matches(/^\d{10,13}$/, { message: 'Telefone inválido' })
   telephone: string;
-
- /*  @ApiProperty({
-    example: 'O+',
-    description: 'Tipo sanguíneo',
-    enum: BloodType,
-  }) */
-  /* @IsEnum(BloodType, { message: 'Tipo sanguíneo inválido' })
-  @IsNotEmpty()
-  bloodType: BloodType; */
-
-  /* @ApiProperty({
-    example: '05',
-    description: 'Ônibus utilizado pelo estudante',
-  })
-  @IsString()
-  @IsNotEmpty()
-  bus: string; */
 }
 
 export class VerifyEmailDto {

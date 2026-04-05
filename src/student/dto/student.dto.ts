@@ -19,7 +19,7 @@ export class CreateStudentDto {
   @IsNotEmpty()
   @MaxLength(100)
   @Transform(({ value }) => value?.trim())
-  name: string;
+  name!: string;
 
   @ApiProperty({
     example: 'Engenharia de Software',
@@ -28,17 +28,17 @@ export class CreateStudentDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  degree: string;
+  degree?: string;
 
   @ApiProperty({
     enum: Shift,
     enumName: 'Shift',
-    example: 'MORNING',
+    example: Shift.MORNING,
     description: 'Turno do estudante',
   })
   @IsEnum(Shift, { message: 'shift inválido' })
   @IsNotEmpty()
-  shift: Shift;
+  shift?: Shift;
 
   @ApiProperty({
     example: '+55 22 99999-9999',
@@ -49,7 +49,7 @@ export class CreateStudentDto {
   @Matches(/^\+?[\d\s\-()]{10,15}$/, {
     message: 'Telefone inválido',
   })
-  telephone: string;
+  telephone!: string;
 
   @ApiProperty({
     enum: BloodType,
@@ -59,7 +59,7 @@ export class CreateStudentDto {
   })
   @IsEnum(BloodType, { message: 'bloodType inválido' })
   @IsNotEmpty()
-  bloodType: BloodType;
+  bloodType?: BloodType;
 
   @ApiProperty({
     example: '05',
@@ -68,7 +68,7 @@ export class CreateStudentDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  bus: string;
+  bus?: string;
 }
 
 export class UpdateStudentDto extends PartialType(CreateStudentDto) {}

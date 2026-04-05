@@ -19,7 +19,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
+import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Images')
 @Controller('image')
