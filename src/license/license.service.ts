@@ -58,8 +58,8 @@ export class LicenseService {
       shift: student.shift,
       telephone: student.telephone,
       blood_type: student.bloodType,
-      bus: student.bus,
-      photo: dto.photo,      
+      bus: dto.bus,
+      photo: this.normalizePhotoForLicenseApi(dto.photo),
     }
 
     const data = await this.callLicenseApi(payload);
@@ -137,7 +137,10 @@ export class LicenseService {
       })
 
       if (!response.ok) {
-        this.logger.error(`License API error: ${response.status} ${response.statusText}`);
+        const errorBody = await response.text();
+        this.logger.error(
+          `License API error: ${response.status} ${response.statusText} body=${errorBody}`,
+        );
         throw new BadGatewayException('Erro ao comunicar com o serviço de licenças');
       }
       return response.json();
@@ -149,5 +152,16 @@ export class LicenseService {
     }finally{
       clearTimeout(timer);
     }
+  }
+
+  private normalizePhotoForLicenseApi(photo?: string): string | undefined {
+    if (!photo) return undefined;
+
+    const dataUrlMatch = /^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/i.exec(photo);
+    if (dataUrlMatch) {
+      return dataUrlMatch[2];
+    }
+
+    return photo;
   }
 }

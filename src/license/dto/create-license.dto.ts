@@ -26,6 +26,15 @@ export class CreateLicenseDto {
   @MaxLength(120)
   institution: string;
 
+  @ApiProperty({
+    example: '205',
+    description: 'Linha de ônibus definida pelo funcionário',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(10)
+  bus: string;
+
   @ApiPropertyOptional({
     example: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...',
     description: 'Foto do estudante em base64 (jpeg, png, webp). Máx ~1.5MB',

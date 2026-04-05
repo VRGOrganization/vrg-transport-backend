@@ -17,6 +17,9 @@ export class Student {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string;
 
+  @Prop({ required: true, unique: true, select: false })
+  cpfHash: string;
+
   @Prop({ required: true })
   password: string;
 
@@ -33,10 +36,16 @@ export class Student {
   bloodType: BloodType;
 
   @Prop({ required: false, trim: true })
+  institution: string;
+
+  @Prop({ required: false, trim: true })
   bus: string;
 
   @Prop({ required: false, type: String, default: null })
   photo: string | null;
+
+  @Prop({ type: [{ day: String, period: String }], default: [] })
+  schedule: { day: string; period: string }[];
 
   @Prop({
     type: String,
@@ -79,6 +88,7 @@ StudentSchema.index({ name: 1 });
 // Remove password e campos sensíveis de qualquer serialização JSON
 StudentSchema.set('toJSON', {
   transform: (_doc, ret: any) => {
+    delete ret.cpfHash;
     delete ret.password;
     delete ret.verificationCode;
     delete ret.verificationCodeExpiresAt;

@@ -35,14 +35,28 @@ export class ImagesService {
       );
     }
 
+    const isDocumentType =
+      dto.photoType === PhotoType.EnrollmentProof ||
+      dto.photoType === PhotoType.CourseSchedule;
+
+    if (isDocumentType && !dto.documentImage) {
+      throw new BadRequestException(
+        `documentImage é obrigatório para o tipo ${dto.photoType}`,
+      );
+    }
+
     if (dto.photo3x4) {
       this.assertValidImageDataUrl(dto.photo3x4);
+    }
+    if (dto.documentImage) {
+      this.assertValidImageDataUrl(dto.documentImage);
     }
 
     const image = new this.imageModel({
       studentId: dto.studentId,
       photoType: dto.photoType,
       photo3x4: dto.photo3x4 ?? null,
+      documentImage: dto.documentImage ?? null,
       studentCard: null,
     });
 
@@ -98,6 +112,9 @@ export class ImagesService {
     if (update.photo3x4) {
       this.assertValidImageDataUrl(update.photo3x4);
     }
+    if (update.documentImage) {
+      this.assertValidImageDataUrl(update.documentImage);
+    }
 
     const image = await this.imageModel
       .findByIdAndUpdate(
@@ -122,6 +139,9 @@ export class ImagesService {
     const update = this.pickDefined(dto);
     if (update.photo3x4) {
       this.assertValidImageDataUrl(update.photo3x4);
+    }
+    if (update.documentImage) {
+      this.assertValidImageDataUrl(update.documentImage);
     }
 
     const image = await this.imageModel

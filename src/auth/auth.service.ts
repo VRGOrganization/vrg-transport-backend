@@ -74,11 +74,41 @@ export class AuthService {
   // REGISTER
   // ═══════════════════════════════════════════════════════════════════════════
 
+  private hashCpf(cpf: string): string {
+    const secret = this.configService.getOrThrow<string>('CPF_HMAC_SECRET');
+    return createHmac('sha256', secret).update(cpf).digest('hex');
+  }
+
+  private isValidCpf(cpf: string): boolean {
+    if (/^(\d)\1{10}$/.test(cpf)) return false;
+    const calc = (digits: string, weights: number[]) => {
+      const sum = digits
+        .split('')
+        .reduce((acc, d, i) => acc + parseInt(d) * weights[i], 0);
+      const rem = sum % 11;
+      return rem < 2 ? 0 : 11 - rem;
+    };
+    const d1 = calc(cpf.slice(0, 9), [10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    if (d1 !== parseInt(cpf[9])) return false;
+    const d2 = calc(cpf.slice(0, 10), [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    return d2 === parseInt(cpf[10]);
+  }
+
   async registerStudent(
     dto: RegisterStudentDto,
   ): Promise<{ message: string; isInstitutional: boolean }> {
-    const existing = await this.studentService.findByEmail(dto.email);
-    if (existing) {
+    if (!this.isValidCpf(dto.cpf)) {
+      throw new BadRequestException('CPF inválido');
+    }
+
+    const cpfHash = this.hashCpf(dto.cpf);
+
+    const [existingEmail, existingCpf] = await Promise.all([
+      this.studentService.findByEmail(dto.email),
+      this.studentService.findByCpfHash(cpfHash),
+    ]);
+
+    if (existingEmail) {
       await this.auditLog.record({
         action: 'register.student.exists',
         outcome: 'failure',
@@ -86,6 +116,16 @@ export class AuthService {
         metadata: { reason: 'email_exists' },
       });
       throw new ConflictException(AUTH_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
+    }
+
+    if (existingCpf) {
+      await this.auditLog.record({
+        action: 'register.student.exists',
+        outcome: 'failure',
+        target: { email: dto.email },
+        metadata: { reason: 'cpf_exists' },
+      });
+      throw new ConflictException('CPF já cadastrado');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
@@ -98,6 +138,7 @@ export class AuthService {
     await this.studentService.create({
       name: dto.name,
       email: dto.email,
+      cpfHash,
       password: hashedPassword,
       telephone: dto.telephone,
       status: StudentStatus.PENDING,

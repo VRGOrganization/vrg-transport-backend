@@ -6,6 +6,7 @@ export interface IStudentRepository<T> {
   findById(id: string): Promise<T | null>;
   findByEmail(email: string): Promise<T | null>;
   findByEmailWithSensitiveFields(email: string): Promise<T | null>;
+  findByCpfHash(cpfHash: string): Promise<T | null>;
   update(id: string, data: Partial<T>): Promise<T | null>;
   remove(id: string): Promise<boolean>;
 }

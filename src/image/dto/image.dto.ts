@@ -31,7 +31,7 @@ export class CreateImageDto {
   @ApiPropertyOptional({
     example: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...',
     description:
-      'Imagem 3x4 em base64. Obrigatória quando photoType = PROFILE_PHOTO',
+      'Imagem 3x4 em base64. Obrigatória quando photoType = ProfilePhoto',
   })
   @IsOptional()
   @IsString()
@@ -42,6 +42,21 @@ export class CreateImageDto {
     message: 'Formato de imagem inválido',
   })
   photo3x4?: string;
+
+  @ApiPropertyOptional({
+    example: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...',
+    description:
+      'Imagem de documento em base64. Obrigatória quando photoType = EnrollmentProof ou CourseSchedule',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000_000, {
+    message: 'Imagem muito grande (máx ~1.5MB)',
+  })
+  @Matches(/^data:image\/(jpeg|jpg|png|webp);base64,/, {
+    message: 'Formato de imagem inválido',
+  })
+  documentImage?: string;
 }
 
 export class UpdateImageDto {
@@ -58,4 +73,18 @@ export class UpdateImageDto {
     message: 'Formato de imagem inválido',
   })
   photo3x4?: string;
+
+  @ApiPropertyOptional({
+    example: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...',
+    description: 'Nova imagem de documento em base64',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000_000, {
+    message: 'Imagem muito grande (máx ~1.5MB)',
+  })
+  @Matches(/^data:image\/(jpeg|jpg|png|webp);base64,/, {
+    message: 'Formato de imagem inválido',
+  })
+  documentImage?: string;
 }

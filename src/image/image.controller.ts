@@ -50,6 +50,22 @@ export class ImagesController {
     return this.imagesService.findAll();
   }
 
+  @Post('me')
+  @Roles(UserRole.STUDENT)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Upload own image', description: 'Student uploads their own image (profile photo or document).' })
+  @ApiResponse({ status: 201, description: 'Image created successfully.' })
+  @ApiResponse({ status: 409, description: 'Image of this type already exists.' })
+  createMyImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: Omit<CreateImageDto, 'studentId'>,
+  ) {
+    return this.imagesService.create({
+      ...dto,
+      studentId: user.id,
+    } as CreateImageDto);
+  }
+
   @Get('me')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'My images', description: 'Returns all images for the authenticated student.' })
