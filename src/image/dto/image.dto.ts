@@ -53,8 +53,8 @@ export class CreateImageDto {
   @MaxLength(2_000_000, {
     message: 'Imagem muito grande (máx ~1.5MB)',
   })
-  @Matches(/^data:image\/(jpeg|jpg|png|webp);base64,/, {
-    message: 'Formato de imagem inválido',
+  @Matches(/^data:(image\/(jpeg|jpg|png|webp)|application\/pdf);base64,/, {
+    message: 'Formato de documento inválido',
   })
   documentImage?: string;
 }
@@ -83,8 +83,8 @@ export class UpdateImageDto {
   @MaxLength(2_000_000, {
     message: 'Imagem muito grande (máx ~1.5MB)',
   })
-  @Matches(/^data:image\/(jpeg|jpg|png|webp);base64,/, {
-    message: 'Formato de imagem inválido',
+  @Matches(/^data:(image\/(jpeg|jpg|png|webp)|application\/pdf);base64,/, {
+    message: 'Formato de documento inválido',
   })
   documentImage?: string;
 }

@@ -49,7 +49,7 @@ export class ImagesService {
       this.assertValidImageDataUrl(dto.photo3x4);
     }
     if (dto.documentImage) {
-      this.assertValidImageDataUrl(dto.documentImage);
+      this.assertValidDocumentDataUrl(dto.documentImage);
     }
 
     const image = new this.imageModel({
@@ -113,7 +113,7 @@ export class ImagesService {
       this.assertValidImageDataUrl(update.photo3x4);
     }
     if (update.documentImage) {
-      this.assertValidImageDataUrl(update.documentImage);
+      this.assertValidDocumentDataUrl(update.documentImage);
     }
 
     const image = await this.imageModel
@@ -141,7 +141,7 @@ export class ImagesService {
       this.assertValidImageDataUrl(update.photo3x4);
     }
     if (update.documentImage) {
-      this.assertValidImageDataUrl(update.documentImage);
+      this.assertValidDocumentDataUrl(update.documentImage);
     }
 
     const image = await this.imageModel
@@ -234,6 +234,33 @@ export class ImagesService {
     if (!valid) {
       throw new BadRequestException(
         'Conteúdo da imagem não confere com o tipo informado',
+      );
+    }
+  }
+
+  private assertValidDocumentDataUrl(dataUrl: string): void {
+    const imageDataUrlRegex = /^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/;
+    const pdfDataUrlRegex = /^data:application\/pdf;base64,(.+)$/;
+
+    if (imageDataUrlRegex.test(dataUrl)) {
+      this.assertValidImageDataUrl(dataUrl);
+      return;
+    }
+
+    const pdfMatch = pdfDataUrlRegex.exec(dataUrl);
+    if (!pdfMatch) {
+      throw new BadRequestException('Formato de documento inválido');
+    }
+
+    const buffer = Buffer.from(pdfMatch[1], 'base64');
+    if (buffer.length < 5) {
+      throw new BadRequestException('Documento PDF inválido');
+    }
+
+    const isPdf = buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+    if (!isPdf) {
+      throw new BadRequestException(
+        'Conteúdo do documento não confere com o tipo informado',
       );
     }
   }
