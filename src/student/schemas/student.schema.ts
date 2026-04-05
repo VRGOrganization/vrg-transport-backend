@@ -87,6 +87,7 @@ StudentSchema.index({ name: 1 });
 
 // Remove password e campos sensíveis de qualquer serialização JSON
 StudentSchema.set('toJSON', {
+  virtuals: true,
   transform: (_doc, ret: any) => {
     delete ret.cpfHash;
     delete ret.password;

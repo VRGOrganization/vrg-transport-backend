@@ -17,15 +17,24 @@ export class MailService {
     to: string,
     code: string,
     isInstitutional: boolean,
+    studentName?: string,
   ): Promise<void> {
     const subject = isInstitutional
       ? 'Código de verificação — Pré-validação institucional'
       : 'Código de verificação da sua conta';
 
+    const name = studentName ?? 'Estudante';
+    const digits = code.split('');
+
     const institutionalNote = isInstitutional
-      ? `<p style="color:#2d6a4f;background:#d8f3dc;padding:12px;border-radius:6px;">
-           <strong>E-mail institucional detectado.</strong> Sua conta será pré-validada como estudante vinculado a uma instituição de ensino.
-         </p>`
+      ? `<tr><td style="padding:0 40px 20px">
+           <div style="border-left:4px solid #d4a017;background:#fffbf0;padding:12px 16px">
+             <div style="color:#9a6a00;font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:5px">Pré-validação institucional</div>
+             <div style="color:#7a5500;font-size:12px;line-height:1.6">
+               <strong>E-mail institucional detectado.</strong> Sua conta será pré-validada como estudante vinculado a uma instituição de ensino.
+             </div>
+           </div>
+         </td></tr>`
       : '';
 
     try {

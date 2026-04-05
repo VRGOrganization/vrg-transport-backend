@@ -1,5 +1,6 @@
 import {
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsEnum,
   MaxLength,
@@ -8,7 +9,6 @@ import {
   ValidateNested,
   IsIn,
   ArrayMinSize,
-  IsOptional,
 } from 'class-validator';
 import { plainToInstance, Transform, Type } from 'class-transformer';
 import { OmitType, PartialType } from '@nestjs/swagger';
@@ -97,12 +97,12 @@ export class DayPeriodDto {
   @ApiProperty({ example: 'SEG', description: 'Dia da semana' })
   @IsString()
   @IsIn(VALID_DAYS, { message: 'Dia inválido' })
-  day: string;
+  day!: string;
 
   @ApiProperty({ example: 'Manhã', description: 'Período' })
   @IsString()
   @IsIn(VALID_PERIODS, { message: 'Período inválido' })
-  period: string;
+  period!: string;
 }
 
 export class SubmitScheduleDto {
@@ -111,7 +111,7 @@ export class SubmitScheduleDto {
   @ArrayMinSize(1, { message: 'Selecione ao menos um período' })
   @ValidateNested({ each: true })
   @Type(() => DayPeriodDto)
-  selections: DayPeriodDto[];
+  selections!: DayPeriodDto[];
 }
 
 export class UpdateStudentProfileDto extends OmitType(
@@ -199,5 +199,5 @@ export class SubmitLicenseRequestFormDto {
   @ArrayMinSize(1, { message: 'Selecione ao menos um período' })
   @ValidateNested({ each: true })
   @Type(() => DayPeriodDto)
-  schedule: DayPeriodDto[];
+  schedule!: DayPeriodDto[];
 }
