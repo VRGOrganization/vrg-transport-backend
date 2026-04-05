@@ -41,9 +41,6 @@ export class Student {
   @Prop({ required: false, trim: true })
   bus: string;
 
-  @Prop({ required: false, trim: true })
-  institution: string;
-
   @Prop({ required: false, type: String, default: null })
   photo: string | null;
 
