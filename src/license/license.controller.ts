@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
 import {
@@ -35,6 +36,18 @@ import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
 export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}
+
+  @Get('/verify/:code')
+  @Public()
+  @ApiOperation({
+    summary: 'Verificar autenticidade de carteirinha',
+    description: 'Rota pública. Valida se uma carteirinha existe e está ativa pelo código de verificação do QR code.',
+  })
+  @ApiParam({ name: 'code', description: 'Código de verificação (UUID gerado na emissão)' })
+  @ApiResponse({ status: 200, description: 'Resultado da verificação.' })
+  async verify(@Param('code') code: string) {
+    return this.licenseService.verifyByCode(code);
+  }
 
   @Post('/create')
   @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)

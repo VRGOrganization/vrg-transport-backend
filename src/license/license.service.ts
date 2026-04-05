@@ -6,6 +6,7 @@ import {
   Logger,
   GatewayTimeoutException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import type { ILicenseRepository } from './interfaces/repository.interface';
 import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
@@ -21,6 +22,7 @@ export class LicenseService {
   private readonly logger = new Logger(LicenseService.name);
   private readonly apiUrl: string;
   private readonly apiKey: string;
+  private readonly qrCodeBaseUrl: string;
 
   constructor(
     @Inject(LICENSE_REPOSITORY)
@@ -31,6 +33,7 @@ export class LicenseService {
   ) {
     this.apiUrl = this.configService.getOrThrow<string>('LICENSE_API_URL');
     this.apiKey = this.configService.getOrThrow<string>('LICENSE_API_KEY');
+    this.qrCodeBaseUrl = this.configService.getOrThrow<string>('QR_CODE_BASE_URL');
   }
 
   async checkHealth() {
@@ -49,6 +52,9 @@ export class LicenseService {
 
     const studentId = (student as any)._id.toString();
 
+    const verificationCode = randomUUID();
+    const qrCodeUrl = `${this.qrCodeBaseUrl}/${verificationCode}`;
+
     const payload = {
       id: studentId,
       employee_id: employeeId,
@@ -60,6 +66,7 @@ export class LicenseService {
       blood_type: student.bloodType,
       bus: dto.bus,
       photo: this.normalizePhotoForLicenseApi(dto.photo),
+      qr_code_url: qrCodeUrl,
     }
 
     const data = await this.callLicenseApi(payload);
@@ -69,14 +76,15 @@ export class LicenseService {
       actor: { id: employeeId, role: 'employee' },
       target: { studentId },
     })
-    
+
     return this.licenseRepository.create({
       studentId,
-      employeeId, 
+      employeeId,
       imageLicense: data.image,
       status: LicenseStatus.ACTIVE,
       existing: true,
       expirationDate: addMonthsBR(nowInBR(), 7),
+      verificationCode,
     })
   }
 
@@ -106,6 +114,18 @@ export class LicenseService {
       throw new NotFoundException(`Licença ${id} não encontrada`);
     }
     return { message: 'Licença removida com sucesso' };
+  }
+
+  async verifyByCode(code: string): Promise<{ exists: boolean; valid?: boolean; status?: LicenseStatus }> {
+    const license = await this.licenseRepository.findOneByVerificationCode(code);
+    if (!license || !license.existing) {
+      return { exists: false };
+    }
+    return {
+      exists: true,
+      valid: license.status === LicenseStatus.ACTIVE,
+      status: license.status,
+    };
   }
 
   async update(id: string, dto: CreateLicenseDto, employeeId: string): Promise<License> {
