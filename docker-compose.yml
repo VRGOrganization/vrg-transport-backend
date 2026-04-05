@@ -13,10 +13,6 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3000
-      - MONGODB_URI=mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@mongodb:27017/${MONGODB_DATABASE}?authSource=admin
-    depends_on:
-      mongodb:
-        condition: service_healthy
     networks:
       - vrg-network
     healthcheck:
@@ -33,49 +29,6 @@ services:
         reservations:
           cpus: '0.5'
           memory: 256M
-
-  mongodb:
-    image: mongo:7-jammy
-    container_name: vrg-transport-mongodb
-    restart: unless-stopped
-    env_file:
-      - .env
-    ports:
-      - "${MONGODB_PORT:-27017}:27017"
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USER}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
-      - MONGO_INITDB_DATABASE=${MONGODB_DATABASE}
-    volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-    networks:
-      - vrg-network
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-    # Segurança: não roda como root
-    user: mongodb
-    command: mongod --auth
-
-volumes:
-  mongodb_data:
-    driver: local
-    name: vrg-transport-mongodb-data
-  mongodb_config:
-    driver: local
-    name: vrg-transport-mongodb-config
 
 networks:
   vrg-network:
