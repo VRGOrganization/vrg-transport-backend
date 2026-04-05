@@ -1,58 +1,60 @@
-# compiled output
-/dist
-/node_modules
-/build
-
-# Logs
-logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
-# OS
-.DS_Store
-
-# Tests
-/coverage
-/.nyc_output
-
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# dotenv environment variable files
+# =============================================================================
+# VARIÁVEIS DE AMBIENTE — regra crítica de segurança
+# =============================================================================
+# Bloqueia todos os arquivos .env por padrão.
+# Libera apenas o .env.example (template sem valores reais).
+#
+# Se você acidentalmente commitou um .env com segredos:
+#   1. Rotacione TODOS os segredos imediatamente (JWT, DB, API keys)
+#   2. Remova do histórico: git filter-repo --path .env --invert-paths
+#   3. Force-push e avise todos os colaboradores para rebaser
+# =============================================================================
 .env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+.env.*
 !.env.example
 
-# temp directory
-/tmp
-.temp
-.tmp
 
-# Runtime data
-pids
+# -----------------------------------------------------------------------------
+# Node / NestJS
+# -----------------------------------------------------------------------------
+node_modules/
+dist/
+build/
+tmp/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime
+pids/
 *.pid
 *.seed
 *.pid.lock
 
-# Diagnostic reports (https://nodejs.org/api/report.html)
-report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+# Cache
+.npm
+.eslintcache
+.nyc_output
+coverage/
+
+# -----------------------------------------------------------------------------
+# IDEs e editores
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# -----------------------------------------------------------------------------
+# Sistema operacional
+# -----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+scripts/seed-admin.ts
