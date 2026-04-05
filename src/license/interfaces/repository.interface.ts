@@ -6,4 +6,5 @@ export interface ILicenseRepository<T> {
   findOne(id: string): Promise<T | null>;
   remove(id: string): Promise<boolean>;
   findOneByStudentId(studentId: string): Promise<T | null>;
+  findOneByVerificationCode(code: string): Promise<T | null>;
 }

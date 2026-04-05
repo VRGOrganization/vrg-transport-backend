@@ -1,22 +1,45 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Delete,
   Body,
   UseGuards,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
 import { StudentService } from './student.service';
-import { UpdateStudentDto } from './dto/student.dto';
+import {
+  SubmitLicenseRequestFormDto,
+  SubmitScheduleDto,
+  UpdateStudentProfileDto,
+  UpdateStudentDto,
+} from './dto/student.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
-import { ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+
+type UploadedImageFile = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname?: string;
+};
 
 @ApiTags('Students')
 @ApiBearerAuth()
@@ -31,6 +54,64 @@ export class StudentController {
   @ApiResponse({ status: 200, description: 'List of students.' })
   findAll() {
     return this.studentService.findAll();
+  }
+
+  @Post('schedule')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Submit class schedule' })
+  @ApiBody({ type: SubmitScheduleDto })
+  @ApiResponse({ status: 200, description: 'Schedule saved.' })
+  submitSchedule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubmitScheduleDto,
+  ) {
+    return this.studentService.updateSchedule(user.id, dto.selections);
+  }
+
+  @Post('me/license-submit')
+  @Roles(UserRole.STUDENT)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'ProfilePhoto', maxCount: 1 },
+      { name: 'EnrollmentProof', maxCount: 1 },
+      { name: 'CourseSchedule', maxCount: 1 },
+    ]),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Submit student profile, schedule and images in one request',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['schedule'],
+      properties: {
+        institution: { type: 'string' },
+        degree: { type: 'string' },
+        shift: { type: 'string' },
+        bloodType: { type: 'string' },
+        schedule: {
+          type: 'string',
+          example: '[{"day":"SEG","period":"Manhã"}]',
+        },
+        ProfilePhoto: { type: 'string', format: 'binary' },
+        EnrollmentProof: { type: 'string', format: 'binary' },
+        CourseSchedule: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Data submitted successfully.' })
+  submitLicenseRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubmitLicenseRequestFormDto,
+    @UploadedFiles()
+    files: {
+      ProfilePhoto?: UploadedImageFile[];
+      EnrollmentProof?: UploadedImageFile[];
+      CourseSchedule?: UploadedImageFile[];
+    },
+  ) {
+    return this.studentService.submitLicenseRequest(user.id, dto, files ?? {});
   }
 
   @Get('me')
@@ -55,11 +136,11 @@ export class StudentController {
   @Patch('me')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Update own profile' })
-  @ApiBody({ type: UpdateStudentDto })
+  @ApiBody({ type: UpdateStudentProfileDto })
   @ApiResponse({ status: 200, description: 'Profile updated.' })
   updateProfile(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: UpdateStudentDto,
+    @Body() dto: UpdateStudentProfileDto,
   ) {
     return this.studentService.update(user.id, dto);
   }

@@ -6,10 +6,12 @@ import { StudentRepository } from './repository/student.repository';
 import { Student, StudentSchema } from './schemas/student.schema';
 import { STUDENT_REPOSITORY } from './interfaces/repository.interface';
 import { CommonModule } from '../common/common.module';
+import { ImagesModule } from '../image/image.module';
 
 @Module({
   imports: [
     CommonModule,
+    ImagesModule,
     MongooseModule.forFeature([{ name: Student.name, schema: StudentSchema }]),
   ],
   controllers: [StudentController],

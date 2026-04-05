@@ -19,7 +19,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
-import { AuthenticatedUser } from '../auth/interfaces/auth.interface';
+import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Images')
 @Controller('image')
@@ -53,17 +53,17 @@ export class ImagesController {
   @Post('me')
   @Roles(UserRole.STUDENT)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Upload my document', description: 'Student uploads a document (profile photo, enrollment proof, course schedule).' })
-  @ApiBody({ type: UploadMyDocumentDto })
-  @ApiResponse({ status: 201, description: 'Document uploaded successfully.' })
-  @ApiResponse({ status: 400, description: 'Invalid data or file format.' })
-  @ApiResponse({ status: 401, description: 'Not authenticated.' })
-  @ApiResponse({ status: 409, description: 'Document of this type already exists.' })
-  uploadMyDocument(
+  @ApiOperation({ summary: 'Upload own image', description: 'Student uploads their own image (profile photo or document).' })
+  @ApiResponse({ status: 201, description: 'Image created successfully.' })
+  @ApiResponse({ status: 409, description: 'Image of this type already exists.' })
+  createMyImage(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: UploadMyDocumentDto,
+    @Body() dto: Omit<CreateImageDto, 'studentId'>,
   ) {
-    return this.imagesService.createForStudent(user.id, dto);
+    return this.imagesService.create({
+      ...dto,
+      studentId: user.id,
+    } as CreateImageDto);
   }
 
   @Get('me')

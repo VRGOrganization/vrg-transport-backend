@@ -111,6 +111,16 @@ export class RegisterStudentDto {
   @Transform(({ value }) => value?.replace(/\D/g, ''))
   @Matches(/^\d{10,13}$/, { message: 'Telefone inválido' })
   telephone: string;
+
+  @ApiProperty({
+    example: '123.456.789-09',
+    description: 'CPF do estudante (apenas dígitos ou formatado)',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'CPF é obrigatório' })
+  @Transform(({ value }) => value?.replace(/\D/g, ''))
+  @Matches(/^\d{11}$/, { message: 'CPF inválido' })
+  cpf: string;
 }
 
 export class VerifyEmailDto {

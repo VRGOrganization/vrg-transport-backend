@@ -34,10 +34,12 @@ export class License {
 
   @Prop({ required: true })
   expirationDate: Date;
+
+  @Prop({ required: true, unique: true })
+  verificationCode: string;
 }
 
 export const LicenseSchema = SchemaFactory.createForClass(License);
 
-// Índice para buscas frequentes por studentId (findOneByStudentId).
-// Sem índice, o Mongo faz full collection scan — O(n) em vez de O(log n).
 LicenseSchema.index({ studentId: 1 });
+LicenseSchema.index({ verificationCode: 1 });

@@ -17,6 +17,9 @@ export class Student {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string;
 
+  @Prop({ required: true, unique: true, select: false })
+  cpfHash: string;
+
   @Prop({ required: true })
   password: string;
 
@@ -33,6 +36,9 @@ export class Student {
   bloodType: BloodType;
 
   @Prop({ required: false, trim: true })
+  institution: string;
+
+  @Prop({ required: false, trim: true })
   bus: string;
 
   @Prop({ required: false, trim: true })
@@ -40,6 +46,9 @@ export class Student {
 
   @Prop({ required: false, type: String, default: null })
   photo: string | null;
+
+  @Prop({ type: [{ day: String, period: String }], default: [] })
+  schedule: { day: string; period: string }[];
 
   @Prop({
     type: String,
@@ -83,8 +92,7 @@ StudentSchema.index({ name: 1 });
 StudentSchema.set('toJSON', {
   virtuals: true,
   transform: (_doc, ret: any) => {
-    delete ret._id;
-    delete ret.__v;
+    delete ret.cpfHash;
     delete ret.password;
     delete ret.verificationCode;
     delete ret.verificationCodeExpiresAt;

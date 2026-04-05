@@ -40,4 +40,8 @@ export class LicenseRepository implements ILicenseRepository<License> {
   async findOneByStudentId(studentId: string): Promise<License | null> {
     return this.licenseModel.findOne({ studentId }).exec();
   }
+
+  async findOneByVerificationCode(code: string): Promise<License | null> {
+    return this.licenseModel.findOne({ verificationCode: code }).exec();
+  }
 }

@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { StudentService } from './student.service';
 import { STUDENT_REPOSITORY } from './interfaces/repository.interface';
+import { AuditLogService } from '../common/audit/audit-log.service';
+import { ImagesService } from '../image/image.service';
  
 const mockStudentRepository = {
   create: jest.fn(),
@@ -11,6 +13,16 @@ const mockStudentRepository = {
   update: jest.fn(),
   remove: jest.fn(),
 };
+
+const mockAuditLogService = {
+  record: jest.fn(),
+};
+
+const mockImagesService = {
+  findByStudentId: jest.fn(),
+  create: jest.fn(),
+  update: jest.fn(),
+};
  
 describe('StudentService', () => {
   let service: StudentService;
@@ -20,6 +32,8 @@ describe('StudentService', () => {
       providers: [
         StudentService,
         { provide: STUDENT_REPOSITORY, useValue: mockStudentRepository },
+        { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: ImagesService, useValue: mockImagesService },
       ],
     }).compile();
  

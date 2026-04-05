@@ -20,7 +20,11 @@ export class Image {
   @Prop({ type: String, default: null })
   photo3x4: string | null;
 
-  // Imagem da carteirinha — reservado para LicenseImage (não usado agora)
+  // Imagem de documento (matrícula, grade horária, etc.)
+  @Prop({ type: String, default: null })
+  documentImage: string | null;
+
+  // Imagem da carteirinha — reservado para LicenseImage
   @Prop({ type: String, default: null })
   studentCard: string | null;
 

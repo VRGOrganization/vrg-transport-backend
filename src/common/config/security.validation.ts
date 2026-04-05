@@ -25,6 +25,7 @@ export function validateSecurityConfig(config: Record<string, unknown>) {
   const allowedOrigins = requiredString('ALLOWED_ORIGINS');
   const licenseApiUrl = requiredString('LICENSE_API_URL');
   const licenseApiKey = requiredString('LICENSE_API_KEY');
+  const qrCodeBaseUrl = requiredString('QR_CODE_BASE_URL');
   /* const emailHost = requiredString('EMAIL_HOST');
   const emailPort = requiredString('EMAIL_PORT');
   const emailUser = requiredString('EMAIL_USER');
@@ -47,6 +48,7 @@ export function validateSecurityConfig(config: Record<string, unknown>) {
     ALLOWED_ORIGINS:      allowedOrigins,
     BASE_URL_API_LICENSE: licenseApiUrl,
     X_API_KEY:            licenseApiKey,
+    QR_CODE_BASE_URL:     qrCodeBaseUrl,
     /* EMAIL_HOST:           emailHost,
     EMAIL_PORT:           emailPort,
     EMAIL_USER:           emailUser,

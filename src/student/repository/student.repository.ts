@@ -49,6 +49,10 @@ export class StudentRepository implements IStudentRepository<Student> {
       .exec();
   }
 
+  async findByCpfHash(cpfHash: string): Promise<Student | null> {
+    return this.studentModel.findOne({ cpfHash }).select('+cpfHash').exec();
+  }
+
   async update(id: string, data: Partial<Student>): Promise<Student | null> {
   return this.studentModel
     .findByIdAndUpdate(id, { $set: data }, { new: true })

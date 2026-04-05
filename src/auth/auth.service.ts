@@ -6,12 +6,18 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { Response } from 'express';
+import { createHmac, randomInt, timingSafeEqual } from 'crypto';
+
 import { StudentService } from '../student/student.service';
 import { EmployeeService } from '../employee/employee.service';
 import { AdminService } from '../admin/admin.service';
 import { MailService } from '../mail/mail.service';
+import { AuditLogService } from '../common/audit/audit-log.service';
+import { TokenService } from './services/token.service';
+import { CookieService } from './services/cookie.service';
+
 import {
   StudentLoginDto,
   EmployeeLoginDto,
@@ -19,26 +25,31 @@ import {
   RegisterStudentDto,
   VerifyEmailDto,
   ResendCodeDto,
-  RefreshTokenDto,
 } from './dto/auth.dto';
-import { AuthenticatedUser, JwtPayload, LoginResponse } from './interfaces/auth.interface';
+
+import {
+  AuthenticatedUser,
+  JwtPayload,
+  LoginResponse,
+  RefreshPayload,
+  RefreshSession,
+} from './interfaces/auth.interface';
+
 import { AUTH_ERROR_MESSAGES } from './constants/auth.constants';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { StudentStatus } from '../student/schemas/student.schema';
-import { AuditLogService } from '../common/audit/audit-log.service';
-import { createHmac, randomInt, timingSafeEqual } from 'crypto';
-import { StringValue } from 'ms';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+
+  // ─── Constantes de negócio ────────────────────────────────────────────────
   private readonly SALT_ROUNDS = 12;
   private readonly CODE_EXPIRY_MINUTES = 15;
   private readonly MAX_VERIFY_ATTEMPTS = 5;
   private readonly RESEND_COOLDOWN_MS = 60_000;
 
-  // Domínios considerados institucionais — ajuste conforme necessário
-  // Conderir os dominios da nossa regiao
+  // Domínios considerados institucionais
   private readonly INSTITUTIONAL_DOMAINS = [
     'edu.br',
     'ac.br',
@@ -52,19 +63,52 @@ export class AuthService {
     private readonly studentService: StudentService,
     private readonly employeeService: EmployeeService,
     private readonly adminService: AdminService,
-    private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly mailService: MailService,
     private readonly auditLog: AuditLogService,
+    private readonly tokenService: TokenService,
+    private readonly cookieService: CookieService,
   ) {}
 
-  // STUDENT
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REGISTER
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  private hashCpf(cpf: string): string {
+    const secret = this.configService.getOrThrow<string>('CPF_HMAC_SECRET');
+    return createHmac('sha256', secret).update(cpf).digest('hex');
+  }
+
+  private isValidCpf(cpf: string): boolean {
+    if (/^(\d)\1{10}$/.test(cpf)) return false;
+    const calc = (digits: string, weights: number[]) => {
+      const sum = digits
+        .split('')
+        .reduce((acc, d, i) => acc + parseInt(d) * weights[i], 0);
+      const rem = sum % 11;
+      return rem < 2 ? 0 : 11 - rem;
+    };
+    const d1 = calc(cpf.slice(0, 9), [10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    if (d1 !== parseInt(cpf[9])) return false;
+    const d2 = calc(cpf.slice(0, 10), [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    return d2 === parseInt(cpf[10]);
+  }
 
   async registerStudent(
     dto: RegisterStudentDto,
   ): Promise<{ message: string; isInstitutional: boolean }> {
-    const existing = await this.studentService.findByEmail(dto.email);
-    if (existing) {
+    if (!this.isValidCpf(dto.cpf)) {
+      throw new BadRequestException('CPF inválido');
+    }
+
+    const cpfHash = this.hashCpf(dto.cpf);
+
+    const [existingEmail, existingCpf] = await Promise.all([
+      this.studentService.findByEmail(dto.email),
+      this.studentService.findByCpfHash(cpfHash),
+    ]);
+
+    if (existingEmail) {
       await this.auditLog.record({
         action: 'register.student.exists',
         outcome: 'failure',
@@ -74,15 +118,29 @@ export class AuthService {
       throw new ConflictException(AUTH_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
     }
 
+    if (existingCpf) {
+      await this.auditLog.record({
+        action: 'register.student.exists',
+        outcome: 'failure',
+        target: { email: dto.email },
+        metadata: { reason: 'cpf_exists' },
+      });
+      throw new ConflictException('CPF já cadastrado');
+    }
+
     const hashedPassword = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
     const isInstitutional = this.isInstitutionalEmail(dto.email);
     const { code, codeHash, expiresAt } = this.generateVerificationCode();
     // TODO: Remover isso depois
     this.logger.debug(`[DEV ONLY] Verification code for ${dto.email}: ${code}`);
 
+    // TODO: remover em produção
+    this.logger.debug(`[DEV ONLY] Verification code for ${dto.email}: ${code}`);
+
     await this.studentService.create({
       name: dto.name,
       email: dto.email,
+      cpfHash,
       password: hashedPassword,
       telephone: dto.telephone,
       status: StudentStatus.PENDING,
@@ -96,11 +154,7 @@ export class AuthService {
       refreshTokenVersion: 0,
     });
 
-    await this.mailService.sendVerificationCode(
-      dto.email,
-      code,
-      isInstitutional,
-    );
+    await this.mailService.sendVerificationCode(dto.email, code, isInstitutional);
 
     await this.auditLog.record({
       action: 'register.student',
@@ -109,9 +163,7 @@ export class AuthService {
       metadata: { institutional: isInstitutional },
     });
 
-    this.logger.log(
-      `Student registrado: ${dto.email} (institucional: ${isInstitutional})`,
-    );
+    this.logger.log(`Student registrado: ${dto.email} (institucional: ${isInstitutional})`);
 
     return {
       message: 'Código de verificação enviado para o seu e-mail',
@@ -119,13 +171,14 @@ export class AuthService {
     };
   }
 
-  async verifyStudentEmail(dto: VerifyEmailDto): Promise<LoginResponse> {
-    // Busca com campos sensíveis para comparar código
-    const student = await this.studentService.findByEmailWithSensitiveFields(
-      dto.email,
-    );
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VERIFY EMAIL
+  // ═══════════════════════════════════════════════════════════════════════════
 
-    // Mensagem genérica para evitar user enumeration e não revelar se o email existe ou o motivo da falha
+  async verifyStudentEmail(dto: VerifyEmailDto, res: Response): Promise<LoginResponse> {
+    const student = await this.studentService.findByEmailWithSensitiveFields(dto.email);
+
+    // Mensagem genérica — evita user enumeration
     const invalidMessage = AUTH_ERROR_MESSAGES.INVALID_CODE;
 
     if (!student) {
@@ -157,11 +210,10 @@ export class AuthService {
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.EXPIRED_CODE);
     }
 
-    const provideHash = this.hashVerificationCode(dto.code);
-    const isMatch = this.safeEqualHex(provideHash, student.verificationCode);
+    const providedHash = this.hashVerificationCode(dto.code);
+    const isMatch = this.safeEqualHex(providedHash, student.verificationCode);
 
     if (!isMatch) {
-      // Incrementa tentativas e bloqueia se atingir o limite
       const attempts = (student.verificationCodeAttempts ?? 0) + 1;
       const lockedUntil =
         attempts >= this.MAX_VERIFY_ATTEMPTS
@@ -193,10 +245,12 @@ export class AuthService {
       tokenUse: 'access',
     };
 
-    const { access_token, refresh_token } = await this.issueAndPersistTokens(
+    const loginResponse = await this.issueAndSetCookie(
       payload,
       (student as any)._id.toString(),
       UserRole.STUDENT,
+      res,
+      student.name,
     );
 
     await this.auditLog.record({
@@ -210,39 +264,32 @@ export class AuthService {
     });
 
     this.logger.log(`Student verificado: ${dto.email}`);
-
-    return {
-      access_token,
-      refresh_token,
-      user: {
-        id: payload.sub,
-        role: UserRole.STUDENT,
-        identifier: student.email,
-      },
-    };
+    return loginResponse;
   }
 
-  async resendVerificationCode(
-    dto: ResendCodeDto,
-  ): Promise<{ message: string }> {
-    const student = await this.studentService.findByEmailWithSensitiveFields(
-      dto.email,
-    );
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RESEND CODE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async resendVerificationCode(dto: ResendCodeDto): Promise<{ message: string }> {
+    const student = await this.studentService.findByEmailWithSensitiveFields(dto.email);
+
+    // Resposta genérica — não revela se o email existe ou está pendente
     const genericMessage = {
-      message:
-        'Se o email estiver cadastrado e pendente, um novo código de verificação foi enviado',
+      message: 'Se o email estiver cadastrado e pendente, um novo código de verificação foi enviado',
     };
 
     if (!student || student.status === StudentStatus.ACTIVE) {
-      return { message: genericMessage.message };
+      return genericMessage;
     }
 
-    const lastSent = student.verificationCodeLastSentAt?.getTime?.() ?? 0; // Evita erro se for null ou undefined
+    const lastSent = student.verificationCodeLastSentAt?.getTime?.() ?? 0;
     if (lastSent && Date.now() - lastSent < this.RESEND_COOLDOWN_MS) {
-      return { message: genericMessage.message };
+      return genericMessage;
     }
 
     const { code, codeHash, expiresAt } = this.generateVerificationCode();
+
     await this.studentService.updateVerificationCode(
       (student as any)._id.toString(),
       codeHash,
@@ -265,13 +312,18 @@ export class AuthService {
         identifier: student.email,
       },
     });
-    return { message: genericMessage.message };
+
+    return genericMessage;
   }
 
-  async loginStudent(dto: StudentLoginDto): Promise<LoginResponse> {
-    const student = await this.studentService.findByEmailWithSensitiveFields(
-      dto.email,
-    );
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LOGIN
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async loginStudent(dto: StudentLoginDto, res: Response): Promise<LoginResponse> {
+    const student = await this.studentService.findByEmailWithSensitiveFields(dto.email);
+
+    // Hash dummy previne timing attack quando o usuário não existe
     const passwordToCompare =
       student?.password ?? '$2b$12$invalidhashfortimingattackprevention';
     const isValid = await bcrypt.compare(dto.password, passwordToCompare);
@@ -287,7 +339,9 @@ export class AuthService {
     }
 
     if (student.status !== StudentStatus.ACTIVE) {
-      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.UNAUTHORIZED);
+      // Lançar ACCOUNT_PENDING em vez de UNAUTHORIZED melhora UX sem vazar info de segurança:
+      // o atacante já precisaria da senha correta para chegar aqui.
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.ACCOUNT_PENDING);
     }
 
     const payload: JwtPayload = {
@@ -297,10 +351,12 @@ export class AuthService {
       tokenUse: 'access',
     };
 
-    const tokens = await this.issueAndPersistTokens(
+    const loginResponse = await this.issueAndSetCookie(
       payload,
       (student as any)._id.toString(),
       UserRole.STUDENT,
+      res,
+      student.name,
     );
 
     await this.auditLog.record({
@@ -314,24 +370,14 @@ export class AuthService {
     });
 
     this.logger.log(`Student logado: ${dto.email}`);
-
-    return {
-      ...tokens,
-      user: {
-        id: payload.sub,
-        role: UserRole.STUDENT,
-        identifier: student.email,
-      },
-    };
+    return loginResponse;
   }
 
-  //Employee
+  async loginEmployee(dto: EmployeeLoginDto, res: Response): Promise<LoginResponse> {
+    const employee = await this.employeeService.findByRegistrationIdWithPassword(
+      dto.registrationId,
+    );
 
-  async loginEmployee(dto: EmployeeLoginDto): Promise<LoginResponse> {
-    const employee =
-      await this.employeeService.findByRegistrationIdWithPassword(
-        dto.registrationId,
-      );
     const passwordToCompare =
       employee?.password ?? '$2b$12$invalidhashfortimingattackprevention';
     const isValid = await bcrypt.compare(dto.password, passwordToCompare);
@@ -357,10 +403,12 @@ export class AuthService {
       tokenUse: 'access',
     };
 
-    const tokens = await this.issueAndPersistTokens(
+    const loginResponse = await this.issueAndSetCookie(
       payload,
       (employee as any)._id.toString(),
       UserRole.EMPLOYEE,
+      res,
+      employee.name,
     );
 
     await this.auditLog.record({
@@ -374,22 +422,12 @@ export class AuthService {
     });
 
     this.logger.log(`Employee logado: ${dto.registrationId}`);
-    return {
-      ...tokens,
-      user: {
-        id: payload.sub,
-        role: UserRole.EMPLOYEE,
-        identifier: employee.registrationId,
-      },
-    };
+    return loginResponse;
   }
 
-  // Admin
+  async loginAdmin(dto: AdminLoginDto, res: Response): Promise<LoginResponse> {
+    const admin = await this.adminService.findByUsernameWithPassword(dto.username);
 
-  async loginAdmin(dto: AdminLoginDto): Promise<LoginResponse> {
-    const admin = await this.adminService.findByUsernameWithPassword(
-      dto.username,
-    );
     const passwordToCompare =
       admin?.password ?? '$2b$12$invalidhashfortimingattackprevention';
     const isValid = await bcrypt.compare(dto.password, passwordToCompare);
@@ -411,10 +449,12 @@ export class AuthService {
       tokenUse: 'access',
     };
 
-    const tokens = await this.issueAndPersistTokens(
+    const loginResponse = await this.issueAndSetCookie(
       payload,
       (admin as any)._id.toString(),
       UserRole.ADMIN,
+      res,
+      admin.username,
     );
 
     await this.auditLog.record({
@@ -428,67 +468,45 @@ export class AuthService {
     });
 
     this.logger.log(`Admin logado: ${dto.username}`);
-    return {
-      ...tokens,
-      user: {
-        id: payload.sub,
-        role: UserRole.ADMIN,
-        identifier: admin.username,
-      },
-    };
+    return loginResponse;
   }
 
-  // Refresh com rotação de token
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REFRESH TOKEN
   //
-  // Fluxo:
-  //   1. Valida assinatura JWT do refresh_token
-  //   2. Verifica tokenUse === 'refresh'
-  //   3. Carrega a sessão do banco (hash + versão)
-  //   4. Verifica que a versão no JWT bate com a do banco
-  //      → se não bater: token antigo reutilizado após rotação (reuse attack)
-  //   5. Verifica bcrypt do token contra o hash persistido
-  //   6. Emite novo par e incrementa tokenVersion no banco
-  //      → o token anterior torna-se inválido imediatamente (versão desatualizada)
+  // Fluxo de validação (nesta ordem, do mais barato ao mais caro):
+  //   1. Verifica assinatura JWT e expiração             → falha rápida
+  //   2. Confirma tokenUse === 'refresh'                 → rejeita access tokens
+  //   3. Carrega sessão do banco                         → verifica isActive
+  //   4. Compara tokenVersion (JWT vs banco)             → detecta reuse attack
+  //   5. bcrypt.compare (hash do token bruto vs banco)   → validação definitiva
+  //   6. Emite novo par, incrementa versão, set cookie   → rotação completa
   //
-  // Por que versão em vez de só hash?
-  //   O bcrypt.compare é lento (intencional). Se um atacante roubou o refresh token
-  //   e usa antes do usuário legítimo, emite um novo par e incrementa a versão.
-  //   Quando o usuário legítimo tentar renovar com o token original (versão antiga),
-  //   a checagem de versão falha instantaneamente — sem precisar de bcrypt.compare.
-  //   Isso também sinaliza um possível reuse attack, que pode ser logado/alertado.
+  // Por que tokenVersion antes de bcrypt?
+  //   bcrypt é intencionalmente lento. A versão é um inteiro — comparação O(1).
+  //   Se um token antigo chegar após rotação, rejeitamos antes de gastar CPU
+  //   com bcrypt. E a detecção de reuse (versão do atacante > versão legítima)
+  //   permite alertar/revogar a sessão proativamente.
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  async refreshToken(dto: RefreshTokenDto): Promise<LoginResponse> {
-    const refreshToken =
-      this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
-
-    let payload: JwtPayload & { tokenVersion: number }; // Extende o payload esperado para incluir tokenVersion
-
-    try {
-      payload = await this.jwtService.verifyAsync(dto.refresh_token, {
-        secret: refreshToken,
-      });
-    } catch {
-      throw new UnauthorizedException(
-        AUTH_ERROR_MESSAGES.REFRESH_TOKEN_INVALID,
-      );
-    }
+  async refreshToken(rawRefreshToken: string, res: Response): Promise<LoginResponse> {
+    // 1 + 2: Verifica assinatura JWT e tokenUse
+    const payload = await this.tokenService.verifyRefreshToken(rawRefreshToken);
 
     if (payload.tokenUse !== 'refresh') {
-      throw new UnauthorizedException(
-        AUTH_ERROR_MESSAGES.REFRESH_TOKEN_INVALID,
-      );
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.REFRESH_TOKEN_INVALID);
     }
 
+    // 3: Carrega sessão do banco
     const session = await this.loadSessionForRefresh(payload);
     if (!session || !session.isActive) {
-      throw new UnauthorizedException(
-        AUTH_ERROR_MESSAGES.REFRESH_TOKEN_INVALID,
-      );
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.REFRESH_TOKEN_INVALID);
     }
 
+    // 4: Compara tokenVersion — detecta reuse attack
     if (
-      payload.tokenVersion !== session.refreshTokenVersion ||
-      payload.tokenVersion === undefined
+      payload.tokenVersion === undefined ||
+      payload.tokenVersion !== session.refreshTokenVersion
     ) {
       await this.auditLog.record({
         action: 'refresh.token',
@@ -505,20 +523,20 @@ export class AuthService {
         },
       });
 
+      // Token reutilizado após rotação: invalida toda a sessão como medida de segurança.
+      // O usuário legítimo será forçado a fazer login novamente.
       await this.clearRefreshTokenById(payload.sub, payload.role);
-      throw new UnauthorizedException(
-        AUTH_ERROR_MESSAGES.REFRESH_TOKEN_INVALID,
-      );
+
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.TOKEN_REUSE_DETECTED);
     }
 
-    const matches = await bcrypt.compare(
-      dto.refresh_token,
-      session.refreshTokenHash,
-    );
+    // 5: bcrypt.compare — validação definitiva do token bruto
+    const matches = await bcrypt.compare(rawRefreshToken, session.refreshTokenHash);
     if (!matches) {
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.SESSION_REVOKED);
     }
 
+    // 6: Emite novo par, persiste hash, set cookie
     const accessPayload: JwtPayload = {
       sub: payload.sub,
       role: payload.role,
@@ -526,69 +544,109 @@ export class AuthService {
       tokenUse: 'access',
     };
 
-    const tokens = await this.issueAndPersistTokens(
+    // Busca o nome do usuário para incluir no LoginResponse
+    let refreshDisplayName = '';
+    switch (payload.role) {
+      case UserRole.STUDENT: {
+        const s = await this.studentService.findById(payload.sub);
+        refreshDisplayName = s?.name ?? '';
+        break;
+      }
+      case UserRole.EMPLOYEE: {
+        const e = await this.employeeService.findById(payload.sub);
+        refreshDisplayName = e?.name ?? '';
+        break;
+      }
+      case UserRole.ADMIN: {
+        const a = await this.adminService.findById(payload.sub);
+        refreshDisplayName = a?.username ?? '';
+        break;
+      }
+    }
+
+    const loginResponse = await this.issueAndSetCookie(
       accessPayload,
       payload.sub,
       payload.role,
+      res,
+      refreshDisplayName,
     );
 
     await this.auditLog.record({
       action: 'refresh.token',
       outcome: 'success',
-      actor: { id: payload.sub, role: payload.role, identifier: payload.identifier },
+      actor: {
+        id: payload.sub,
+        role: payload.role,
+        identifier: payload.identifier,
+      },
     });
-    return {
-      ...tokens,
-      user: {id: payload.sub, role: payload.role, identifier: payload.identifier },
-    } 
+
+    return loginResponse;
   }
 
-  async logout(user: AuthenticatedUser): Promise<{ message: string }>{
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LOGOUT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  async logout(user: AuthenticatedUser, res: Response): Promise<{ message: string }> {
+    // Invalida o hash no banco primeiro — operação crítica
     await this.clearRefreshTokenById(user.id, user.role);
-    this.auditLog.record({
+
+    // Limpa o cookie no cliente
+    this.cookieService.clearRefreshTokenCookie(res);
+
+    await this.auditLog.record({
       action: 'logout',
       outcome: 'success',
       actor: { id: user.id, role: user.role, identifier: user.identifier },
     });
+
+    this.logger.log(`Logout: ${user.identifier} (${user.role})`);
     return { message: 'Logout successful' };
   }
 
-  // Helpers
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HELPERS PRIVADOS
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  private async issueAndPersistTokens(
+  /**
+   * Orquestra a emissão de tokens, persistência do hash e escrita do cookie.
+   * Ponto único de saída para qualquer fluxo que precise emitir tokens
+   * (login, verify, refresh) — garante que o cookie seja sempre setado.
+   *
+   * O refresh_token NUNCA sai deste método: vai direto para o cookie.
+   * O LoginResponse retornado contém apenas access_token + user.
+   */
+  private async issueAndSetCookie(
     payload: JwtPayload,
     userId: string,
     role: UserRole,
-  ): Promise<{access_token: string; refresh_token: string}> {
-
+    res: Response,
+    name: string,
+  ): Promise<LoginResponse> {
     const currentVersion = await this.getRefreshTokenVersion(userId, role);
     const nextVersion = (currentVersion ?? 0) + 1;
 
-    const {access_token, refresh_token} = await this.issueTokens(payload, nextVersion);
+    const { access_token, refresh_token } = await this.tokenService.issueTokenPair(
+      payload,
+      nextVersion,
+    );
+
     await this.persistRefreshToken(userId, role, refresh_token, nextVersion);
-    return { access_token, refresh_token };
-  }
 
+    // Cookie HTTP-only: o refresh_token nunca é retornado no body
+    this.cookieService.setRefreshTokenCookie(res, refresh_token);
 
-  private async issueTokens(
-    payload: JwtPayload,
-    tokenVersion: number,
-  ): Promise<{ access_token: string; refresh_token: string }>{
-    
-
-    const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
-    const refreshExpiresIn = this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN') as StringValue;
-
-    const [ access_token, refresh_token ] = await Promise.all([
-      this.jwtService.signAsync(payload),
-      this.jwtService.signAsync(
-        // tokenVersion incluído no refresh JWT para detecção de reuse
-        { ...payload, tokenUse: 'refresh', tokenVersion },
-        { secret: refreshSecret, expiresIn: refreshExpiresIn },
-      ),
-    ])
-
-    return { access_token, refresh_token };
+    return {
+      access_token,
+      user: {
+        id: payload.sub,
+        role: payload.role,
+        identifier: payload.identifier,
+        name,
+      },
+    };
   }
 
   private async persistRefreshToken(
@@ -646,51 +704,55 @@ export class AuthService {
       }
       default:
         return 0;
-
     }
   }
 
   private async loadSessionForRefresh(
-    payload: JwtPayload
-  ): Promise<{ refreshTokenHash: string; refreshTokenVersion: number; isActive: boolean } | null> {
+    payload: RefreshPayload,
+  ): Promise<RefreshSession | null> {
     switch (payload.role) {
       case UserRole.STUDENT: {
-        const student = await this.studentService.findByEmailWithSensitiveFields(payload.identifier);
-        return student?.refreshTokenHash
-        ?{
+        const student = await this.studentService.findByEmailWithSensitiveFields(
+          payload.identifier,
+        );
+        if (!student?.refreshTokenHash) return null;
+        return {
           refreshTokenHash: student.refreshTokenHash,
           refreshTokenVersion: student.refreshTokenVersion ?? 0,
           isActive: student.status === StudentStatus.ACTIVE,
-          }
-        : null 
+        };
       }
 
       case UserRole.EMPLOYEE: {
-        const employee = await this.employeeService.findByRegistrationIdWithPassword(payload.identifier);
-        return employee?.refreshTokenHash
-        ?{
+        const employee = await this.employeeService.findByRegistrationIdWithPassword(
+          payload.identifier,
+        );
+        if (!employee?.refreshTokenHash) return null;
+        return {
           refreshTokenHash: employee.refreshTokenHash,
           refreshTokenVersion: employee.refreshTokenVersion ?? 0,
           isActive: employee.active,
-          }
-        : null 
+        };
       }
 
       case UserRole.ADMIN: {
-        const admin = await this.adminService.findByUsernameWithPassword(payload.identifier);
-        return admin?.refreshTokenHash
-        ?{
+        const admin = await this.adminService.findByUsernameWithPassword(
+          payload.identifier,
+        );
+        if (!admin?.refreshTokenHash) return null;
+        return {
           refreshTokenHash: admin.refreshTokenHash,
           refreshTokenVersion: admin.refreshTokenVersion ?? 0,
-          isActive: true, // Admins não têm status ativo/inativo no momento
-          }
-        : null 
+          isActive: true, // Admins não têm status ativo/inativo
+        };
       }
 
       default:
         return null;
     }
   }
+
+  // ─── Verificação de email ────────────────────────────────────────────────
 
   private isInstitutionalEmail(email: string): boolean {
     const domain = email.split('@')[1]?.toLowerCase();
@@ -700,8 +762,7 @@ export class AuthService {
     );
   }
 
-  // Gera um código de verificação numérico, seu hash seguro e a data de expiração
-    private generateVerificationCode(): { code: string; codeHash: string; expiresAt: Date } {
+  private generateVerificationCode(): { code: string; codeHash: string; expiresAt: Date } {
     const code = String(randomInt(100_000, 1_000_000));
     const codeHash = this.hashVerificationCode(code);
     const expiresAt = new Date(Date.now() + this.CODE_EXPIRY_MINUTES * 60 * 1000);
@@ -712,7 +773,7 @@ export class AuthService {
     const pepper = this.configService.getOrThrow<string>('OTP_PEPPER');
     return createHmac('sha256', pepper).update(code).digest('hex');
   }
-  // Compara o código fornecido com o hash armazenado de forma segura
+
   private safeEqualHex(leftHex: string, rightHex: string): boolean {
     const left = Buffer.from(leftHex, 'hex');
     const right = Buffer.from(rightHex, 'hex');
