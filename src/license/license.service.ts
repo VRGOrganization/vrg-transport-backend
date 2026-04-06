@@ -16,7 +16,7 @@ import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { CreateLicenseDto } from './dto/create-license.dto';
 import { License, LicenseStatus } from './schemas/license.schema';
 import { nowInBR, addMonthsBR } from '../common/utils/date.utils';
-import { StudentService } from 'src/student/student.service';
+import { StudentService } from '../student/student.service';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { AUTH_ERROR_MESSAGES } from '../auth/constants/auth.constants';
 
