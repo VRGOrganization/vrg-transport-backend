@@ -1,7 +1,7 @@
-# API Reference — Images
+﻿# API Reference — Images
 
 Base: `/api/v1/image`  
-Todos os endpoints requerem autenticação JWT.
+Todos os endpoints requerem autenticação por sessão (x-session-id).
 
 As imagens são armazenadas em base64 em uma **conexão MongoDB separada** (`MONGODB_URI_IMAGE`). O serviço valida o MIME type declarado conferindo os bytes mágicos reais da imagem (JPEG: `0xFF 0xD8 0xFF`; PNG: `0x89 0x50 0x4E 0x47`; WebP: `RIFF...WEBP`).
 
@@ -36,14 +36,14 @@ Cria uma nova imagem para um estudante.
 |---|---|
 | `201` | Imagem criada |
 | `400` | Dados inválidos (MIME type incorreto, bytes inválidos, campo ausente) |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 
 ### Exemplo
 
 ```bash
 curl -X POST https://api.vrgtransport.com.br/api/v1/image \
-  -H "Authorization: Bearer eyJ..." \
+  -H "x-session-id: <session-id>" \
   -H "Content-Type: application/json" \
   -d '{
     "studentId": "64f3a1b2c3d4e5f6a7b8c9d0",
@@ -75,14 +75,14 @@ Lista todas as imagens ativas.
 | Status | Descrição |
 |---|---|
 | `200` | Array de imagens |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 
 ### Exemplo
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/image \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -98,14 +98,14 @@ Retorna todas as imagens ativas do estudante autenticado.
 | Status | Descrição |
 |---|---|
 | `200` | Array de imagens do estudante |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é STUDENT |
 
 ### Exemplo
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/image/me \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ```json
@@ -133,7 +133,7 @@ Retorna a foto de perfil (`ProfilePhoto`) do estudante autenticado.
 | Status | Descrição |
 |---|---|
 | `200` | Imagem de perfil |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é STUDENT |
 | `404` | Foto de perfil não encontrada |
 
@@ -141,7 +141,7 @@ Retorna a foto de perfil (`ProfilePhoto`) do estudante autenticado.
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/image/me/profile \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ```json
@@ -169,7 +169,7 @@ Retorna todas as imagens ativas de um estudante específico.
 |---|---|
 | `200` | Array de imagens do estudante |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 | `404` | Estudante não encontrado |
 
@@ -177,7 +177,7 @@ Retorna todas as imagens ativas de um estudante específico.
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/image/student/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -195,7 +195,7 @@ Retorna uma imagem pelo ID.
 |---|---|
 | `200` | Dados da imagem |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 | `404` | Imagem não encontrada |
 
@@ -203,7 +203,7 @@ Retorna uma imagem pelo ID.
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/image/64f3a1b2c3d4e5f6a7b8c9f0 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -227,7 +227,7 @@ Atualiza a foto de perfil de um estudante.
 |---|---|
 | `200` | Foto de perfil atualizada |
 | `400` | ID inválido ou imagem inválida |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 | `404` | Estudante ou foto de perfil não encontrada |
 
@@ -235,7 +235,7 @@ Atualiza a foto de perfil de um estudante.
 
 ```bash
 curl -X PATCH https://api.vrgtransport.com.br/api/v1/image/student/64f3a1b2c3d4e5f6a7b8c9d0/profile \
-  -H "Authorization: Bearer eyJ..." \
+  -H "x-session-id: <session-id>" \
   -H "Content-Type: application/json" \
   -d '{"photo3x4": "data:image/jpeg;base64,/9j/4AAQ..."}'
 ```
@@ -261,7 +261,7 @@ Atualiza uma imagem pelo ID.
 |---|---|
 | `200` | Imagem atualizada |
 | `400` | ID inválido ou imagem inválida |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 | `404` | Imagem não encontrada |
 
@@ -269,7 +269,7 @@ Atualiza uma imagem pelo ID.
 
 ```bash
 curl -X PATCH https://api.vrgtransport.com.br/api/v1/image/64f3a1b2c3d4e5f6a7b8c9f0 \
-  -H "Authorization: Bearer eyJ..." \
+  -H "x-session-id: <session-id>" \
   -H "Content-Type: application/json" \
   -d '{"photo3x4": "data:image/png;base64,iVBORw0KGgo..."}'
 ```
@@ -289,7 +289,7 @@ Remove (soft delete) todas as imagens de um estudante.
 |---|---|
 | `200` | Todas as imagens do estudante desativadas |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 | `404` | Estudante não encontrado |
 
@@ -297,7 +297,7 @@ Remove (soft delete) todas as imagens de um estudante.
 
 ```bash
 curl -X DELETE https://api.vrgtransport.com.br/api/v1/image/student/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -315,7 +315,7 @@ Remove (soft delete) uma imagem específica pelo ID.
 |---|---|
 | `200` | Imagem desativada |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 | `404` | Imagem não encontrada |
 
@@ -323,7 +323,7 @@ Remove (soft delete) uma imagem específica pelo ID.
 
 ```bash
 curl -X DELETE https://api.vrgtransport.com.br/api/v1/image/64f3a1b2c3d4e5f6a7b8c9f0 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -339,3 +339,4 @@ O `ImageService` valida a imagem em dois níveis:
    - WebP: `52 49 46 46 ... 57 45 42 50` (RIFF...WEBP)
 
 Essa dupla validação evita que arquivos com extensão renomeada sejam aceitos.
+

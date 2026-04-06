@@ -125,7 +125,7 @@ export class LicenseService {
   }
   /**
    * @param dto        Dados da licença vindos do client
-   * @param employeeId ID extraído do JWT no controller — nunca do body
+   * @param employeeId ID extraído da sessão no controller — nunca do body
    */
   async create(dto: CreateLicenseDto, employeeId: string): Promise<License> {
     const student = await this.studentService.findOneOrFail(dto.id);

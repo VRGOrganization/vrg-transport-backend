@@ -29,14 +29,14 @@ Copie `.env.example` para `.env` e preencha os valores. O servidor recusa inicia
 | `MONGODB_URI` | Sim | URI de conexão MongoDB principal (estudantes, funcionários, licenças, audit) |
 | `MONGODB_URI_IMAGE` | Sim | URI de conexão MongoDB para imagens (conexão separada nomeada `images`) |
 
-### JWT
+### Sessão
 
 | Variável | Obrigatória | Restrições | Descrição |
 |---|---|---|---|
-| `JWT_SECRET` | Sim | Mínimo 32 caracteres | Chave de assinatura dos access tokens |
-| `JWT_EXPIRES_IN` | Sim | — | Tempo de expiração do access token (ex: `15m`, `1h`) |
-| `JWT_REFRESH_SECRET` | Sim | Mínimo 32 caracteres | Chave de assinatura dos refresh tokens |
-| `JWT_REFRESH_EXPIRES_IN` | Sim | — | Tempo de expiração do refresh token (ex: `7d`, `30d`) |
+| `SERVICE_SECRET` | Sim | Mínimo 32 caracteres | Segredo compartilhado entre BFF e backend (usado nos endpoints de auth) |
+| `SESSION_TTL_DAYS` | Sim | Inteiro positivo | Tempo de vida da sessão em dias |
+| `BFF_STUDENT_URL` | Sim | URL válida | Origem do BFF de estudantes |
+| `BFF_EMPLOYEE_URL` | Sim | URL válida | Origem do BFF de funcionários |
 
 ### OTP
 
@@ -151,17 +151,18 @@ http://localhost:3000/api/docs
 ```
 
 Para autenticar no Swagger:
-1. Faça login via `POST /api/v1/auth/student/login` (ou employee/admin)
-2. Copie o `access_token` da resposta
+1. Faça login via `POST /api/v1/auth/student/login` (ou employee/admin) com `x-service-secret`
+2. Copie o `sessionId` da resposta
 3. Clique em **Authorize** no Swagger UI
-4. Cole o token no campo `Bearer` (sem o prefixo "Bearer ")
+4. Preencha `x-session-id` com o `sessionId`
+5. Para endpoints do módulo Auth, preencha também `x-service-secret`
 
 ---
 
 ## Verificando a API
 
 ```bash
-# Health check básico (requer autenticação ADMIN)
-curl -H "Authorization: Bearer <token>" \
+# Health check básico (requer sessão ADMIN)
+curl -H "x-session-id: <session-id>" \
   http://localhost:3000/api/v1/license/health
 ```

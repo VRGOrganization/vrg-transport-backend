@@ -26,7 +26,7 @@ app.disable('x-powered-by'); // Remove header que identifica NestJS/Express
 - Origens permitidas definidas em `ALLOWED_ORIGINS` (separadas por vírgula)
 - Wildcard (`*`) é **rejeitado na validação de startup** — a API não inicializa com `ALLOWED_ORIGINS=*`
 - Métodos: GET, POST, PATCH, DELETE, OPTIONS
-- Headers: `Content-Type`, `Authorization`
+- Headers: `Content-Type`, `x-session-id`, `x-service-secret`
 - Credentials: habilitado
 
 **Configuração para produção:**
@@ -68,17 +68,16 @@ ALLOWED_ORIGINS=https://app.vrgtransport.com.br,https://admin.vrgtransport.com.b
 
 ---
 
-### 6. JWT + Refresh Token Rotativo
+### 6. Sessão server-side
 
-**O que faz:** Autenticação stateless com proteção contra roubo de refresh token.  
-**Onde:** `auth.service.ts`, estratégias Passport.
+**O que faz:** Autenticação por sessão com revogação imediata e expiração por TTL.  
+**Onde:** `auth.service.ts`, `session.service.ts` e `session-auth.guard.ts`.
 
 **Detalhes de implementação:**
-- Access token assinado com `JWT_SECRET` (mínimo 32 chars)
-- Refresh token assinado com `JWT_REFRESH_SECRET` separado (mínimo 32 chars)
-- Refresh token armazenado como **hash bcrypt** no banco — nunca em texto plano
-- Campo `tokenVersion` no payload e no banco — versões divergentes indicam reuso de token
-- Ao detectar reuso: sessão revogada imediatamente
+- O backend cria um `sessionId` e retorna ao BFF
+- O BFF grava o cookie httpOnly `sid` e envia `x-session-id` ao backend
+- O backend valida a sessão antes de cada request autenticado
+- Sessão pode ser revogada a qualquer momento (logout idempotente)
 
 ---
 
@@ -175,5 +174,5 @@ Além disso, `StudentSchema.set('toJSON', ...)` remove esses campos mesmo quando
 | Trust Proxy | Configure `TRUST_PROXY_HOPS` de acordo com sua infraestrutura |
 | MongoDB | Ative autenticação e TLS na string de conexão (`?authSource=admin&tls=true`) |
 | Secrets | Nunca comite `.env` no repositório; use um gerenciador de secrets em produção |
-| JWT | Use secrets de pelo menos 64 caracteres em produção |
+| SERVICE_SECRET | Use secrets de pelo menos 64 caracteres em produção |
 | Logs | Garanta que logs não vazam em ambientes de produção (stack traces desabilitados pelo `HttpExceptionFilter`) |

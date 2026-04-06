@@ -1,7 +1,7 @@
-# API Reference — Employees
+﻿# API Reference — Employees
 
 Base: `/api/v1/employee`  
-Todos os endpoints requerem autenticação JWT com role **ADMIN**.
+Todos os endpoints requerem autenticação por sessão (x-session-id) com role **ADMIN**.
 
 ---
 
@@ -26,7 +26,7 @@ Cria um novo funcionário.
 |---|---|
 | `201` | Funcionário criado |
 | `400` | Dados inválidos |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 | `409` | E-mail ou matrícula já cadastrados |
 
@@ -34,7 +34,7 @@ Cria um novo funcionário.
 
 ```bash
 curl -X POST https://api.vrgtransport.com.br/api/v1/employee \
-  -H "Authorization: Bearer eyJ..." \
+  -H "x-session-id: <session-id>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "João Ferreira",
@@ -67,14 +67,14 @@ Lista todos os funcionários.
 | Status | Descrição |
 |---|---|
 | `200` | Array de funcionários |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 
 ### Exemplo
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/employee \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ```json
@@ -104,7 +104,7 @@ Retorna um funcionário pelo ID.
 |---|---|
 | `200` | Dados do funcionário |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 | `404` | Funcionário não encontrado |
 
@@ -112,7 +112,7 @@ Retorna um funcionário pelo ID.
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/employee/64f3a1b2c3d4e5f6a7b8c9d1 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -139,7 +139,7 @@ Atualiza os dados de um funcionário. Todos os campos são opcionais.
 |---|---|
 | `200` | Funcionário atualizado |
 | `400` | ID inválido ou dados inválidos |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 | `404` | Funcionário não encontrado |
 | `409` | E-mail ou matrícula já usados por outro funcionário |
@@ -148,7 +148,7 @@ Atualiza os dados de um funcionário. Todos os campos são opcionais.
 
 ```bash
 curl -X PATCH https://api.vrgtransport.com.br/api/v1/employee/64f3a1b2c3d4e5f6a7b8c9d1 \
-  -H "Authorization: Bearer eyJ..." \
+  -H "x-session-id: <session-id>" \
   -H "Content-Type: application/json" \
   -d '{"name": "João Ferreira da Silva"}'
 ```
@@ -168,7 +168,7 @@ Desativa um funcionário (soft delete). O registro permanece no banco com `activ
 |---|---|
 | `200` | Funcionário desativado |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 | `404` | Funcionário não encontrado |
 
@@ -176,7 +176,7 @@ Desativa um funcionário (soft delete). O registro permanece no banco com `activ
 
 ```bash
 curl -X DELETE https://api.vrgtransport.com.br/api/v1/employee/64f3a1b2c3d4e5f6a7b8c9d1 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ```json
@@ -188,3 +188,4 @@ curl -X DELETE https://api.vrgtransport.com.br/api/v1/employee/64f3a1b2c3d4e5f6a
 ```
 
 > O funcionário é **desativado**, não excluído permanentemente. Para reativar, use `PATCH /employee/:id` com `{ "active": true }` — a confirmar se o campo `active` é exposto no `UpdateEmployeeDto`.
+

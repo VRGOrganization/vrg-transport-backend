@@ -47,7 +47,7 @@ async function bootstrap() {
   app.enableCors({
     origin: allowedOrigins,
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'x-session-id', 'x-service-secret'],
     credentials: true,
   });
 
@@ -87,7 +87,24 @@ async function bootstrap() {
         'Documentação da API de gestão de transporte e carteirinhas',
       )
       .setVersion('1.0')
-      .addBearerAuth()
+      .addApiKey(
+        {
+          type: 'apiKey',
+          name: 'x-session-id',
+          in: 'header',
+          description: 'Sessao ativa gerenciada pelo BFF.',
+        },
+        'x-session-id',
+      )
+      .addApiKey(
+        {
+          type: 'apiKey',
+          name: 'x-service-secret',
+          in: 'header',
+          description: 'Segredo compartilhado entre BFF e backend (somente /auth).',
+        },
+        'x-service-secret',
+      )
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);

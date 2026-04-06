@@ -2,11 +2,11 @@ Memoria de contexto — usar no inicio da Fase 3
 Data: 2026-04-06
 
 Objetivo da Fase 2
-Refatorar o backend de autenticacao para modelo session-first (BFF-oriented), removendo fluxo JWT/refresh no contrato HTTP e forçando breaking change imediato.
+Refatorar o backend de autenticacao para modelo session-first (BFF-oriented), removendo fluxo de tokens legados no contrato HTTP e forçando breaking change imediato.
 
 Decisoes fechadas nesta fase
 - Somente o BFF deve escrever cookie sid no browser.
-- Backend nao retorna mais JWT de acesso no body.
+- Backend nao retorna mais token de acesso no body.
 - Endpoint de refresh foi removido.
 - Logout agora e idempotente: sempre retorna sucesso, com ou sem sessao valida.
 - Aplicacao de seguranca maxima no backend ja nesta fase.
@@ -15,7 +15,7 @@ Decisoes fechadas nesta fase
 
 O que foi implementado
 
-1) Contrato novo de autenticacao (sem JWT no body)
+1) Contrato novo de autenticacao (sem token no body)
 Arquivo: src/auth/interfaces/auth.interface.ts
 - Criado/ajustado para SessionAuthResponse:
   - { ok: true, sessionId, user }
@@ -26,7 +26,7 @@ Arquivo: src/auth/interfaces/auth.interface.ts
 
 2) AuthService migrado para sessao
 Arquivo: src/auth/auth.service.ts
-- Removida logica de refresh token/JWT.
+- Removida logica de tokens legados.
 - Login student/employee/admin:
   - valida credenciais
   - cria sessao via SessionService.createSession()
@@ -56,38 +56,30 @@ Arquivo: src/auth/auth.controller.ts
 
 4) AuthModule simplificado
 Arquivo: src/auth/auth.module.ts
-- Removidos JwtModule e PassportModule.
-- Removidos providers legados de JWT.
+- Removidos modules legados de token.
 - Mantido APP_GUARD com SessionAuthGuard.
 - Mantido SessionModule.
 - Registrado ServiceSecretGuard.
 
-5) Remocao de legado JWT/refresh
-Arquivos removidos:
-- src/auth/services/token.service.ts
-- src/auth/services/cookie.service.ts
-- src/auth/strategies/jwt.strategy.ts
-- src/auth/guards/jwt-auth.guard.ts
-
-6) Coesao de metadata @Public
+5) Coesao de metadata @Public
 Arquivos:
 - src/auth/guards/session-auth.guard.ts
 - src/auth/decorators/public.decorator.ts
 - src/auth/constants/auth.constants.ts
 A chave IS_PUBLIC_KEY foi centralizada pelo constants para evitar divergencia.
 
-7) DTO de refresh removido
+6) DTO de refresh removido
 Arquivo: src/auth/dto/auth.dto.ts
 - Removido RefreshTokenDto.
 
-8) Correcoes de schema (suporte Nest Mongoose)
+7) Correcoes de schema (suporte Nest Mongoose)
 Arquivos:
 - src/auth/session/session.schema.ts (fase anterior)
 - src/student/schemas/student.schema.ts
 - src/image/schema/image.schema.ts
 Foram adicionados types explicitos em @Prop para evitar CannotDetermineTypeError.
 
-9) Validacoes de ambiente endurecidas (fase 1.5/2)
+8) Validacoes de ambiente endurecidas (fase 1.5/2)
 Arquivo: src/common/config/security.validation.ts
 - Validados SERVICE_SECRET e SESSION_TTL_DAYS (fail-fast).
 - Validados BREVO_API_KEY e MAIL_FROM_ADDRESS.
@@ -123,7 +115,7 @@ Contrato backend apos Fase 2 (resumo)
 - POST /auth/student/verify -> { ok: true, sessionId, user }
 - POST /auth/logout -> { ok: true } (idempotente)
 - GET /auth/me -> { userId, userType } (via sessao valida)
-- POST /auth/refresh -> removido
+
 
 Importante de seguranca
 - Backend nao seta mais cookie.
@@ -134,7 +126,7 @@ Pendencias conhecidas para proxima fase
 - Fase 3 (frontend student BFF):
   - criar rotas server-side /api/auth/login, /api/auth/logout, /api/auth/session
   - setar/limpar cookie sid apenas no Next
-  - remover AuthContext JWT e access_token legivel
+  - remover AuthContext legado e token legivel
   - substituir proxy.ts por middleware.ts nativo
 - Atualizar Swagger/documentacao para contrato final BFF em todos os endpoints.
 - Executar limpeza de campos legados no banco (atividade operacional separada):
@@ -142,7 +134,7 @@ Pendencias conhecidas para proxima fase
 
 Checklist de aceite da Fase 2
 - [x] Sem refresh endpoint
-- [x] Sem retorno de JWT no body
+- [x] Sem retorno de token no body
 - [x] Logout idempotente
 - [x] Fluxo de sessao para student/employee/admin
 - [x] Testes de auth da fase passando

@@ -158,7 +158,7 @@ describe('AuthService (Fase 2 - Session First)', () => {
   describe('loginStudent', () => {
     const dto = { email: 'aluno@test.com', password: 'Senha123' };
 
-    it('deve autenticar e retornar sessao (sem JWT no body)', async () => {
+    it('deve autenticar e retornar sessao (sem token no body)', async () => {
       const hashed = await bcrypt.hash('Senha123', 10);
       mockStudentService.findByEmailWithSensitiveFields.mockResolvedValue(
         makeStudent({ password: hashed, status: StudentStatus.ACTIVE }),

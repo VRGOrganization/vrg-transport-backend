@@ -22,7 +22,6 @@ import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
 import {
-  ApiBearerAuth,
   ApiBody,
   ApiOperation,
   ApiParam,
@@ -30,10 +29,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Licenses')
-@ApiBearerAuth()
 @Controller('license')
 @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
 export class LicenseController {
@@ -102,25 +99,24 @@ export class LicenseController {
     return this.licenseService.create(dto, req.sessionPayload!.userId);
   }
 
-  //INVESTIGAR SE VAI NECESSARIO MANTER PROTEGIDO POR ROLE ADMIN
   @Get('/health')
-  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Health check do serviço de licenças',
     description:
-      'Verifica o status do serviço externo de geração de carteirinhas. Exclusivo para ADMIN.',
+      'Verifica o status do serviço externo de geração de carteirinhas. Disponível para ADMIN ou EMPLOYEE.',
   })
   @ApiResponse({ status: 200, description: 'Service is operational.' })
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires ADMIN role).',
+    description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).',
   })
   checkHealth() {
     return this.licenseService.checkHealth();
   }
 
   @Get('/all')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
     summary: 'List all licenses',
     description: 'Returns all registered licenses.',
@@ -136,6 +132,8 @@ export class LicenseController {
   }
 
   @Get('/searchByStudent/:studentId')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
+
   @ApiOperation({
     summary: 'Find license by student ID',
     description: 'Returns the license associated with a specific student.',
@@ -174,6 +172,7 @@ export class LicenseController {
   }
 
   @Get('/:id')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
     summary: 'Find license by ID',
     description: 'Returns the data of a specific license.',
@@ -195,6 +194,7 @@ export class LicenseController {
   }
 
   @Patch('/update/:id')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
     summary: 'Update license',
     description: 'Updates the data of an existing license.',
@@ -235,7 +235,7 @@ export class LicenseController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).',
+    description: 'Insufficient permissions (requires ADMIN role).',
   })
   @ApiResponse({ status: 404, description: 'License not found.' })
   @Roles(UserRole.ADMIN)

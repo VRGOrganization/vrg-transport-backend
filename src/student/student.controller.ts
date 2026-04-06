@@ -22,7 +22,6 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
 import {
-  ApiBearerAuth,
   ApiBody,
   ApiConsumes,
   ApiOperation,
@@ -40,7 +39,6 @@ type UploadedImageFile = {
 };
 
 @ApiTags('Students')
-@ApiBearerAuth()
 @Controller('student')
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
@@ -143,8 +141,8 @@ export class StudentController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Update student by ID (admin only)' })
+  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  @ApiOperation({ summary: 'Update student by ID (admin or employee)' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiBody({ type: UpdateStudentDto })
   @ApiResponse({ status: 200, description: 'Student updated.' })
