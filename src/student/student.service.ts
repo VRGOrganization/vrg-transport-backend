@@ -319,6 +319,41 @@ export class StudentService {
     });
   }
 
+  async updateProfilePhoto(id: string, file: UploadedImageFile): Promise<Student> {
+    const mimeType = file.mimetype?.toLowerCase() ?? '';
+
+    if (!mimeType.startsWith('image/')) {
+      throw new BadRequestException('Arquivo inválido: envie uma imagem');
+    }
+
+    const base64 = file.buffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    const student = await this.studentRepository.update(id, { photo: dataUrl });
+    if (!student) throw new NotFoundException(`Student ${id} não encontrado`);
+
+    await this.auditLog.record({
+      action: 'student.update_profile_photo',
+      outcome: 'success',
+      target: { studentId: id },
+    });
+
+    return student;
+  }
+
+  async removeProfilePhoto(id: string): Promise<Student> {
+    const student = await this.studentRepository.update(id, { photo: null });
+    if (!student) throw new NotFoundException(`Student ${id} não encontrado`);
+
+    await this.auditLog.record({
+      action: 'student.remove_profile_photo',
+      outcome: 'success',
+      target: { studentId: id },
+    });
+
+    return student;
+  }
+
   async remove(id: string): Promise<{ message: string }> {
     const result = await this.studentRepository.remove(id);
     if (!result) throw new NotFoundException(`Student ${id} não encontrado`);
