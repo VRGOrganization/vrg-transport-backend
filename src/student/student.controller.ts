@@ -6,10 +6,11 @@ import {
   Param,
   Delete,
   Body,
-  UseGuards,
   UploadedFiles,
   UseInterceptors,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { StudentService } from './student.service';
 import {
   SubmitLicenseRequestFormDto,
@@ -17,10 +18,7 @@ import {
   UpdateStudentProfileDto,
   UpdateStudentDto,
 } from './dto/student.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
 import {
@@ -44,7 +42,6 @@ type UploadedImageFile = {
 @ApiTags('Students')
 @ApiBearerAuth()
 @Controller('student')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
@@ -62,10 +59,10 @@ export class StudentController {
   @ApiBody({ type: SubmitScheduleDto })
   @ApiResponse({ status: 200, description: 'Schedule saved.' })
   submitSchedule(
-    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
     @Body() dto: SubmitScheduleDto,
   ) {
-    return this.studentService.updateSchedule(user.id, dto.selections);
+    return this.studentService.updateSchedule(req.sessionPayload!.userId, dto.selections);
   }
 
   @Post('me/license-submit')
@@ -102,7 +99,7 @@ export class StudentController {
   })
   @ApiResponse({ status: 201, description: 'Data submitted successfully.' })
   submitLicenseRequest(
-    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
     @Body() dto: SubmitLicenseRequestFormDto,
     @UploadedFiles()
     files: {
@@ -111,15 +108,15 @@ export class StudentController {
       CourseSchedule?: UploadedImageFile[];
     },
   ) {
-    return this.studentService.submitLicenseRequest(user.id, dto, files ?? {});
+    return this.studentService.submitLicenseRequest(req.sessionPayload!.userId, dto, files ?? {});
   }
 
   @Get('me')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Get own profile' })
   @ApiResponse({ status: 200, description: 'Student profile.' })
-  getProfile(@CurrentUser() user: AuthenticatedUser) {
-    return this.studentService.findOneOrFail(user.id);
+  getProfile(@Req() req: Request) {
+    return this.studentService.findOneOrFail(req.sessionPayload!.userId);
   }
 
   @Get(':id')
@@ -139,10 +136,10 @@ export class StudentController {
   @ApiBody({ type: UpdateStudentProfileDto })
   @ApiResponse({ status: 200, description: 'Profile updated.' })
   updateProfile(
-    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
     @Body() dto: UpdateStudentProfileDto,
   ) {
-    return this.studentService.update(user.id, dto);
+    return this.studentService.update(req.sessionPayload!.userId, dto);
   }
 
   @Patch(':id')

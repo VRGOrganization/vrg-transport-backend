@@ -6,24 +6,20 @@ import {
   Param,
   Patch,
   Delete,
-  UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ImagesService } from './image.service';
 import { CreateImageDto, UpdateImageDto, UploadMyDocumentDto } from './dto/image.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
-import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Images')
 @Controller('image')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class ImagesController {
   constructor(private readonly imagesService: ImagesService) {}
 
@@ -57,12 +53,12 @@ export class ImagesController {
   @ApiResponse({ status: 201, description: 'Image created successfully.' })
   @ApiResponse({ status: 409, description: 'Image of this type already exists.' })
   createMyImage(
-    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
     @Body() dto: Omit<CreateImageDto, 'studentId'>,
   ) {
     return this.imagesService.create({
       ...dto,
-      studentId: user.id,
+      studentId: req.sessionPayload!.userId,
     } as CreateImageDto);
   }
 
@@ -72,8 +68,8 @@ export class ImagesController {
   @ApiResponse({ status: 200, description: 'Images for the authenticated student.' })
   @ApiResponse({ status: 401, description: 'Not authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
-  findMyImages(@CurrentUser() user: AuthenticatedUser) {
-    return this.imagesService.findByStudentId(user.id);
+  findMyImages(@Req() req: Request) {
+    return this.imagesService.findByStudentId(req.sessionPayload!.userId);
   }
 
   @Get('me/profile')
@@ -83,8 +79,8 @@ export class ImagesController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
   @ApiResponse({ status: 404, description: 'Profile photo not found.' })
-  findMyProfilePhoto(@CurrentUser() user: any) {
-    return this.imagesService.findProfilePhoto(user.id);
+  findMyProfilePhoto(@Req() req: Request) {
+    return this.imagesService.findProfilePhoto(req.sessionPayload!.userId);
   }
 
   @Get('student/:studentId')

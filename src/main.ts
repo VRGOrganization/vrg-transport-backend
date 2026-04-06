@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { json } from 'express';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -23,6 +24,7 @@ async function bootstrap() {
   // Bloqueia na camada do body-parser antes de alocar memória para parse.
   // O @MaxLength nos DTOs é uma segunda camada, não substitui este limite.
   app.use(json({ limit: '2mb' }));
+  app.use(cookieParser());
 
   // ── Helmet — headers HTTP defensivos
   app.use(

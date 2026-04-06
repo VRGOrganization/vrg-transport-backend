@@ -73,8 +73,6 @@ export class StudentService {
     delete allowedFields['photo'];
     delete allowedFields['status'];
     delete allowedFields['password'];
-    delete allowedFields['refreshTokenHash'];
-    delete allowedFields['refreshTokenVersion'];
     delete allowedFields['verificationCode'];
     delete allowedFields['verificationCodeExpiresAt'];
     delete allowedFields['verificationCodeAttempts'];
@@ -297,25 +295,6 @@ export class StudentService {
     await this.studentRepository.update(id, {
       verificationCodeAttempts: attempts,
       verificationCodeLockedUntil: lockedUntil,
-    });
-  }
-
-  async updateRefreshToken(
-    id: string,
-    hash: string,
-    version: number,
-  ): Promise<void> {
-    await this.studentRepository.update(id, {
-      refreshTokenHash: hash,
-      refreshTokenVersion: version,
-    });
-  }
-
-  async clearRefreshToken(id: string): Promise<void> {
-    await this.studentRepository.update(id, {
-      refreshTokenHash: null,
-      // Incrementa a versão mesmo no logout — invalida qualquer token em trânsito
-      refreshTokenVersion: Date.now(), // valor arbitrariamente alto, nunca vai bater
     });
   }
 

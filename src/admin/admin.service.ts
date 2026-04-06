@@ -23,7 +23,7 @@ export class AdminService {
   async findByUsernameWithPassword(username: string): Promise<Admin | null> {
     return this.adminModel
       .findOne({ username })
-      .select('+password +refreshTokenHash +refreshTokenVersion') // Inclui o campo de senha e tokens, que são excluídos por padrão
+      .select('+password')
       .exec();
   }
 
@@ -35,29 +35,4 @@ export class AdminService {
     return admin;
   }
 
-  // Persiste hash e versão do refresh token para validação futura
-  async updateRefreshToken(
-    id: string,
-    hash: string,
-    version: number,
-  ): Promise<void> {
-    await this.adminModel
-      .findByIdAndUpdate(
-        id,
-        { refreshTokenHash: hash, refreshTokenVersion: version },
-        { new: true },
-      )
-      .exec();
-  }
-
-  // Usa Date.now() para garantir que qualquer token anterior seja invalidado, mesmo que o hash seja limpo
-  async clearRefreshToken(id: string): Promise<void> {
-    await this.adminModel
-      .findByIdAndUpdate(
-        id,
-        { refreshTokenHash: null, refreshTokenVersion: Date.now() }, // Invalida tokens antigos ao limpar
-        { new: true },
-      )
-      .exec();
-  }
 }

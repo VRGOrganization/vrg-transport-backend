@@ -2,20 +2,22 @@ import {
   Controller,
   Get,
   Post,
+  Sse,
   Patch,
   Delete,
   Body,
+  Query,
   Param,
-  UseGuards,
   HttpCode,
   HttpStatus,
+  MessageEvent,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import { Observable } from 'rxjs';
 import { LicenseService } from './license.service';
 import { CreateLicenseDto } from './dto/create-license.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
@@ -24,6 +26,7 @@ import {
   ApiBody,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -32,10 +35,40 @@ import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 @ApiTags('Licenses')
 @ApiBearerAuth()
 @Controller('license')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
 export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}
+
+  @Post('/events/token')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({
+    summary: 'Emitir ticket efêmero para SSE',
+    description:
+      'Gera ticket de uso único para conexão do stream de eventos de licença.',
+  })
+  @ApiResponse({ status: 200, description: 'Ticket SSE emitido com sucesso.' })
+  issueEventsTicket(@Req() req: Request) {
+    return this.licenseService.issueSseTicket(req.sessionPayload!.userId);
+  }
+
+  @Sse('/events')
+  @Public()
+  @ApiOperation({
+    summary: 'Stream de eventos da licença do aluno (SSE)',
+    description:
+      'Canal SSE por aluno autenticado via ticket efêmero na query string.',
+  })
+  @ApiQuery({
+    name: 'ticket',
+    required: true,
+    description: 'Ticket efêmero e de uso único emitido por /license/events/token.',
+  })
+  streamEvents(
+    @Query('ticket') ticket: string,
+  ): Observable<MessageEvent> {
+    const studentId = this.licenseService.consumeSseTicket(ticket);
+    return this.licenseService.streamByStudent(studentId);
+  }
 
   @Get('/verify/:code')
   @Public()
@@ -64,9 +97,9 @@ export class LicenseController {
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
   async create(
     @Body() dto: CreateLicenseDto,
-    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
   ) {
-    return this.licenseService.create(dto, user.id);
+    return this.licenseService.create(dto, req.sessionPayload!.userId);
   }
 
   //INVESTIGAR SE VAI NECESSARIO MANTER PROTEGIDO POR ROLE ADMIN
@@ -136,8 +169,8 @@ export class LicenseController {
   })
   @ApiResponse({ status: 200, description: 'License data.' })
   @ApiResponse({ status: 404, description: 'License not found.' })
-  async findMine(@CurrentUser() user: AuthenticatedUser) {
-    return this.licenseService.getLicenseByStudentId(user.id);
+  async findMine(@Req() req: Request) {
+    return this.licenseService.getLicenseByStudentId(req.sessionPayload!.userId);
   }
 
   @Get('/:id')
@@ -183,9 +216,9 @@ export class LicenseController {
   async update(
     @Param('id', MongoObjectIdPipe) id: string,
     @Body() dto: CreateLicenseDto,
-    @CurrentUser() user: any,
+    @Req() req: Request,
   ) {
-    return this.licenseService.update(id, dto, user.id);
+    return this.licenseService.update(id, dto, req.sessionPayload!.userId);
   }
 
   @Delete('/delete/:id')

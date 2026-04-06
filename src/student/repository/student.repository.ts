@@ -42,9 +42,7 @@ export class StudentRepository implements IStudentRepository<Student> {
         '+verificationCodeExpiresAt ' +
         '+verificationCodeAttempts ' +
         '+verificationCodeLockedUntil ' +
-        '+verificationCodeLastSentAt ' +
-        '+refreshTokenHash ' +
-        '+refreshTokenVersion',
+          '+verificationCodeLastSentAt',
       )
       .exec();
   }

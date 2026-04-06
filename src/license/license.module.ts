@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { AuthModule } from '../auth/auth.module';
 import { LicenseService } from './license.service';
 import { LicenseController } from './license.controller';
 import { LicenseRepository } from './repository/license.repository';
@@ -18,6 +19,7 @@ import { AuditModule } from 'src/common/audit/audit.module';
     },
   ],
   imports: [
+    AuthModule,
     AuditModule,
     StudentModule,
     MongooseModule.forFeature([

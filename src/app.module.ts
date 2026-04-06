@@ -13,8 +13,9 @@ import { AdminModule } from './admin/admin.module';
 import { LicenseModule } from './license/license.module';
 import { ImagesModule } from './image/image.module';
 import { MailModule } from './mail/mail.module';
+import { SessionModule } from './auth/session/session.module';
 
-import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { SessionAuthGuard } from './auth/guards/session-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { RateLimitGuard } from './auth/guards/rate-limit.guard';
 import { CommonModule } from './common/common.module';
@@ -47,16 +48,17 @@ import { validateSecurityConfig } from './common/config/security.validation';
     LicenseModule,
     ImagesModule,
     MailModule,
+    SessionModule,
     CommonModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
-    // Guards globais: JwtAuthGuard verifica o token em todas as rotas.
-    // Rotas públicas usam @Public() para sair do guard.
+    // Guards globais
+    // Ordem importa: SessionAuthGuard precisa rodar antes do RolesGuard.
+    { provide: APP_GUARD, useClass: SessionAuthGuard },
     // RolesGuard verifica o role apenas nas rotas com @Roles().
     { provide: APP_GUARD, useClass: RateLimitGuard },
-    { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
