@@ -165,4 +165,40 @@ export class StudentController {
   remove(@Param('id', MongoObjectIdPipe) id: string) {
     return this.studentService.remove(id);
   }
+
+    @Get('stats/dashboard')
+  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  @ApiOperation({ summary: 'Dashboard statistics for all students' })
+  @ApiResponse({
+    status: 200,
+    description: 'Aggregated student statistics.',
+    schema: {
+      example: {
+        totalStudents: 120,
+        studentsWithCard: 45,
+        studentsWithoutCard: 30,
+        studentsWithPendingRequest: 45,
+        transport: {
+          totalUsing: 90,
+          byShift: {
+            morning: 40,
+            afternoon: 25,
+            night: 15,
+            fullTime: 10,
+          },
+          byDay: {
+            SEG: 85,
+            TER: 80,
+            QUA: 78,
+            QUI: 82,
+            SEX: 60,
+          },
+        },
+        generatedAt: '2025-04-07T12:00:00.000Z',
+      },
+    },
+  })
+  getDashboardStats() {
+    return this.studentService.getDashboardStats();
+  }
 }

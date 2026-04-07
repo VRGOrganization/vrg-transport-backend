@@ -18,6 +18,8 @@ import { ImagesService } from '../image/image.service';
 import { PhotoType } from '../image/types/photoType.enum';
 import { CreateImageDto } from '../image/dto/image.dto';
 import { Shift } from '../common/interfaces/student-attributes.enum';
+import { StudentDashboardStats } from './interfaces/student-stats.interface';
+import { StudentStatsVisitor } from './visitor/student-stats.visitor';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -309,5 +311,18 @@ export class StudentService {
     });
 
     return { message: 'Student removido com sucesso' };
+  }
+
+
+
+    async getDashboardStats(): Promise<StudentDashboardStats> {
+    const students = await this.studentRepository.findAll(); // já filtra active: true
+ 
+    const visitor = new StudentStatsVisitor();
+    for (const student of students) {
+      visitor.visit(student);
+    }
+ 
+    return visitor.getResult();
   }
 }
