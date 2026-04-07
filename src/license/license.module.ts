@@ -1,6 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AuthModule } from '../auth/auth.module';
 import { LicenseService } from './license.service';
 import { LicenseController } from './license.controller';
 import { LicenseRepository } from './repository/license.repository';
@@ -8,6 +7,7 @@ import { License, LicenseSchema } from './schemas/license.schema';
 import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { StudentModule } from 'src/student/student.module';
 import { AuditModule } from 'src/common/audit/audit.module';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   controllers: [LicenseController],
@@ -19,12 +19,13 @@ import { AuditModule } from 'src/common/audit/audit.module';
     },
   ],
   imports: [
-    AuthModule,
     AuditModule,
-    StudentModule,
+    MailModule,
+    forwardRef(() => StudentModule),
     MongooseModule.forFeature([
       { name: License.name, schema: LicenseSchema },
     ]),
   ],
+  exports: [LicenseService],
 })
 export class LicenseModule {}

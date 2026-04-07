@@ -31,6 +31,7 @@ import {
 } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { LicenseRequestService } from '../license-request/license-request.service';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -41,7 +42,10 @@ type UploadedImageFile = {
 @ApiTags('Students')
 @Controller('student')
 export class StudentController {
-  constructor(private readonly studentService: StudentService) {}
+  constructor(
+    private readonly studentService: StudentService,
+    private readonly licenseRequestService: LicenseRequestService,
+  ) {}
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
@@ -96,7 +100,7 @@ export class StudentController {
     },
   })
   @ApiResponse({ status: 201, description: 'Data submitted successfully.' })
-  submitLicenseRequest(
+  async submitLicenseRequest(
     @Req() req: Request,
     @Body() dto: SubmitLicenseRequestFormDto,
     @UploadedFiles()
@@ -106,7 +110,15 @@ export class StudentController {
       CourseSchedule?: UploadedImageFile[];
     },
   ) {
-    return this.studentService.submitLicenseRequest(req.sessionPayload!.userId, dto, files ?? {});
+    const result = await this.studentService.submitLicenseRequest(
+      req.sessionPayload!.userId,
+      dto,
+      files ?? {},
+    );
+
+    await this.licenseRequestService.createRequest(req.sessionPayload!.userId);
+
+    return result;
   }
 
   @Get('me')

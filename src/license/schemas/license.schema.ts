@@ -7,6 +7,7 @@ export enum LicenseStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
   EXPIRED = 'expired',
+  REJECTED = 'rejected',
 }
 
 export type LicenseDocument = License & Document;
@@ -37,6 +38,12 @@ export class License {
 
   @Prop({ required: true, unique: true })
   verificationCode: string;
+
+  @Prop({ type: String, default: null })
+  rejectionReason: string | null;
+
+  @Prop({ type: Date, default: null })
+  rejectedAt: Date | null;
 }
 
 export const LicenseSchema = SchemaFactory.createForClass(License);

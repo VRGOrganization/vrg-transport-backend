@@ -19,6 +19,7 @@ import { nowInBR, addMonthsBR } from '../common/utils/date.utils';
 import { StudentService } from '../student/student.service';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { AUTH_ERROR_MESSAGES } from '../auth/constants/auth.constants';
+import { MailService } from '../mail/mail.service';
 
 type SseTicketEntry = {
   studentId: string;
@@ -42,6 +43,7 @@ export class LicenseService {
     private readonly studentService: StudentService,
     private readonly configService: ConfigService,
     private readonly auditLog: AuditLogService,
+    private readonly mailService: MailService,
   ) {
     this.apiUrl = this.configService.getOrThrow<string>('LICENSE_API_URL');
     this.apiKey = this.configService.getOrThrow<string>('LICENSE_API_KEY');
@@ -215,6 +217,44 @@ export class LicenseService {
     return { message: 'Licença removida com sucesso' };
   }
 
+  async reject(id: string, reason: string, employeeId: string): Promise<License> {
+    const license = await this.licenseRepository.findOne(id);
+    if (!license) throw new NotFoundException(`Licença ${id} não encontrada`);
+
+    const student = await this.studentService.findOneOrFail(license.studentId);
+
+    const updated = await this.licenseRepository.update(id, {
+      status: LicenseStatus.REJECTED,
+      rejectionReason: reason,
+      rejectedAt: new Date(),
+    });
+
+    if (!updated) throw new NotFoundException(`Licença ${id} não encontrada`);
+
+    await this.auditLog.record({
+      action: 'license.reject',
+      outcome: 'success',
+      actor: { id: employeeId, role: 'employee' },
+      target: { studentId: license.studentId, licenseId: id },
+      metadata: { reason },
+    });
+
+    this.emitLicenseEvent(license.studentId, {
+      type: 'license.changed',
+      reason: 'rejected',
+    });
+
+    await this.mailService.sendLicenseRejection(
+      student.email,
+      student.name,
+      reason,
+    ).catch((err) => {
+      this.logger.warn(`Email de recusa não enviado: ${err?.message}`);
+    });
+
+    return updated;
+  }
+
   async verifyByCode(code: string): Promise<{ exists: boolean; valid?: boolean; status?: LicenseStatus }> {
     const license = await this.licenseRepository.findOneByVerificationCode(code);
     if (!license || !license.existing) {
@@ -266,7 +306,7 @@ export class LicenseService {
 
   private emitLicenseEvent(
     studentId: string,
-    payload: { type: 'license.changed'; reason: 'created' | 'updated' | 'removed' },
+    payload: { type: 'license.changed'; reason: 'created' | 'updated' | 'removed' | 'rejected' },
   ): void {
     const stream = this.studentStreams.get(studentId);
     if (!stream) return;
