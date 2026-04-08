@@ -18,6 +18,12 @@ import { ApproveLicenseRequestDto } from './dto/license-request.dto';
 import { PhotoType } from '../image/types/photoType.enum';
 import { ImagesService } from '../image/image.service';
 
+type UploadedImageFile = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname?: string;
+};
+
 @Injectable()
 export class LicenseRequestService {
   constructor(
@@ -54,6 +60,7 @@ export class LicenseRequestService {
       approvedByEmployeeId: null,
       rejectedByEmployeeId: null,
       licenseId: null,
+      pendingImages: [],
       changedDocuments: [],
     });
 
@@ -69,6 +76,7 @@ export class LicenseRequestService {
   async cancelAndReplaceWithUpdate(
     studentId: string,
     changedDocuments: PhotoType[],
+    pendingImages: Partial<Record<PhotoType, string>>,
   ): Promise<LicenseRequest> {
     const requests = await this.repository.findByStudentId(studentId);
     const hasApprovedRequest = requests.some(
@@ -114,6 +122,9 @@ export class LicenseRequestService {
       approvedByEmployeeId: null,
       rejectedByEmployeeId: null,
       licenseId: null,
+      pendingImages: Object.entries(pendingImages).map(
+        ([photoType, dataUrl]) => ({ photoType, dataUrl }),
+      ),
       changedDocuments,
     });
 
@@ -143,6 +154,9 @@ export class LicenseRequestService {
     if (request.type === 'update') {
       const changedDocuments = request.changedDocuments ?? [];
       const images = await this.imagesService.findByStudentId(request.studentId);
+      const pendingMap = Object.fromEntries(
+        (request.pendingImages ?? []).map((p) => [p.photoType, p.dataUrl]),
+      );
 
       for (const photoType of changedDocuments) {
         const image = images.find((item) => item.photoType === photoType);
@@ -166,6 +180,17 @@ export class LicenseRequestService {
         employeeId,
       );
 
+      for (const photoType of changedDocuments) {
+        const pendingDataUrl = pendingMap[photoType];
+        if (!pendingDataUrl) continue;
+
+        await this.studentService.createOrUpdateImage(
+          request.studentId,
+          photoType,
+          this.dataUrlToUploadedFile(pendingDataUrl, photoType),
+        );
+      }
+
       license = updatedLicense as any;
     } else {
       const createdLicense = await this.licenseService.create(
@@ -187,6 +212,7 @@ export class LicenseRequestService {
       status: LicenseRequestStatus.APPROVED,
       approvedByEmployeeId: employeeId,
       licenseId,
+      pendingImages: [],
     });
 
     if (request.type === 'update') {
@@ -267,5 +293,23 @@ export class LicenseRequestService {
   async findMyLatest(studentId: string): Promise<LicenseRequest | null> {
     const requests = await this.repository.findByStudentId(studentId);
     return requests[0] ?? null;
+  }
+
+  private dataUrlToUploadedFile(
+    dataUrl: string,
+    photoType: PhotoType,
+  ): UploadedImageFile {
+    const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+    if (!match) {
+      throw new BadRequestException(
+        `Arquivo pendente inválido para o tipo ${photoType}`,
+      );
+    }
+
+    return {
+      mimetype: match[1],
+      buffer: Buffer.from(match[2], 'base64'),
+      originalname: `${photoType}`,
+    };
   }
 }

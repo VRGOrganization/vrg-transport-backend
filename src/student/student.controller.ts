@@ -45,6 +45,10 @@ type UploadedImageFile = {
   originalname?: string;
 };
 
+function toDataUrl(file: UploadedImageFile): string {
+  return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+}
+
 @ApiTags('Students')
 @Controller('student')
 export class StudentController {
@@ -220,6 +224,8 @@ export class StudentController {
       [PhotoType.CourseSchedule]: scheduleFile,
     };
 
+    const pendingImages: Partial<Record<PhotoType, string>> = {};
+
     for (const photoType of changedDocuments) {
       const file = fileByType[photoType];
       if (!file) {
@@ -228,16 +234,13 @@ export class StudentController {
         );
       }
 
-      await this.studentService.createOrUpdateImage(
-        req.sessionPayload!.userId,
-        photoType,
-        file,
-      );
+      pendingImages[photoType] = toDataUrl(file);
     }
 
     return this.licenseRequestService.cancelAndReplaceWithUpdate(
       req.sessionPayload!.userId,
       changedDocuments,
+      pendingImages,
     );
   }
 

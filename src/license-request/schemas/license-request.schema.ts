@@ -49,6 +49,9 @@ export class LicenseRequest {
   @Prop({ type: String, default: null })
   licenseId: string | null;
 
+  @Prop({ type: [{ photoType: String, dataUrl: String }], default: [] })
+  pendingImages: { photoType: string; dataUrl: string }[];
+
   @Prop({
     type: [String],
     enum: Object.values(PhotoType),

@@ -2,7 +2,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  BadRequestException,
   BadGatewayException,
   Logger,
   GatewayTimeoutException,
@@ -21,12 +20,6 @@ import { StudentService } from '../student/student.service';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { AUTH_ERROR_MESSAGES } from '../auth/constants/auth.constants';
 import { MailService } from '../mail/mail.service';
-import type { ILicenseRequestRepository } from '../license-request/interfaces/repository.interface';
-import { LICENSE_REQUEST_REPOSITORY } from '../license-request/interfaces/repository.interface';
-import {
-  LicenseRequestStatus,
-} from '../license-request/schemas/license-request.schema';
-import type { LicenseRequest } from '../license-request/schemas/license-request.schema';
 
 type SseTicketEntry = {
   studentId: string;
@@ -47,8 +40,6 @@ export class LicenseService {
   constructor(
     @Inject(LICENSE_REPOSITORY)
     private readonly licenseRepository: ILicenseRepository<License>,
-    @Inject(LICENSE_REQUEST_REPOSITORY)
-    private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
     private readonly studentService: StudentService,
     private readonly configService: ConfigService,
     private readonly auditLog: AuditLogService,
@@ -139,17 +130,6 @@ export class LicenseService {
    * @param employeeId ID extraído da sessão no controller — nunca do body
    */
   async create(dto: CreateLicenseDto, employeeId: string): Promise<License> {
-    const requests = await this.licenseRequestRepository.findByStudentId(dto.id);
-    const hasApprovedRequest = requests.some(
-      (request) => request.status === LicenseRequestStatus.APPROVED,
-    );
-
-    if (!hasApprovedRequest) {
-      throw new BadRequestException(
-        'Não é possível criar uma carteirinha sem uma solicitação aprovada.',
-      );
-    }
-
     const student = await this.studentService.findOneOrFail(dto.id);
 
     const studentId = (student as any)._id.toString();
