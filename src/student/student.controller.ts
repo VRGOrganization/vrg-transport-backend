@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -121,6 +122,35 @@ export class StudentController {
     return result;
   }
 
+  @Patch('me/photo')
+  @Roles(UserRole.STUDENT)
+  @UseInterceptors(FileInterceptor('photo'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload profile photo' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['photo'],
+      properties: { photo: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Photo updated.' })
+  updateProfilePhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: UploadedImageFile,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado');
+    return this.studentService.updateProfilePhoto(user.id, file);
+  }
+
+  @Delete('me/photo')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Remove profile photo' })
+  @ApiResponse({ status: 200, description: 'Photo removed.' })
+  removeProfilePhoto(@CurrentUser() user: AuthenticatedUser) {
+    return this.studentService.removeProfilePhoto(user.id);
+  }
+
   @Get('me')
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Get own profile' })
@@ -176,5 +206,41 @@ export class StudentController {
   @ApiResponse({ status: 404, description: 'Not found.' })
   remove(@Param('id', MongoObjectIdPipe) id: string) {
     return this.studentService.remove(id);
+  }
+
+    @Get('stats/dashboard')
+  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  @ApiOperation({ summary: 'Dashboard statistics for all students' })
+  @ApiResponse({
+    status: 200,
+    description: 'Aggregated student statistics.',
+    schema: {
+      example: {
+        totalStudents: 120,
+        studentsWithCard: 45,
+        studentsWithoutCard: 30,
+        studentsWithPendingRequest: 45,
+        transport: {
+          totalUsing: 90,
+          byShift: {
+            morning: 40,
+            afternoon: 25,
+            night: 15,
+            fullTime: 10,
+          },
+          byDay: {
+            SEG: 85,
+            TER: 80,
+            QUA: 78,
+            QUI: 82,
+            SEX: 60,
+          },
+        },
+        generatedAt: '2025-04-07T12:00:00.000Z',
+      },
+    },
+  })
+  getDashboardStats() {
+    return this.studentService.getDashboardStats();
   }
 }
