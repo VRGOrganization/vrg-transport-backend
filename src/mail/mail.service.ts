@@ -66,4 +66,41 @@ export class MailService {
       throw error;
     }
   }
+
+  async sendLicenseRejection(
+    to: string,
+    studentName: string,
+    reason: string,
+  ): Promise<void> {
+    const name = studentName ?? 'Estudante';
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Sua solicitação de carteirinha foi recusada',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email: to }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#991b1b">Solicitação recusada</h2>
+            <p>Olá, <strong>${name}</strong>.</p>
+            <p>Infelizmente sua solicitação de carteirinha de transporte foi <strong>recusada</strong> pelo seguinte motivo:</p>
+            <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;border-radius:4px;margin:16px 0">
+              <p style="color:#991b1b;font-weight:600;margin:0">${reason}</p>
+            </div>
+            <p>Para solicitar novamente, acesse o aplicativo e passe pelo processo de solicitação completo.</p>
+            <p style="color:#6b7280;font-size:13px;margin-top:16px">
+              Em caso de dúvidas, entre em contato com a secretaria municipal de transportes.
+            </p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de recusa enviado para ${to}`);
+    } catch (error) {
+      this.logger.error(`Falha ao enviar email de recusa para ${to}`, error);
+      throw error;
+    }
+  }
 }
