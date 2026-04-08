@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -12,6 +13,7 @@ import {
   HttpStatus,
   MessageEvent,
   Req,
+  Inject,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { Observable } from 'rxjs';
@@ -29,12 +31,22 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { LICENSE_REQUEST_REPOSITORY } from '../license-request/interfaces/repository.interface';
+import type { ILicenseRequestRepository } from '../license-request/interfaces/repository.interface';
+import {
+  LicenseRequest,
+  LicenseRequestStatus,
+} from '../license-request/schemas/license-request.schema';
 
 @ApiTags('Licenses')
 @Controller('license')
 @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
 export class LicenseController {
-  constructor(private readonly licenseService: LicenseService) {}
+  constructor(
+    private readonly licenseService: LicenseService,
+    @Inject(LICENSE_REQUEST_REPOSITORY)
+    private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
+  ) {}
 
   @Post('/events/token')
   @Roles(UserRole.STUDENT)
@@ -58,11 +70,10 @@ export class LicenseController {
   @ApiQuery({
     name: 'ticket',
     required: true,
-    description: 'Ticket efêmero e de uso único emitido por /license/events/token.',
+    description:
+      'Ticket efêmero e de uso único emitido por /license/events/token.',
   })
-  streamEvents(
-    @Query('ticket') ticket: string,
-  ): Observable<MessageEvent> {
+  streamEvents(@Query('ticket') ticket: string): Observable<MessageEvent> {
     const studentId = this.licenseService.consumeSseTicket(ticket);
     return this.licenseService.streamByStudent(studentId);
   }
@@ -71,16 +82,20 @@ export class LicenseController {
   @Public()
   @ApiOperation({
     summary: 'Verificar autenticidade de carteirinha',
-    description: 'Rota pública. Valida se uma carteirinha existe e está ativa pelo código de verificação do QR code.',
+    description:
+      'Rota pública. Valida se uma carteirinha existe e está ativa pelo código de verificação do QR code.',
   })
-  @ApiParam({ name: 'code', description: 'Código de verificação (UUID gerado na emissão)' })
+  @ApiParam({
+    name: 'code',
+    description: 'Código de verificação (UUID gerado na emissão)',
+  })
   @ApiResponse({ status: 200, description: 'Resultado da verificação.' })
   async verify(@Param('code') code: string) {
     return this.licenseService.verifyByCode(code);
   }
 
   @Post('/create')
-  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create License',
@@ -92,10 +107,20 @@ export class LicenseController {
   @ApiResponse({ status: 400, description: 'Invalid data.' })
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
-  async create(
-    @Body() dto: CreateLicenseDto,
-    @Req() req: Request,
-  ) {
+  async create(@Body() dto: CreateLicenseDto, @Req() req: Request) {
+    const requests = await this.licenseRequestRepository.findByStudentId(
+      dto.id,
+    );
+    const hasApprovedRequest = requests.some(
+      (request) => request.status === LicenseRequestStatus.APPROVED,
+    );
+
+    if (!hasApprovedRequest) {
+      throw new BadRequestException(
+        'Não é possível criar uma carteirinha sem uma solicitação aprovada.',
+      );
+    }
+
     return this.licenseService.create(dto, req.sessionPayload!.userId);
   }
 
@@ -133,7 +158,6 @@ export class LicenseController {
 
   @Get('/searchByStudent/:studentId')
   @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
-
   @ApiOperation({
     summary: 'Find license by student ID',
     description: 'Returns the license associated with a specific student.',
@@ -168,7 +192,9 @@ export class LicenseController {
   @ApiResponse({ status: 200, description: 'License data.' })
   @ApiResponse({ status: 404, description: 'License not found.' })
   async findMine(@Req() req: Request) {
-    return this.licenseService.getLicenseByStudentId(req.sessionPayload!.userId);
+    return this.licenseService.getLicenseByStudentId(
+      req.sessionPayload!.userId,
+    );
   }
 
   @Get('/:id')
@@ -237,7 +263,11 @@ export class LicenseController {
     @Body() dto: RejectLicenseDto,
     @Req() req: Request,
   ) {
-    return this.licenseService.reject(id, dto.reason, req.sessionPayload!.userId);
+    return this.licenseService.reject(
+      id,
+      dto.reason,
+      req.sessionPayload!.userId,
+    );
   }
 
   @Delete('/delete/:id')

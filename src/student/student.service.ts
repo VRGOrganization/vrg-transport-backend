@@ -43,6 +43,13 @@ export class StudentService {
     return this.studentRepository.findAll();
   }
 
+  async findAllPaginated(
+    page: number,
+    limit: number,
+  ): Promise<{ data: Student[]; total: number; page: number; limit: number }> {
+    return this.studentRepository.findAllPaginated(page, limit);
+  }
+
   async findById(id: string): Promise<Student | null> {
     return this.studentRepository.findById(id);
   }
@@ -187,7 +194,7 @@ export class StudentService {
   async updateProfilePhoto(
     studentId: string,
     file: UploadedImageFile,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; photo: string | null }> {
     await this.findOneOrFail(studentId);
     await this.createOrUpdateImage(studentId, PhotoType.ProfilePhoto, file);
 
@@ -197,7 +204,8 @@ export class StudentService {
       target: { studentId },
     });
 
-    return { message: 'Foto de perfil atualizada com sucesso' };
+    const photo = await this.getProfilePhotoOrNull(studentId);
+    return { message: 'Foto de perfil atualizada com sucesso', photo };
   }
 
   async removeProfilePhoto(studentId: string): Promise<{ message: string }> {
@@ -219,7 +227,19 @@ export class StudentService {
     return { message: 'Foto de perfil removida com sucesso' };
   }
 
-  private async createOrUpdateImage(
+  async getProfilePhotoOrNull(studentId: string): Promise<string | null> {
+    try {
+      const profilePhoto = await this.imagesService.findProfilePhoto(studentId);
+      return (
+        (profilePhoto as unknown as { photo3x4?: string | null }).photo3x4 ??
+        null
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async createOrUpdateImage(
     studentId: string,
     photoType: PhotoType,
     file: UploadedImageFile,

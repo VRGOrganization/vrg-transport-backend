@@ -7,6 +7,10 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Image, ImageDocument } from './schema/image.schema';
+import {
+  ImageHistory,
+  ImageHistoryDocument,
+} from './schema/image-history.schema';
 import { CreateImageDto, UpdateImageDto, UploadMyDocumentDto } from './dto/image.dto';
 import { PhotoType } from './types/photoType.enum';
 
@@ -15,6 +19,8 @@ export class ImagesService {
   constructor(
     @InjectModel(Image.name, 'images')
     private readonly imageModel: Model<ImageDocument>,
+    @InjectModel(ImageHistory.name, 'images')
+    private readonly imageHistoryModel: Model<ImageHistoryDocument>,
   ) {}
 
   async create(dto: CreateImageDto): Promise<Image> {
@@ -71,10 +77,44 @@ export class ImagesService {
     return this.imageModel.find({ active: true }).exec();
   }
 
+  async findAllPaginated(
+    page: number,
+    limit: number,
+  ): Promise<{ data: Image[]; total: number; page: number; limit: number }> {
+    const filter = { active: true };
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.imageModel.find(filter).skip(skip).limit(limit).exec(),
+      this.imageModel.countDocuments(filter).exec(),
+    ]);
+
+    return { data, total, page, limit };
+  }
+
   async findOne(id: string): Promise<Image> {
     const image = await this.imageModel.findById(id).exec();
     if (!image) throw new NotFoundException(`Imagem ${id} não encontrada`);
     return image;
+  }
+
+  async archiveToHistory(imageId: string): Promise<void> {
+    const image = await this.imageModel.findById(imageId).exec();
+
+    if (!image) {
+      throw new NotFoundException(`Imagem ${imageId} não encontrada`);
+    }
+
+    const history = new this.imageHistoryModel({
+      studentId: image.studentId,
+      imageId: image.id,
+      photoType: image.photoType,
+      photo3x4: image.photo3x4,
+      documentImage: image.documentImage,
+      replacedAt: new Date(),
+    });
+
+    await history.save();
   }
 
   async findByStudentId(studentId: string): Promise<Image[]> {

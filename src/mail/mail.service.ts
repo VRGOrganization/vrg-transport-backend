@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BrevoClient } from '@getbrevo/brevo';
+import { PhotoType } from '../image/types/photoType.enum';
 
 @Injectable()
 export class MailService {
@@ -100,6 +101,98 @@ export class MailService {
       this.logger.log(`Email de recusa enviado para ${to}`);
     } catch (error) {
       this.logger.error(`Falha ao enviar email de recusa para ${to}`, error);
+      throw error;
+    }
+  }
+
+  async sendDocumentUpdateRejected(
+    email: string,
+    name: string,
+    reason: string,
+  ): Promise<void> {
+    const studentName = name ?? 'Estudante';
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Sua solicitação de alteração de documentos foi recusada',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#991b1b">Solicitação de alteração recusada</h2>
+            <p>Olá, <strong>${studentName}</strong>.</p>
+            <p>Sua solicitação de <strong>alteração de documentos</strong> foi recusada pelo seguinte motivo:</p>
+            <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;border-radius:4px;margin:16px 0">
+              <p style="color:#991b1b;font-weight:600;margin:0">${reason}</p>
+            </div>
+            <p>Você pode reenviar uma nova solicitação com os documentos corrigidos.</p>
+            <p style="color:#6b7280;font-size:13px;margin-top:16px">
+              Em caso de dúvidas, entre em contato com a secretaria municipal de transportes.
+            </p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de recusa de alteração de documentos enviado para ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar email de recusa de alteração de documentos para ${email}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async sendDocumentUpdateApproved(
+    email: string,
+    name: string,
+    changedDocuments: PhotoType[],
+  ): Promise<void> {
+    const studentName = name ?? 'Estudante';
+    const labels: Record<PhotoType, string> = {
+      [PhotoType.ProfilePhoto]: 'Foto 3x4',
+      [PhotoType.EnrollmentProof]: 'Comprovante de matrícula',
+      [PhotoType.CourseSchedule]: 'Grade horária',
+      [PhotoType.LicenseImage]: 'Imagem da carteirinha',
+    };
+
+    const listItems = changedDocuments
+      .map((doc) => labels[doc] ?? doc)
+      .map((doc) => `<li style="margin:6px 0">${doc}</li>`)
+      .join('');
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Sua solicitação de alteração de documentos foi aprovada',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#1b4332">Solicitação aprovada</h2>
+            <p>Olá, <strong>${studentName}</strong>.</p>
+            <p>Sua solicitação de alteração de documentos foi <strong>aprovada</strong>.</p>
+            <p>Documentos atualizados:</p>
+            <ul style="padding-left:20px;margin:8px 0 16px">
+              ${listItems || '<li>Nenhum documento informado</li>'}
+            </ul>
+            <p>Sua carteirinha foi gerada novamente com os dados atualizados.</p>
+            <p style="color:#6b7280;font-size:13px;margin-top:16px">
+              Em caso de dúvidas, entre em contato com a secretaria municipal de transportes.
+            </p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de aprovação de alteração de documentos enviado para ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar email de aprovação de alteração de documentos para ${email}`,
+        error,
+      );
       throw error;
     }
   }

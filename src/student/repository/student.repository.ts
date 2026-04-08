@@ -20,6 +20,21 @@ export class StudentRepository implements IStudentRepository<Student> {
     return this.studentModel.find({ active: true }).exec();
   }
 
+  async findAllPaginated(
+    page: number,
+    limit: number,
+  ): Promise<{ data: Student[]; total: number; page: number; limit: number }> {
+    const filter = { active: true };
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.studentModel.find(filter).skip(skip).limit(limit).exec(),
+      this.studentModel.countDocuments(filter).exec(),
+    ]);
+
+    return { data, total, page, limit };
+  }
+
   async findById(id: string): Promise<Student | null> {
     return this.studentModel.findById(id).exec();
   }
