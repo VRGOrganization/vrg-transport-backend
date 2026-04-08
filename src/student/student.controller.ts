@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -30,7 +31,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -107,6 +108,35 @@ export class StudentController {
     },
   ) {
     return this.studentService.submitLicenseRequest(req.sessionPayload!.userId, dto, files ?? {});
+  }
+
+  @Patch('me/photo')
+  @Roles(UserRole.STUDENT)
+  @UseInterceptors(FileInterceptor('photo'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload profile photo' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['photo'],
+      properties: { photo: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Photo updated.' })
+  updateProfilePhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: UploadedImageFile,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado');
+    return this.studentService.updateProfilePhoto(user.id, file);
+  }
+
+  @Delete('me/photo')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Remove profile photo' })
+  @ApiResponse({ status: 200, description: 'Photo removed.' })
+  removeProfilePhoto(@CurrentUser() user: AuthenticatedUser) {
+    return this.studentService.removeProfilePhoto(user.id);
   }
 
   @Get('me')
