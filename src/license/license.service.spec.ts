@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { LicenseService } from './license.service';
 import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
+import { StudentService } from '../student/student.service';
+import { AuditLogService } from '../common/audit/audit-log.service';
 
 global.fetch = jest.fn();
 
@@ -17,13 +19,30 @@ const mockLicenseRepository = {
 const mockConfigService = {
   getOrThrow: jest.fn((key: string) => {
     const config: Record<string, string> = {
-      BASE_URL_API_LICENSE: 'https://mock-license-api.com',
-      X_API_KEY: 'mock-api-key',
+      LICENSE_API_URL: 'https://mock-license-api.com',
+      LICENSE_API_KEY: 'mock-api-key',
+      QR_CODE_BASE_URL: 'https://mock-license-api.com/qr',
     };
     const value = config[key];
     if (!value) throw new Error(`Config ${key} not found`);
     return value;
   }),
+  get: jest.fn((_key: string, fallback: number) => fallback),
+};
+
+const mockStudentService = {
+  findOneOrFail: jest.fn().mockResolvedValue({
+    _id: 'student-id-123',
+    name: 'Joao Silva',
+    degree: 'CC',
+    shift: 'Noturno',
+    telephone: '11999999999',
+    bloodType: 'A+',
+  }),
+};
+
+const mockAuditLogService = {
+  record: jest.fn(),
 };
 
 describe('LicenseService', () => {
@@ -35,6 +54,8 @@ describe('LicenseService', () => {
         LicenseService,
         { provide: LICENSE_REPOSITORY, useValue: mockLicenseRepository },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: StudentService, useValue: mockStudentService },
+        { provide: AuditLogService, useValue: mockAuditLogService },
       ],
     }).compile();
 

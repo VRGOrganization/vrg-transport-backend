@@ -1,7 +1,7 @@
-# API Reference — Students
+﻿# API Reference — Students
 
 Base: `/api/v1/student`  
-Todos os endpoints requerem autenticação JWT.
+Todos os endpoints requerem autenticação por sessão (x-session-id).
 
 ---
 
@@ -42,14 +42,14 @@ Lista todos os estudantes.
 | Status | Descrição |
 |---|---|
 | `200` | Array de estudantes |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente (STUDENT não tem acesso) |
 
 ### Exemplo
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/student \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ```json
@@ -83,7 +83,7 @@ Retorna o perfil do estudante autenticado.
 | Status | Descrição |
 |---|---|
 | `200` | Perfil do estudante |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é STUDENT |
 | `404` | Estudante não encontrado |
 
@@ -91,7 +91,7 @@ Retorna o perfil do estudante autenticado.
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/student/me \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ```json
@@ -125,7 +125,7 @@ Retorna um estudante pelo ID.
 |---|---|
 | `200` | Dados do estudante |
 | `400` | ID inválido (não é ObjectId) |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 | `404` | Estudante não encontrado |
 
@@ -133,7 +133,7 @@ Retorna um estudante pelo ID.
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/student/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -163,7 +163,7 @@ Atualiza o perfil do estudante autenticado. Todos os campos são opcionais.
 |---|---|
 | `200` | Perfil atualizado |
 | `400` | Dados inválidos |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é STUDENT |
 | `404` | Estudante não encontrado |
 
@@ -171,7 +171,7 @@ Atualiza o perfil do estudante autenticado. Todos os campos são opcionais.
 
 ```bash
 curl -X PATCH https://api.vrgtransport.com.br/api/v1/student/me \
-  -H "Authorization: Bearer eyJ..." \
+  -H "x-session-id: <session-id>" \
   -H "Content-Type: application/json" \
   -d '{"bus": "Linha 15", "telephone": "11999990000"}'
 ```
@@ -195,7 +195,7 @@ Mesmos campos de `PATCH /student/me`.
 |---|---|
 | `200` | Estudante atualizado |
 | `400` | ID inválido ou dados inválidos |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 | `404` | Estudante não encontrado |
 
@@ -203,7 +203,7 @@ Mesmos campos de `PATCH /student/me`.
 
 ```bash
 curl -X PATCH https://api.vrgtransport.com.br/api/v1/student/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "Authorization: Bearer eyJ..." \
+  -H "x-session-id: <session-id>" \
   -H "Content-Type: application/json" \
   -d '{"degree": "Ensino Superior", "shift": "Noturno"}'
 ```
@@ -223,7 +223,7 @@ Remove um estudante pelo ID.
 |---|---|
 | `200` | Estudante removido |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 | `404` | Estudante não encontrado |
 
@@ -231,5 +231,6 @@ Remove um estudante pelo ID.
 
 ```bash
 curl -X DELETE https://api.vrgtransport.com.br/api/v1/student/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
+

@@ -23,7 +23,10 @@ describe('RolesGuard', () => {
   });
 
   const mockRoles = (roles: UserRole[] | undefined) => {
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(roles as any);
+    jest
+      .spyOn(reflector, 'getAllAndOverride')
+      .mockReturnValueOnce(false as any)
+      .mockReturnValueOnce(roles as any);
   };
 
   it('deve permitir acesso quando não há roles definidas na rota', () => {

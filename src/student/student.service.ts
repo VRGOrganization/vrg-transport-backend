@@ -18,6 +18,8 @@ import { ImagesService } from '../image/image.service';
 import { PhotoType } from '../image/types/photoType.enum';
 import { CreateImageDto } from '../image/dto/image.dto';
 import { Shift } from '../common/interfaces/student-attributes.enum';
+import { StudentDashboardStats } from './interfaces/student-stats.interface';
+import { StudentStatsVisitor } from './visitor/student-stats.visitor';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -73,8 +75,6 @@ export class StudentService {
     delete allowedFields['photo'];
     delete allowedFields['status'];
     delete allowedFields['password'];
-    delete allowedFields['refreshTokenHash'];
-    delete allowedFields['refreshTokenVersion'];
     delete allowedFields['verificationCode'];
     delete allowedFields['verificationCodeExpiresAt'];
     delete allowedFields['verificationCodeAttempts'];
@@ -300,60 +300,6 @@ export class StudentService {
     });
   }
 
-  async updateRefreshToken(
-    id: string,
-    hash: string,
-    version: number,
-  ): Promise<void> {
-    await this.studentRepository.update(id, {
-      refreshTokenHash: hash,
-      refreshTokenVersion: version,
-    });
-  }
-
-  async clearRefreshToken(id: string): Promise<void> {
-    await this.studentRepository.update(id, {
-      refreshTokenHash: null,
-      // Incrementa a versão mesmo no logout — invalida qualquer token em trânsito
-      refreshTokenVersion: Date.now(), // valor arbitrariamente alto, nunca vai bater
-    });
-  }
-
-  async updateProfilePhoto(id: string, file: UploadedImageFile): Promise<Student> {
-    const mimeType = file.mimetype?.toLowerCase() ?? '';
-
-    if (!mimeType.startsWith('image/')) {
-      throw new BadRequestException('Arquivo inválido: envie uma imagem');
-    }
-
-    const base64 = file.buffer.toString('base64');
-    const dataUrl = `data:${mimeType};base64,${base64}`;
-
-    const student = await this.studentRepository.update(id, { photo: dataUrl });
-    if (!student) throw new NotFoundException(`Student ${id} não encontrado`);
-
-    await this.auditLog.record({
-      action: 'student.update_profile_photo',
-      outcome: 'success',
-      target: { studentId: id },
-    });
-
-    return student;
-  }
-
-  async removeProfilePhoto(id: string): Promise<Student> {
-    const student = await this.studentRepository.update(id, { photo: null });
-    if (!student) throw new NotFoundException(`Student ${id} não encontrado`);
-
-    await this.auditLog.record({
-      action: 'student.remove_profile_photo',
-      outcome: 'success',
-      target: { studentId: id },
-    });
-
-    return student;
-  }
-
   async remove(id: string): Promise<{ message: string }> {
     const result = await this.studentRepository.remove(id);
     if (!result) throw new NotFoundException(`Student ${id} não encontrado`);
@@ -365,5 +311,18 @@ export class StudentService {
     });
 
     return { message: 'Student removido com sucesso' };
+  }
+
+
+
+    async getDashboardStats(): Promise<StudentDashboardStats> {
+    const students = await this.studentRepository.findAll(); // já filtra active: true
+ 
+    const visitor = new StudentStatsVisitor();
+    for (const student of students) {
+      visitor.visit(student);
+    }
+ 
+    return visitor.getResult();
   }
 }

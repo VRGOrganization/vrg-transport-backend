@@ -5,16 +5,25 @@ import {
   BadGatewayException,
   Logger,
   GatewayTimeoutException,
+  MessageEvent,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
+import { Observable, Subject } from 'rxjs';
 import type { ILicenseRepository } from './interfaces/repository.interface';
 import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { CreateLicenseDto } from './dto/create-license.dto';
 import { License, LicenseStatus } from './schemas/license.schema';
 import { nowInBR, addMonthsBR } from '../common/utils/date.utils';
-import { StudentService } from 'src/student/student.service';
+import { StudentService } from '../student/student.service';
 import { AuditLogService } from '../common/audit/audit-log.service';
+import { AUTH_ERROR_MESSAGES } from '../auth/constants/auth.constants';
+
+type SseTicketEntry = {
+  studentId: string;
+  expiresAt: number;
+};
 
 
 @Injectable()
@@ -23,6 +32,9 @@ export class LicenseService {
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private readonly qrCodeBaseUrl: string;
+  private readonly studentStreams = new Map<string, Subject<MessageEvent>>();
+  private readonly sseTickets = new Map<string, SseTicketEntry>();
+  private readonly sseTicketTtlMs = 60_000;
 
   constructor(
     @Inject(LICENSE_REPOSITORY)
@@ -36,13 +48,84 @@ export class LicenseService {
     this.qrCodeBaseUrl = this.configService.getOrThrow<string>('QR_CODE_BASE_URL');
   }
 
+  issueSseTicket(studentId: string): { ticket: string; expiresInMs: number } {
+    this.pruneExpiredSseTickets();
+
+    const ticket = randomUUID();
+    this.sseTickets.set(ticket, {
+      studentId,
+      expiresAt: Date.now() + this.sseTicketTtlMs,
+    });
+
+    return {
+      ticket,
+      expiresInMs: this.sseTicketTtlMs,
+    };
+  }
+
+  consumeSseTicket(ticket: string): string {
+    if (!ticket) {
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.UNAUTHORIZED);
+    }
+
+    this.pruneExpiredSseTickets();
+    const entry = this.sseTickets.get(ticket);
+
+    if (!entry || entry.expiresAt <= Date.now()) {
+      this.sseTickets.delete(ticket);
+      throw new UnauthorizedException(AUTH_ERROR_MESSAGES.UNAUTHORIZED);
+    }
+
+    // Uso único: impede reuso da URL caso ela seja exposta.
+    this.sseTickets.delete(ticket);
+
+    return entry.studentId;
+  }
+
+  private pruneExpiredSseTickets(): void {
+    const now = Date.now();
+    for (const [ticket, entry] of this.sseTickets.entries()) {
+      if (entry.expiresAt <= now) {
+        this.sseTickets.delete(ticket);
+      }
+    }
+  }
+
+  streamByStudent(studentId: string): Observable<MessageEvent> {
+    const stream = this.ensureStream(studentId);
+
+    return new Observable<MessageEvent>((subscriber) => {
+      const streamSubscription = stream.subscribe(subscriber);
+
+      // Evento inicial para o cliente detectar conexão ativa.
+      subscriber.next({
+        data: JSON.stringify({ type: 'connected', studentId, ts: Date.now() }),
+      });
+
+      const heartbeat = setInterval(() => {
+        subscriber.next({
+          data: JSON.stringify({ type: 'heartbeat', ts: Date.now() }),
+        });
+      }, 25_000);
+
+      return () => {
+        clearInterval(heartbeat);
+        streamSubscription.unsubscribe();
+
+        if (stream.observed === false) {
+          this.studentStreams.delete(studentId);
+        }
+      };
+    });
+  }
+
   async checkHealth() {
     const res = await fetch(`${this.apiUrl}/health`);
     return res.json();
   }
   /**
    * @param dto        Dados da licença vindos do client
-   * @param employeeId ID extraído do JWT no controller — nunca do body
+   * @param employeeId ID extraído da sessão no controller — nunca do body
    */
   async create(dto: CreateLicenseDto, employeeId: string): Promise<License> {
     const student = await this.studentService.findOneOrFail(dto.id);
@@ -77,7 +160,7 @@ export class LicenseService {
       target: { studentId },
     })
 
-    return this.licenseRepository.create({
+    const created = await this.licenseRepository.create({
       studentId,
       employeeId,
       imageLicense: data.image,
@@ -85,7 +168,14 @@ export class LicenseService {
       existing: true,
       expirationDate: addMonthsBR(nowInBR(), 7),
       verificationCode,
-    })
+    });
+
+    this.emitLicenseEvent(studentId, {
+      type: 'license.changed',
+      reason: 'created',
+    });
+
+    return created;
   }
 
   async getLicenseByStudentId(studentId: string): Promise<License> {
@@ -109,10 +199,19 @@ export class LicenseService {
   }
 
   async remove(id: string): Promise<{ message: string }> {
+    const existing = await this.licenseRepository.findOne(id);
     const result = await this.licenseRepository.remove(id);
     if (!result) {
       throw new NotFoundException(`Licença ${id} não encontrada`);
     }
+
+    if (existing?.studentId) {
+      this.emitLicenseEvent(existing.studentId, {
+        type: 'license.changed',
+        reason: 'removed',
+      });
+    }
+
     return { message: 'Licença removida com sucesso' };
   }
 
@@ -129,15 +228,56 @@ export class LicenseService {
   }
 
   async update(id: string, dto: CreateLicenseDto, employeeId: string): Promise<License> {
+    const oldLicense = await this.licenseRepository.findOne(id);
     const newLicense = await this.create(dto, employeeId);
 
     try {
       await this.remove(id);
+
+      if (newLicense.studentId) {
+        this.emitLicenseEvent(newLicense.studentId, {
+          type: 'license.changed',
+          reason: 'updated',
+        });
+      }
+
+      if (oldLicense?.studentId && oldLicense.studentId !== newLicense.studentId) {
+        this.emitLicenseEvent(oldLicense.studentId, {
+          type: 'license.changed',
+          reason: 'updated',
+        });
+      }
+
       return newLicense;
     } catch (error) {
       await this.licenseRepository.remove((newLicense as any)._id.toString()).catch(() => undefined);
       throw error;
     }
+  }
+
+  private ensureStream(studentId: string): Subject<MessageEvent> {
+    const existing = this.studentStreams.get(studentId);
+    if (existing) return existing;
+
+    const created = new Subject<MessageEvent>();
+    this.studentStreams.set(studentId, created);
+    return created;
+  }
+
+  private emitLicenseEvent(
+    studentId: string,
+    payload: { type: 'license.changed'; reason: 'created' | 'updated' | 'removed' },
+  ): void {
+    const stream = this.studentStreams.get(studentId);
+    if (!stream) return;
+
+    stream.next({
+      data: JSON.stringify({
+        ...payload,
+        studentId,
+        ts: Date.now(),
+      }),
+    });
   }
 
 

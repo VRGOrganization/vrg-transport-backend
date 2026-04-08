@@ -8,13 +8,12 @@ vrg-transport-backend/
 │   ├── main.ts                     # Bootstrap: Helmet, CORS, Swagger, ValidationPipe, prefixo /api/v1
 │   ├── app.module.ts               # Módulo raiz: guards globais, conexões MongoDB
 │   │
-│   ├── auth/                       # Autenticação JWT, OTP, refresh token
+│   ├── auth/                       # Autenticação por sessão, OTP
 │   │   ├── auth.controller.ts
 │   │   ├── auth.service.ts
 │   │   ├── auth.module.ts
 │   │   ├── dto/
-│   │   ├── guards/                 # JwtAuthGuard, RolesGuard
-│   │   └── strategies/             # JwtStrategy (passport-jwt)
+│   │   ├── guards/                 # SessionAuthGuard, RolesGuard
 │   │
 │   ├── student/                    # CRUD de estudantes
 │   │   ├── student.controller.ts
@@ -63,7 +62,7 @@ vrg-transport-backend/
 │       ├── filters/
 │       │   └── http-exception.filter.ts # Resposta de erro padronizada
 │       ├── guards/
-│       │   ├── jwt-auth.guard.ts
+│       │   ├── session-auth.guard.ts
 │       │   ├── roles.guard.ts
 │       │   └── rate-limit.guard.ts
 │       ├── pipes/
@@ -144,7 +143,7 @@ O `StudentService` depende da interface, não da implementação. Isso permite t
 ```
 Cliente
   │
-  │ HTTPS + Bearer Token
+  │ HTTPS + x-session-id
   ▼
 Express (main.ts)
   ├── Helmet (headers de segurança)
@@ -154,7 +153,7 @@ Express (main.ts)
   ▼
 NestJS Pipeline
   ├── 1. RateLimitGuard (global) ── verifica IP + keyPrefix do endpoint
-  ├── 2. JwtAuthGuard (global) ──── verifica Bearer token (pula rotas @Public())
+  ├── 2. SessionAuthGuard (global) ─ verifica sessao (pula rotas @Public())
   ├── 3. RolesGuard (global) ─────── verifica @Roles() no handler
   ├── 4. MongoObjectIdPipe ─────────── valida parâmetros :id (aplicado por endpoint)
   ├── 5. ValidationPipe (global) ──── valida e transforma o body (whitelist, forbidNonWhitelisted)
@@ -189,5 +188,5 @@ Cada domínio (Student, Employee, License, Image) é autônomo. Adicionar ou rem
 ### Por que audit log?
 Eventos sensíveis (login, logout, registro, verificação de e-mail, emissão de carteirinha) são registrados com dados redatados (hash de e-mail, telefone, código OTP). Permite rastrear atividade suspeita sem expor dados pessoais nos logs.
 
-### Por que refresh token com versionamento?
-O campo `refreshTokenVersion` no schema e no payload JWT permite detectar reuso de tokens. Se um token rotacionado for usado novamente, a versão não bate e a sessão é invalidada imediatamente.
+### Por que sessao server-side?
+Sessoes permitem revogacao imediata e expiracao por TTL sem expor tokens ao browser. O BFF persiste apenas o cookie `sid` e envia `x-session-id` ao backend.

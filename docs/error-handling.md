@@ -31,7 +31,7 @@ Todos os erros são formatados pelo `HttpExceptionFilter` global:
 | `200 OK` | Requisição bem-sucedida (GET, PATCH, DELETE com retorno, POST de logout) |
 | `201 Created` | Recurso criado com sucesso (register, create employee, create license, create image) |
 | `400 Bad Request` | Dados inválidos no body, parâmetro `:id` não é um ObjectId válido |
-| `401 Unauthorized` | Token ausente, expirado ou inválido; credenciais incorretas; conta não verificada |
+| `401 Unauthorized` | Sessão ausente ou inválida; credenciais incorretas; conta não verificada |
 | `403 Forbidden` | Autenticado, mas sem permissão para o recurso (role insuficiente) |
 | `404 Not Found` | Recurso não encontrado (estudante, funcionário, licença, imagem) |
 | `409 Conflict` | Recurso já existe (e-mail duplicado, registrationId duplicado) |
@@ -78,7 +78,7 @@ Content-Type: application/json
 
 ```bash
 GET /api/v1/auth/me
-# sem header Authorization
+# sem header x-session-id
 ```
 
 ```json
@@ -130,7 +130,7 @@ POST /api/v1/auth/student/login
 
 ```bash
 GET /api/v1/employee
-Authorization: Bearer <token de STUDENT>
+x-session-id: <session-id de STUDENT>
 ```
 
 ```json

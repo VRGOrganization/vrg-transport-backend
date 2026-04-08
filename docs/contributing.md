@@ -19,7 +19,7 @@
 | Enums | `PascalCase` | `UserRole`, `BloodType` |
 | DTOs | `PascalCase` + sufixo `Dto` | `CreateStudentDto`, `UpdateStudentDto` |
 | Schemas Mongoose | `PascalCase` + sufixo `Schema` | `StudentSchema` |
-| Guards | `PascalCase` + sufixo `Guard` | `JwtAuthGuard`, `RolesGuard` |
+| Guards | `PascalCase` + sufixo `Guard` | `SessionAuthGuard`, `RolesGuard` |
 | Pipes | `PascalCase` + sufixo `Pipe` | `MongoObjectIdPipe` |
 | Filtros | `PascalCase` + sufixo `Filter` | `HttpExceptionFilter` |
 
@@ -52,7 +52,7 @@ src/[modulo]/
 4. Implemente o repository usando Mongoose
 5. Crie os DTOs com decorators de `class-validator`
 6. Implemente o service usando a interface do repository (não a implementação direta)
-7. Implemente o controller com `@UseGuards(JwtAuthGuard, RolesGuard)` e `@Roles(...)` por endpoint
+7. Implemente o controller com `@UseGuards(SessionAuthGuard, RolesGuard)` e `@Roles(...)` por endpoint
 8. Registre o módulo em `AppModule`
 
 **Regra:** O service nunca importa a implementação concreta do repository — apenas a interface. Injete via token de provider:
@@ -164,7 +164,7 @@ Antes de abrir um Pull Request, verifique:
 - [ ] O código segue a estrutura de módulos definida neste guia
 - [ ] Campos sensíveis nos schemas Mongoose têm `select: false`
 - [ ] DTOs usam `class-validator` com mensagens em português
-- [ ] Endpoints novos têm `@UseGuards(JwtAuthGuard, RolesGuard)` e `@Roles(...)` aplicados
+- [ ] Endpoints novos têm `@UseGuards(SessionAuthGuard, RolesGuard)` e `@Roles(...)` aplicados
 - [ ] Parâmetros `:id` usam `MongoObjectIdPipe`
 - [ ] Rotas públicas têm `@Public()` explicitamente
 - [ ] Não há segredos (passwords, tokens, keys) hardcoded no código

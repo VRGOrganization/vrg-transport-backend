@@ -1,7 +1,7 @@
-# API Reference — Licenses
+﻿# API Reference — Licenses
 
 Base: `/api/v1/license`  
-Todos os endpoints requerem autenticação JWT.
+Todos os endpoints requerem autenticação por sessão (x-session-id).
 
 As licenças são carteirinhas digitais de estudante geradas por um **serviço externo** via `LICENSE_API_URL`. A API VRG Transport orquestra a criação e armazenamento; a geração da imagem da carteirinha é delegada ao serviço externo.
 
@@ -35,14 +35,14 @@ Emite uma nova carteirinha para um estudante.
 |---|---|
 | `201` | Carteirinha criada com sucesso |
 | `400` | Dados inválidos (foto em formato errado, campos ausentes) |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 
 ### Exemplo
 
 ```bash
 curl -X POST https://api.vrgtransport.com.br/api/v1/license/create \
-  -H "Authorization: Bearer eyJ..." \
+  -H "x-session-id: <session-id>" \
   -H "Content-Type: application/json" \
   -d '{
     "id": "64f3a1b2c3d4e5f6a7b8c9d0",
@@ -84,14 +84,14 @@ Verifica a disponibilidade do serviço externo de geração de carteirinhas.
 | Status | Descrição |
 |---|---|
 | `200` | Serviço externo disponível |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 
 ### Exemplo
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/license/health \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ```json
@@ -111,14 +111,14 @@ Lista todas as licenças emitidas.
 | Status | Descrição |
 |---|---|
 | `200` | Array de licenças |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 
 ### Exemplo
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/license/all \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -136,14 +136,14 @@ Busca todas as licenças emitidas para um estudante.
 |---|---|
 | `200` | Array de licenças do estudante (pode ser vazio) |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 
 ### Exemplo
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/license/searchByStudent/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -161,7 +161,7 @@ Retorna uma licença pelo ID.
 |---|---|
 | `200` | Dados da licença |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 | `404` | Licença não encontrada |
 
@@ -169,7 +169,7 @@ Retorna uma licença pelo ID.
 
 ```bash
 curl https://api.vrgtransport.com.br/api/v1/license/64f3a1b2c3d4e5f6a7b8c9e0 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -191,7 +191,7 @@ Mesmos campos de `POST /license/create` (todos opcionais no update).
 |---|---|
 | `200` | Licença atualizada |
 | `400` | ID inválido ou dados inválidos |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role insuficiente |
 | `404` | Licença não encontrada |
 
@@ -199,7 +199,7 @@ Mesmos campos de `POST /license/create` (todos opcionais no update).
 
 ```bash
 curl -X PATCH https://api.vrgtransport.com.br/api/v1/license/update/64f3a1b2c3d4e5f6a7b8c9e0 \
-  -H "Authorization: Bearer eyJ..." \
+  -H "x-session-id: <session-id>" \
   -H "Content-Type: application/json" \
   -d '{"degree": "Técnico em Informática", "shift": "Noturno"}'
 ```
@@ -219,7 +219,7 @@ Remove permanentemente uma licença.
 |---|---|
 | `200` | Licença removida |
 | `400` | ID inválido |
-| `401` | Token ausente ou inválido |
+| `401` | Sessão ausente ou inválida |
 | `403` | Role não é ADMIN |
 | `404` | Licença não encontrada |
 
@@ -227,7 +227,7 @@ Remove permanentemente uma licença.
 
 ```bash
 curl -X DELETE https://api.vrgtransport.com.br/api/v1/license/delete/64f3a1b2c3d4e5f6a7b8c9e0 \
-  -H "Authorization: Bearer eyJ..."
+  -H "x-session-id: <session-id>"
 ```
 
 ---
@@ -247,3 +247,4 @@ data:image/webp;base64,UklGRl...
 - A carteirinha impressa usa tipicamente fotos 3x4 (~150–300KB) — enviar fotos menores melhora a performance
 
 **Formatos aceitos:** `image/jpeg`, `image/jpg`, `image/png`, `image/webp`
+

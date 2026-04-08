@@ -153,13 +153,3 @@ export class ResendCodeDto {
   @Transform(({ value }) => value?.toLowerCase().trim())
   email: string;
 }
-
-export class RefreshTokenDto {
-  @ApiProperty({
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-    description: 'Refresh token JWT',
-  })
-  @IsString()
-  @IsNotEmpty()
-  refresh_token: string;
-}

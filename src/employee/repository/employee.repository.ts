@@ -37,7 +37,7 @@ export class EmployeeRepository implements IEmployeeRepository<Employee> {
   async findByRegistrationIdWithPassword(registrationId: string) {
     return this.employeeModel
       .findOne({ registrationId, active: true })
-      .select('+password +refreshTokenHash +refreshTokenVersion')
+      .select('+password')
       .exec();
   }
 

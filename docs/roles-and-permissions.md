@@ -2,7 +2,7 @@
 
 ## Roles Disponíveis
 
-| Role | Valor no token | Descrição |
+| Role | Valor na sessão | Descrição |
 |---|---|---|
 | `ADMIN` | `admin` | Acesso total ao sistema |
 | `EMPLOYEE` | `employee` | Funcionário municipal — cria licenças, gerencia imagens |
@@ -22,7 +22,6 @@
 | `POST /auth/student/login` | ✅ | — | — | — |
 | `POST /auth/employee/login` | ✅ | — | — | — |
 | `POST /auth/admin/login` | ✅ | — | — | — |
-| `POST /auth/refresh` | ✅ | — | — | — |
 | `GET /auth/me` | ❌ | ✅ | ✅ | ✅ |
 | `POST /auth/logout` | ❌ | ✅ | ✅ | ✅ |
 | `GET /auth/admin/dashboard` | ❌ | ❌ | ❌ | ✅ |
@@ -85,8 +84,8 @@ Três guards são aplicados globalmente (nesta ordem) em `AppModule`:
 
 ```
 1. RateLimitGuard  → verifica limite de requisições por IP
-2. JwtAuthGuard   → valida o Bearer token (pula rotas marcadas com @Public())
-3. RolesGuard     → verifica se o role do token satisfaz @Roles() do endpoint
+2. SessionAuthGuard → valida sessão (pula rotas marcadas com @Public())
+3. RolesGuard     → verifica se o role da sessão satisfaz @Roles() do endpoint
 ```
 
 ### Decorators
@@ -97,13 +96,13 @@ Três guards são aplicados globalmente (nesta ordem) em `AppModule`:
 @Post('student/register')
 
 // Rota que exige role específico
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(SessionAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
 @Get()
 
 // Acesso ao usuário autenticado no controller
 @Get('me')
-getMe(@CurrentUser() user: JwtPayload) { ... }
+getMe(@CurrentUser() user: AuthenticatedUser) { ... }
 ```
 
 ### Restrições por Perfil

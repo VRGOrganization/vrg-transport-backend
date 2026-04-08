@@ -1,7 +1,7 @@
 /*
-  Roles Guard eh responsavel por verificar se o usuario tem a role necessaria para acessar determinada rota. 
-  Ele deve ser aplicado apos o JwtAuthGuard, pois ele depende do usuario estar presente no request, 
-  o que eh garantido pelo JwtAuthGuard. Se o usuario nao tiver a role necessaria, ele retorna um ForbiddenException.
+  Roles Guard eh responsavel por verificar se o usuario tem a role necessaria para acessar determinada rota.
+  Ele depende do user injetado no request pelo SessionAuthGuard.
+  Se o usuario nao tiver a role necessaria, retorna ForbiddenException.
 */
 
 import {
@@ -41,7 +41,7 @@ export class RolesGuard implements CanActivate {
 
     if (!user) {
       this.logger.error(
-        'User not found in request context. Ensure JwtAuthGuard is applied before RolesGuard.',
+        'User not found in request context. Ensure SessionAuthGuard is applied before RolesGuard.',
       );
       throw new ForbiddenException(AUTH_ERROR_MESSAGES.FORBIDDEN);
     }

@@ -5,7 +5,7 @@
 # Libera apenas o .env.example (template sem valores reais).
 #
 # Se você acidentalmente commitou um .env com segredos:
-#   1. Rotacione TODOS os segredos imediatamente (JWT, DB, API keys)
+#   1. Rotacione TODOS os segredos imediatamente (DB, API keys, secrets)
 #   2. Remova do histórico: git filter-repo --path .env --invert-paths
 #   3. Force-push e avise todos os colaboradores para rebaser
 # =============================================================================
