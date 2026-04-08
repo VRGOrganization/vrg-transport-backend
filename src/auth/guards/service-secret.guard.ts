@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timingSafeEqual } from 'crypto';
 import { Request } from 'express';
 
 /**
@@ -36,19 +37,27 @@ export class ServiceSecretGuard implements CanActivate {
     }
 
     // Comparação em tempo constante para evitar timing attacks
-    if (!this.timingSafeEqual(provided, this.secret)) {
+    if (!this.compareSecrets(provided, this.secret)) {
       throw new UnauthorizedException('Acesso negado.');
     }
 
     return true;
   }
 
-  private timingSafeEqual(a: string, b: string): boolean {
-    if (a.length !== b.length) return false;
-    let mismatch = 0;
-    for (let i = 0; i < a.length; i++) {
-      mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  private compareSecrets(a: string, b: string): boolean {
+    const aBuffer = Buffer.from(a);
+    const bBuffer = Buffer.from(b);
+
+    if (aBuffer.length !== bBuffer.length) {
+      const maxLength = Math.max(aBuffer.length, bBuffer.length);
+      const paddedA = Buffer.alloc(maxLength);
+      const paddedB = Buffer.alloc(maxLength);
+      aBuffer.copy(paddedA);
+      bBuffer.copy(paddedB);
+      timingSafeEqual(paddedA, paddedB);
+      return false;
     }
-    return mismatch === 0;
+
+    return timingSafeEqual(aBuffer, bBuffer);
   }
 }
