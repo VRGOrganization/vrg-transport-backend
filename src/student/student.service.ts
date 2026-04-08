@@ -184,6 +184,41 @@ export class StudentService {
     return student;
   }
 
+  async updateProfilePhoto(
+    studentId: string,
+    file: UploadedImageFile,
+  ): Promise<{ message: string }> {
+    await this.findOneOrFail(studentId);
+    await this.createOrUpdateImage(studentId, PhotoType.ProfilePhoto, file);
+
+    await this.auditLog.record({
+      action: 'student.update_profile_photo',
+      outcome: 'success',
+      target: { studentId },
+    });
+
+    return { message: 'Foto de perfil atualizada com sucesso' };
+  }
+
+  async removeProfilePhoto(studentId: string): Promise<{ message: string }> {
+    await this.findOneOrFail(studentId);
+
+    const profilePhoto = await this.imagesService.findProfilePhoto(studentId);
+    const imageId = (
+      profilePhoto as unknown as { _id: { toString(): string } }
+    )._id.toString();
+
+    await this.imagesService.remove(imageId);
+
+    await this.auditLog.record({
+      action: 'student.remove_profile_photo',
+      outcome: 'success',
+      target: { studentId },
+    });
+
+    return { message: 'Foto de perfil removida com sucesso' };
+  }
+
   private async createOrUpdateImage(
     studentId: string,
     photoType: PhotoType,
@@ -312,17 +347,14 @@ export class StudentService {
 
     return { message: 'Student removido com sucesso' };
   }
-
-
-
-    async getDashboardStats(): Promise<StudentDashboardStats> {
+  async getDashboardStats(): Promise<StudentDashboardStats> {
     const students = await this.studentRepository.findAll(); // já filtra active: true
- 
+
     const visitor = new StudentStatsVisitor();
     for (const student of students) {
       visitor.visit(student);
     }
- 
+
     return visitor.getResult();
   }
 }

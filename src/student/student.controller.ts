@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   Body,
+  UploadedFile,
   UploadedFiles,
   UseInterceptors,
   Req,
@@ -31,7 +32,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { LicenseRequestService } from '../license-request/license-request.service';
 
 type UploadedImageFile = {
