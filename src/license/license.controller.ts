@@ -16,7 +16,7 @@ import {
 import type { Request } from 'express';
 import { Observable } from 'rxjs';
 import { LicenseService } from './license.service';
-import { CreateLicenseDto } from './dto/create-license.dto';
+import { CreateLicenseDto, RejectLicenseDto } from './dto/create-license.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
@@ -219,6 +219,25 @@ export class LicenseController {
     @Req() req: Request,
   ) {
     return this.licenseService.update(id, dto, req.sessionPayload!.userId);
+  }
+
+  @Patch('/reject/:id')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Recusar carteirinha',
+    description: 'Marca a licença como recusada e notifica o aluno por email.',
+  })
+  @ApiParam({ name: 'id', description: 'License ID (MongoDB ObjectId)' })
+  @ApiBody({ type: RejectLicenseDto })
+  @ApiResponse({ status: 200, description: 'Licença recusada com sucesso.' })
+  @ApiResponse({ status: 404, description: 'Licença não encontrada.' })
+  async reject(
+    @Param('id', MongoObjectIdPipe) id: string,
+    @Body() dto: RejectLicenseDto,
+    @Req() req: Request,
+  ) {
+    return this.licenseService.reject(id, dto.reason, req.sessionPayload!.userId);
   }
 
   @Delete('/delete/:id')

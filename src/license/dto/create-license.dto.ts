@@ -1,4 +1,5 @@
 import {
+  IsIn,
   IsMongoId,
   IsNotEmpty,
   IsOptional,
@@ -7,6 +8,16 @@ import {
   Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export const REJECTION_REASONS = [
+  'Foto inadequada ou ilegível',
+  'Comprovante de matrícula inválido',
+  'Grade horária não corresponde aos documentos',
+  'Documentos ilegíveis ou corrompidos',
+  'Informações inconsistentes',
+] as const;
+
+export type RejectionReason = typeof REJECTION_REASONS[number];
 
 export class CreateLicenseDto {
   @ApiProperty({
@@ -48,4 +59,15 @@ export class CreateLicenseDto {
     message: 'photo deve ser base64 válido (jpeg, jpg, png ou webp)',
   })
   photo?: string;
+}
+
+export class RejectLicenseDto {
+  @ApiProperty({
+    enum: REJECTION_REASONS,
+    description: 'Motivo da recusa da carteirinha',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @IsIn([...REJECTION_REASONS], { message: 'Motivo de recusa inválido' })
+  reason: RejectionReason;
 }
