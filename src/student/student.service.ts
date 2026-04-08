@@ -187,7 +187,7 @@ export class StudentService {
   async updateProfilePhoto(
     studentId: string,
     file: UploadedImageFile,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; photo: string | null }> {
     await this.findOneOrFail(studentId);
     await this.createOrUpdateImage(studentId, PhotoType.ProfilePhoto, file);
 
@@ -197,7 +197,8 @@ export class StudentService {
       target: { studentId },
     });
 
-    return { message: 'Foto de perfil atualizada com sucesso' };
+    const photo = await this.getProfilePhotoOrNull(studentId);
+    return { message: 'Foto de perfil atualizada com sucesso', photo };
   }
 
   async removeProfilePhoto(studentId: string): Promise<{ message: string }> {
@@ -217,6 +218,18 @@ export class StudentService {
     });
 
     return { message: 'Foto de perfil removida com sucesso' };
+  }
+
+  async getProfilePhotoOrNull(studentId: string): Promise<string | null> {
+    try {
+      const profilePhoto = await this.imagesService.findProfilePhoto(studentId);
+      return (
+        (profilePhoto as unknown as { photo3x4?: string | null }).photo3x4 ??
+        null
+      );
+    } catch {
+      return null;
+    }
   }
 
   private async createOrUpdateImage(

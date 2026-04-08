@@ -163,8 +163,23 @@ export class StudentController {
   @Roles(UserRole.STUDENT)
   @ApiOperation({ summary: 'Get own profile' })
   @ApiResponse({ status: 200, description: 'Student profile.' })
-  getProfile(@Req() req: Request) {
-    return this.studentService.findOneOrFail(req.sessionPayload!.userId);
+  async getProfile(@Req() req: Request) {
+    const studentId = req.sessionPayload!.userId;
+    const student = await this.studentService.findOneOrFail(studentId);
+    const photo = await this.studentService.getProfilePhotoOrNull(studentId);
+
+    const studentDoc = student as unknown as {
+      toJSON?: () => Record<string, unknown>;
+    };
+    const studentJson =
+      typeof studentDoc.toJSON === 'function'
+        ? studentDoc.toJSON()
+        : (student as unknown as Record<string, unknown>);
+
+    return {
+      ...studentJson,
+      photo,
+    };
   }
 
   @Get('stats/dashboard')
