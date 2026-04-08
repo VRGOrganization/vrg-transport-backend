@@ -8,6 +8,7 @@ import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { StudentModule } from 'src/student/student.module';
 import { AuditModule } from 'src/common/audit/audit.module';
 import { MailModule } from 'src/mail/mail.module';
+import { LicenseRequestModule } from 'src/license-request/license-request.module';
 
 @Module({
   controllers: [LicenseController],
@@ -21,6 +22,7 @@ import { MailModule } from 'src/mail/mail.module';
   imports: [
     AuditModule,
     MailModule,
+    forwardRef(() => LicenseRequestModule),
     forwardRef(() => StudentModule),
     MongooseModule.forFeature([
       { name: License.name, schema: LicenseSchema },

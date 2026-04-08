@@ -11,6 +11,7 @@ import {
   UploadedFiles,
   UseInterceptors,
   Req,
+  Query,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { StudentService } from './student.service';
@@ -35,6 +36,8 @@ import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { LicenseRequestService } from '../license-request/license-request.service';
+import { PhotoType } from '../image/types/photoType.enum';
+import { ImagesService } from '../image/image.service';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -48,14 +51,20 @@ export class StudentController {
   constructor(
     private readonly studentService: StudentService,
     private readonly licenseRequestService: LicenseRequestService,
+    private readonly imagesService: ImagesService,
   ) {}
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
   @ApiOperation({ summary: 'List all students' })
   @ApiResponse({ status: 200, description: 'List of students.' })
-  findAll() {
-    return this.studentService.findAll();
+  findAll(
+    @Query('page') pageRaw?: string,
+    @Query('limit') limitRaw?: string,
+  ) {
+    const page = Math.max(1, Number.parseInt(pageRaw ?? '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(limitRaw ?? '20', 10) || 20));
+    return this.studentService.findAllPaginated(page, limit);
   }
 
   @Post('schedule')
@@ -124,6 +133,112 @@ export class StudentController {
     await this.licenseRequestService.createRequest(req.sessionPayload!.userId);
 
     return result;
+  }
+
+  @Post('me/document-update-request')
+  @Roles(UserRole.STUDENT)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'ProfilePhoto', maxCount: 1 },
+      { name: 'EnrollmentProof', maxCount: 1 },
+      { name: 'CourseSchedule', maxCount: 1 },
+    ], {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Submit document update request with selected changed documents',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['changedDocuments'],
+      properties: {
+        changedDocuments: {
+          type: 'string',
+          example: '["ProfilePhoto","EnrollmentProof"]',
+        },
+        ProfilePhoto: { type: 'string', format: 'binary' },
+        EnrollmentProof: { type: 'string', format: 'binary' },
+        CourseSchedule: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Update request submitted successfully.' })
+  async submitDocumentUpdateRequest(
+    @Req() req: Request,
+    @Body('changedDocuments') changedDocumentsRaw: string,
+    @UploadedFiles()
+    files: {
+      ProfilePhoto?: UploadedImageFile[];
+      EnrollmentProof?: UploadedImageFile[];
+      CourseSchedule?: UploadedImageFile[];
+    },
+  ) {
+    const existingDocuments = await this.imagesService.findByStudentId(
+      req.sessionPayload!.userId,
+    );
+
+    if (existingDocuments.length === 0) {
+      throw new BadRequestException(
+        'Você precisa enviar seus documentos pela primeira vez antes de solicitar alterações.',
+      );
+    }
+
+    let changedDocuments: PhotoType[];
+
+    try {
+      const parsed = JSON.parse(changedDocumentsRaw);
+      if (!Array.isArray(parsed)) {
+        throw new BadRequestException('changedDocuments deve ser um array JSON');
+      }
+
+      const allowed = new Set(Object.values(PhotoType));
+      const invalid = parsed.filter((item) => !allowed.has(item));
+
+      if (invalid.length > 0) {
+        throw new BadRequestException('changedDocuments contém photoTypes inválidos');
+      }
+
+      changedDocuments = parsed as PhotoType[];
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException('changedDocuments deve ser um JSON válido');
+    }
+
+    const profileFile = files?.ProfilePhoto?.[0];
+    const enrollmentFile = files?.EnrollmentProof?.[0];
+    const scheduleFile = files?.CourseSchedule?.[0];
+
+    const fileByType: Partial<Record<PhotoType, UploadedImageFile | undefined>> = {
+      [PhotoType.ProfilePhoto]: profileFile,
+      [PhotoType.EnrollmentProof]: enrollmentFile,
+      [PhotoType.CourseSchedule]: scheduleFile,
+    };
+
+    for (const photoType of changedDocuments) {
+      const file = fileByType[photoType];
+      if (!file) {
+        throw new BadRequestException(
+          `Arquivo não enviado para o tipo ${photoType}`,
+        );
+      }
+
+      await this.studentService.createOrUpdateImage(
+        req.sessionPayload!.userId,
+        photoType,
+        file,
+      );
+    }
+
+    return this.licenseRequestService.cancelAndReplaceWithUpdate(
+      req.sessionPayload!.userId,
+      changedDocuments,
+    );
   }
 
   @Patch('me/photo')

@@ -80,7 +80,7 @@ export class LicenseController {
   }
 
   @Post('/create')
-  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create License',

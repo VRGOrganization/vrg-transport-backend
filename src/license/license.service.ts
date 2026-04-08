@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  BadRequestException,
   BadGatewayException,
   Logger,
   GatewayTimeoutException,
@@ -20,6 +21,12 @@ import { StudentService } from '../student/student.service';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { AUTH_ERROR_MESSAGES } from '../auth/constants/auth.constants';
 import { MailService } from '../mail/mail.service';
+import type { ILicenseRequestRepository } from '../license-request/interfaces/repository.interface';
+import { LICENSE_REQUEST_REPOSITORY } from '../license-request/interfaces/repository.interface';
+import {
+  LicenseRequestStatus,
+} from '../license-request/schemas/license-request.schema';
+import type { LicenseRequest } from '../license-request/schemas/license-request.schema';
 
 type SseTicketEntry = {
   studentId: string;
@@ -40,6 +47,8 @@ export class LicenseService {
   constructor(
     @Inject(LICENSE_REPOSITORY)
     private readonly licenseRepository: ILicenseRepository<License>,
+    @Inject(LICENSE_REQUEST_REPOSITORY)
+    private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
     private readonly studentService: StudentService,
     private readonly configService: ConfigService,
     private readonly auditLog: AuditLogService,
@@ -130,10 +139,18 @@ export class LicenseService {
    * @param employeeId ID extraído da sessão no controller — nunca do body
    */
   async create(dto: CreateLicenseDto, employeeId: string): Promise<License> {
-    const student = await this.studentService.findOneOrFail(dto.id);
-    if(!student) {
-      throw new NotFoundException('Student não encontrado')
+    const requests = await this.licenseRequestRepository.findByStudentId(dto.id);
+    const hasApprovedRequest = requests.some(
+      (request) => request.status === LicenseRequestStatus.APPROVED,
+    );
+
+    if (!hasApprovedRequest) {
+      throw new BadRequestException(
+        'Não é possível criar uma carteirinha sem uma solicitação aprovada.',
+      );
     }
+
+    const student = await this.studentService.findOneOrFail(dto.id);
 
     const studentId = (student as any)._id.toString();
 
@@ -293,6 +310,68 @@ export class LicenseService {
       await this.licenseRepository.remove((newLicense as any)._id.toString()).catch(() => undefined);
       throw error;
     }
+  }
+
+  async regenerateExistingForStudent(
+    studentId: string,
+    dto: { institution: string; bus: string; photo?: string },
+    employeeId: string,
+  ): Promise<License> {
+    const existing = await this.licenseRepository.findOneByStudentId(studentId);
+    if (!existing) {
+      throw new NotFoundException(`Licença do estudante ${studentId} não encontrada`);
+    }
+
+    const student = await this.studentService.findOneOrFail(studentId);
+
+    const verificationCode = randomUUID();
+    const qrCodeUrl = `${this.qrCodeBaseUrl}/${verificationCode}`;
+
+    const payload = {
+      id: studentId,
+      employee_id: employeeId,
+      name: student.name,
+      degree: student.degree,
+      institution: dto.institution,
+      shift: student.shift,
+      telephone: student.telephone,
+      blood_type: student.bloodType,
+      bus: dto.bus,
+      photo: this.normalizePhotoForLicenseApi(dto.photo),
+      qr_code_url: qrCodeUrl,
+    };
+
+    const data = await this.callLicenseApi(payload);
+
+    const existingId = (existing as any)._id.toString();
+    const updated = await this.licenseRepository.update(existingId, {
+      employeeId,
+      imageLicense: data.image,
+      status: LicenseStatus.ACTIVE,
+      existing: true,
+      expirationDate: addMonthsBR(nowInBR(), 7),
+      verificationCode,
+      rejectionReason: null,
+      rejectedAt: null,
+    });
+
+    if (!updated) {
+      throw new NotFoundException(`Licença ${existingId} não encontrada`);
+    }
+
+    await this.auditLog.record({
+      action: 'license.update_existing',
+      outcome: 'success',
+      actor: { id: employeeId, role: 'employee' },
+      target: { studentId, licenseId: existingId },
+    });
+
+    this.emitLicenseEvent(studentId, {
+      type: 'license.changed',
+      reason: 'updated',
+    });
+
+    return updated;
   }
 
   private ensureStream(studentId: string): Subject<MessageEvent> {

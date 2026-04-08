@@ -43,6 +43,13 @@ export class StudentService {
     return this.studentRepository.findAll();
   }
 
+  async findAllPaginated(
+    page: number,
+    limit: number,
+  ): Promise<{ data: Student[]; total: number; page: number; limit: number }> {
+    return this.studentRepository.findAllPaginated(page, limit);
+  }
+
   async findById(id: string): Promise<Student | null> {
     return this.studentRepository.findById(id);
   }
@@ -232,7 +239,7 @@ export class StudentService {
     }
   }
 
-  private async createOrUpdateImage(
+  async createOrUpdateImage(
     studentId: string,
     photoType: PhotoType,
     file: UploadedImageFile,
