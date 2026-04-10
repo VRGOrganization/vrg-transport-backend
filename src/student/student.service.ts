@@ -290,6 +290,7 @@ export class StudentService {
       photoType === PhotoType.CourseSchedule;
 
     const isAllowedImage = allowedImageMimeTypes.includes(detectedMimeType);
+    
     const isAllowedPdf = acceptsPdf && detectedMimeType === 'application/pdf';
 
     if (!isAllowedImage && !isAllowedPdf) {
@@ -301,7 +302,7 @@ export class StudentService {
     }
 
     const base64 = file.buffer.toString('base64');
-    const outputMimeType = detectedMimeType || mimeType;
+    const outputMimeType = isAllowedPdf ? 'application/pdf' : (detectedMimeType || mimeType);
     return `data:${outputMimeType};base64,${base64}`;
   }
 

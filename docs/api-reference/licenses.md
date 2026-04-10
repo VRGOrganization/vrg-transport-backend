@@ -1,250 +1,137 @@
-﻿# API Reference — Licenses
+# API Reference — Licenses
 
-Base: `/api/v1/license`  
-Todos os endpoints requerem autenticação por sessão (x-session-id).
+Base: `/api/v1/license`
 
-As licenças são carteirinhas digitais de estudante geradas por um **serviço externo** via `LICENSE_API_URL`. A API VRG Transport orquestra a criação e armazenamento; a geração da imagem da carteirinha é delegada ao serviço externo.
+## POST /license/events/token
 
-> **Nota de desenvolvimento:** O endpoint `GET /license/health` tem um comentário no código-fonte indicando investigação pendente sobre a necessidade de mantê-lo restrito apenas ao ADMIN. O comportamento atual (somente ADMIN) está documentado aqui.
+Emite ticket efêmero para conexão SSE.
 
----
+Roles: `STUDENT`
 
-## POST /license/create
-
-Emite uma nova carteirinha para um estudante.
-
-**Roles:** EMPLOYEE, ADMIN
-
-### Body
-
-| Campo | Tipo | Obrigatório | Validações |
-|---|---|---|---|
-| `id` | `string` | Sim | MongoDB ObjectId do estudante |
-| `name` | `string` | Sim | Nome na carteirinha; máx. 100 chars |
-| `degree` | `string` | Sim | Série/curso; máx. 100 chars |
-| `institution` | `string` | Sim | Nome da instituição; máx. 100 chars |
-| `shift` | `Shift` | Sim | `Matutino`, `Vespertino`, `Noturno` ou `Integral` |
-| `telephone` | `string` | Sim | 10–15 chars (aceita `+`, espaços, hífens, parênteses) |
-| `blood_type` | `BloodType` | Sim | Ex: `O+`, `A-`, `AB+` (ver enum em [students.md](./students.md)) |
-| `bus` | `string` | Sim | Linha do ônibus; máx. 100 chars |
-| `photo` | `string` | Sim | Data URL base64 (`data:image/jpeg;base64,...`); máx. ~2MB; formatos: jpeg, jpg, png, webp |
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `201` | Carteirinha criada com sucesso |
-| `400` | Dados inválidos (foto em formato errado, campos ausentes) |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role insuficiente |
-
-### Exemplo
-
-```bash
-curl -X POST https://api.vrgtransport.com.br/api/v1/license/create \
-  -H "x-session-id: <session-id>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "64f3a1b2c3d4e5f6a7b8c9d0",
-    "name": "Maria Silva",
-    "degree": "3º Ano Ensino Médio",
-    "institution": "Escola Estadual João Paulo",
-    "shift": "Matutino",
-    "telephone": "11987654321",
-    "blood_type": "O+",
-    "bus": "Linha 42",
-    "photo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEA..."
-  }'
-```
+Resposta:
 
 ```json
 {
-  "_id": "64f3a1b2c3d4e5f6a7b8c9e0",
-  "studentId": "64f3a1b2c3d4e5f6a7b8c9d0",
-  "name": "Maria Silva",
-  "degree": "3º Ano Ensino Médio",
-  "institution": "Escola Estadual João Paulo",
-  "shift": "Matutino",
-  "createdAt": "2024-03-15T14:30:00.000Z"
+  "ticket": "uuid",
+  "expiresInMs": 60000
 }
 ```
 
----
+## GET /license/events?ticket=...
+
+Canal SSE público protegido por ticket de uso único.
+
+Eventos enviados:
+
+- `connected`
+- `heartbeat`
+- `license.changed` (`created`, `updated`, `removed`, `rejected`)
+
+## GET /license/verify/:code
+
+Rota pública para verificar autenticidade da carteirinha.
+
+Resposta:
+
+```json
+{
+  "exists": true,
+  "valid": true,
+  "status": "active"
+}
+```
+
+Se código inválido/inexistente:
+
+```json
+{
+  "exists": false
+}
+```
+
+## POST /license/create
+
+Emite carteirinha para estudante.
+
+Roles: `ADMIN`
+
+Pré-condição: estudante precisa ter ao menos uma solicitação `APPROVED` em `license-request`.
+
+Body:
+
+```json
+{
+  "id": "studentObjectId",
+  "institution": "Universidade Federal Fluminense",
+  "bus": "205",
+  "photo": "data:image/jpeg;base64,..."
+}
+```
+
+Respostas: `201`, `400`, `404`, `502`, `504`
 
 ## GET /license/health
 
-Verifica a disponibilidade do serviço externo de geração de carteirinhas.
+Healthcheck do serviço externo de licença.
 
-**Roles:** ADMIN
-
-> Comentário no código-fonte: `// INVESTIGAR SE VAI NECESSARIO MANTER PROTEGIDO POR ROLE ADMIN` — o acesso pode ser revisado em versões futuras.
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `200` | Serviço externo disponível |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role não é ADMIN |
-
-### Exemplo
-
-```bash
-curl https://api.vrgtransport.com.br/api/v1/license/health \
-  -H "x-session-id: <session-id>"
-```
-
-```json
-{ "status": "ok" }
-```
-
----
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## GET /license/all
 
-Lista todas as licenças emitidas.
+Lista todas as licenças.
 
-**Roles:** EMPLOYEE, ADMIN
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `200` | Array de licenças |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role insuficiente |
-
-### Exemplo
-
-```bash
-curl https://api.vrgtransport.com.br/api/v1/license/all \
-  -H "x-session-id: <session-id>"
-```
-
----
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## GET /license/searchByStudent/:studentId
 
-Busca todas as licenças emitidas para um estudante.
+Busca licença por estudante.
 
-**Roles:** EMPLOYEE, ADMIN  
-**Parâmetro:** `:studentId` — MongoDB ObjectId do estudante
+Roles: `EMPLOYEE`, `ADMIN`
 
-### Respostas
+## GET /license/me
 
-| Status | Descrição |
-|---|---|
-| `200` | Array de licenças do estudante (pode ser vazio) |
-| `400` | ID inválido |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role insuficiente |
+Busca licença do estudante autenticado.
 
-### Exemplo
-
-```bash
-curl https://api.vrgtransport.com.br/api/v1/license/searchByStudent/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "x-session-id: <session-id>"
-```
-
----
+Roles: `STUDENT`
 
 ## GET /license/:id
 
-Retorna uma licença pelo ID.
+Busca licença por ID.
 
-**Roles:** EMPLOYEE, ADMIN  
-**Parâmetro:** `:id` — MongoDB ObjectId da licença
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `200` | Dados da licença |
-| `400` | ID inválido |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role insuficiente |
-| `404` | Licença não encontrada |
-
-### Exemplo
-
-```bash
-curl https://api.vrgtransport.com.br/api/v1/license/64f3a1b2c3d4e5f6a7b8c9e0 \
-  -H "x-session-id: <session-id>"
-```
-
----
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## PATCH /license/update/:id
 
-Atualiza os dados de uma licença existente.
+Atualiza licença (gera nova licença e remove a anterior).
 
-**Roles:** EMPLOYEE, ADMIN  
-**Parâmetro:** `:id` — MongoDB ObjectId da licença
+Roles: `EMPLOYEE`, `ADMIN`
 
-### Body
+Body: mesmo formato de `POST /license/create`.
 
-Mesmos campos de `POST /license/create` (todos opcionais no update).
+## PATCH /license/reject/:id
 
-### Respostas
+Marca licença como rejeitada e envia e-mail.
 
-| Status | Descrição |
-|---|---|
-| `200` | Licença atualizada |
-| `400` | ID inválido ou dados inválidos |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role insuficiente |
-| `404` | Licença não encontrada |
+Roles: `EMPLOYEE`, `ADMIN`
 
-### Exemplo
+Body:
 
-```bash
-curl -X PATCH https://api.vrgtransport.com.br/api/v1/license/update/64f3a1b2c3d4e5f6a7b8c9e0 \
-  -H "x-session-id: <session-id>" \
-  -H "Content-Type: application/json" \
-  -d '{"degree": "Técnico em Informática", "shift": "Noturno"}'
+```json
+{
+  "reason": "Foto inadequada ou ilegível"
+}
 ```
 
----
+Motivos aceitos:
+
+- Foto inadequada ou ilegível
+- Comprovante de matrícula inválido
+- Grade horária não corresponde aos documentos
+- Documentos ilegíveis ou corrompidos
+- Informações inconsistentes
 
 ## DELETE /license/delete/:id
 
-Remove permanentemente uma licença.
+Remove licença.
 
-**Roles:** ADMIN  
-**Parâmetro:** `:id` — MongoDB ObjectId da licença
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `200` | Licença removida |
-| `400` | ID inválido |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role não é ADMIN |
-| `404` | Licença não encontrada |
-
-### Exemplo
-
-```bash
-curl -X DELETE https://api.vrgtransport.com.br/api/v1/license/delete/64f3a1b2c3d4e5f6a7b8c9e0 \
-  -H "x-session-id: <session-id>"
-```
-
----
-
-## Sobre a Foto (campo `photo`)
-
-O campo `photo` deve ser uma **Data URL base64** completa, incluindo o prefixo MIME:
-
-```
-data:image/jpeg;base64,/9j/4AAQ...
-data:image/png;base64,iVBORw0KGgo...
-data:image/webp;base64,UklGRl...
-```
-
-**Limites:**
-- Tamanho máximo: ~2MB (limitado pelo body parser do Express em 2MB)
-- A carteirinha impressa usa tipicamente fotos 3x4 (~150–300KB) — enviar fotos menores melhora a performance
-
-**Formatos aceitos:** `image/jpeg`, `image/jpg`, `image/png`, `image/webp`
-
+Roles: `ADMIN`

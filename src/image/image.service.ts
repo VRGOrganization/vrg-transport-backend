@@ -4,18 +4,27 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { Image } from './schema/image.schema';
 import { CreateImageDto, UpdateImageDto, UploadMyDocumentDto } from './dto/image.dto';
 import { PhotoType } from './types/photoType.enum';
 import { IMAGE_REPOSITORY } from './interface/repository.interface';
 import type { IImageRepository } from './interface/repository.interface';
+import { ImageHistory, ImageHistoryDocument } from './schema/image-history.schema';
+import { AuditLogService } from '../common/audit/audit-log.service';
+import type { UserType } from '../auth/session/session.schema';
 
 @Injectable()
 export class ImagesService {
   constructor(
     @Inject(IMAGE_REPOSITORY)
     private readonly imageRepository: IImageRepository,
+    private readonly auditLog: AuditLogService,
+    @InjectModel(ImageHistory.name, 'images')
+    private readonly imageHistoryModel: Model<ImageHistoryDocument>,
   ) {}
 
   async create(dto: CreateImageDto): Promise<Image> {
@@ -101,6 +110,64 @@ export class ImagesService {
 
   async findByStudentId(studentId: string): Promise<Image[]> {
     return this.imageRepository.findByStudentIdActive(studentId);
+  }
+
+  async findHistoryByStudentId(studentId: string): Promise<ImageHistory[]> {
+    return this.imageHistoryModel
+      .find({ studentId })
+      .sort({ replacedAt: -1 })
+      .lean()
+      .exec();
+  }
+
+  async findMyImageFileById(
+    imageId: string,
+    studentId: string,
+    userType: UserType,
+    userAgent?: string | string[],
+    ipAddress?: string,
+  ): Promise<{
+    _id: unknown;
+    studentId: string;
+    photoType: PhotoType;
+    active: boolean;
+    photo3x4: string | null;
+    documentImage: string | null;
+    studentCard: string | null;
+  }> {
+    const image = await this.findOne({
+      _id: imageId,
+      studentId,
+      active: true,
+    });
+
+    if (!image) {
+      throw new ForbiddenException('Acesso negado');
+    }
+
+    await this.auditLog.record({
+      action: 'image.access',
+      outcome: 'success',
+      actor: {
+        id: studentId,
+        role: userType,
+      },
+      target: { imageId, photoType: image.photoType },
+      metadata: {
+        userAgent: typeof userAgent === 'string' ? userAgent : undefined,
+        ip: ipAddress,
+      },
+    });
+
+    return {
+      _id: (image as any)._id,
+      studentId: image.studentId,
+      photoType: image.photoType,
+      active: image.active,
+      photo3x4: image.photo3x4,
+      documentImage: image.documentImage,
+      studentCard: image.studentCard,
+    };
   }
 
   async findProfilePhoto(studentId: string): Promise<Image> {

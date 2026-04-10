@@ -22,6 +22,12 @@ import { StudentService } from '../student/student.service';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { AUTH_ERROR_MESSAGES } from '../auth/constants/auth.constants';
 import { MailService } from '../mail/mail.service';
+import { LICENSE_REQUEST_REPOSITORY } from '../license-request/interfaces/repository.interface';
+import type { ILicenseRequestRepository } from '../license-request/interfaces/repository.interface';
+import {
+  LicenseRequest,
+  LicenseRequestStatus,
+} from '../license-request/schemas/license-request.schema';
 
 type SseTicketEntry = {
   studentId: string;
@@ -46,6 +52,8 @@ export class LicenseService {
   constructor(
     @Inject(LICENSE_REPOSITORY)
     private readonly licenseRepository: ILicenseRepository<License>,
+    @Inject(LICENSE_REQUEST_REPOSITORY)
+    private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
     private readonly studentService: StudentService,
     private readonly configService: ConfigService,
     private readonly auditLog: AuditLogService,
@@ -147,6 +155,8 @@ export class LicenseService {
    * @param employeeId ID extraído da sessão no controller — nunca do body
    */
   async create(dto: CreateLicenseDto, employeeId: string): Promise<License> {
+    await this.assertHasApprovedRequest(dto.id);
+
     const student = await this.studentService.findOneOrFail(dto.id);
 
     const studentId = (student as any)._id.toString();
@@ -189,6 +199,7 @@ export class LicenseService {
       existing: true,
       expirationDate: addMonthsBR(nowInBR(), 7),
       verificationCode,
+      qrCodeUrl,
     });
 
     this.emitLicenseEvent(studentId, {
@@ -197,6 +208,21 @@ export class LicenseService {
     });
 
     return created;
+  }
+
+  private async assertHasApprovedRequest(studentId: string): Promise<void> {
+    const requests = await this.licenseRequestRepository.findByStudentId(
+      studentId,
+    );
+    const hasApprovedRequest = requests.some(
+      (request) => request.status === LicenseRequestStatus.APPROVED,
+    );
+
+    if (!hasApprovedRequest) {
+      throw new BadRequestException(
+        'Não é possível criar uma carteirinha sem uma solicitação aprovada.',
+      );
+    }
   }
 
   async getLicenseByStudentId(studentId: string): Promise<License> {
@@ -362,6 +388,7 @@ export class LicenseService {
       existing: true,
       expirationDate: addMonthsBR(nowInBR(), 7),
       verificationCode,
+      qrCodeUrl,
       rejectionReason: null,
       rejectedAt: null,
     });

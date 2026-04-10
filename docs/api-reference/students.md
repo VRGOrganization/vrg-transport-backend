@@ -1,236 +1,158 @@
-﻿# API Reference — Students
+# API Reference — Students
 
-Base: `/api/v1/student`  
-Todos os endpoints requerem autenticação por sessão (x-session-id).
-
----
-
-## Enums
-
-### Shift (Turno)
-
-| Valor | Descrição |
-|---|---|
-| `Matutino` | Manhã |
-| `Vespertino` | Tarde |
-| `Noturno` | Noite |
-| `Integral` | Período integral |
-
-### BloodType (Tipo Sanguíneo)
-
-| Valor |
-|---|
-| `A+` |
-| `A-` |
-| `B+` |
-| `B-` |
-| `AB+` |
-| `AB-` |
-| `O+` |
-| `O-` |
-
----
+Base: `/api/v1/student`
 
 ## GET /student
 
-Lista todos os estudantes.
+Lista paginada de estudantes.
 
-**Roles:** EMPLOYEE, ADMIN
+Roles: `EMPLOYEE`, `ADMIN`
 
-### Respostas
+Query params opcionais:
 
-| Status | Descrição |
-|---|---|
-| `200` | Array de estudantes |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role insuficiente (STUDENT não tem acesso) |
+- `page` (default `1`)
+- `limit` (default `20`, máximo `100`)
 
-### Exemplo
-
-```bash
-curl https://api.vrgtransport.com.br/api/v1/student \
-  -H "x-session-id: <session-id>"
-```
-
-```json
-[
-  {
-    "_id": "64f3a1b2c3d4e5f6a7b8c9d0",
-    "name": "Maria Silva",
-    "email": "maria@escola.edu.br",
-    "degree": "Ensino Médio",
-    "shift": "Matutino",
-    "telephone": "11987654321",
-    "bloodType": "O+",
-    "bus": "Linha 42",
-    "status": "ACTIVE",
-    "isInstitutionalEmail": true,
-    "active": true
-  }
-]
-```
-
----
-
-## GET /student/me
-
-Retorna o perfil do estudante autenticado.
-
-**Roles:** STUDENT (somente o próprio perfil)
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `200` | Perfil do estudante |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role não é STUDENT |
-| `404` | Estudante não encontrado |
-
-### Exemplo
-
-```bash
-curl https://api.vrgtransport.com.br/api/v1/student/me \
-  -H "x-session-id: <session-id>"
-```
+Retorno:
 
 ```json
 {
-  "_id": "64f3a1b2c3d4e5f6a7b8c9d0",
-  "name": "Maria Silva",
-  "email": "maria@escola.edu.br",
-  "degree": "Ensino Médio",
-  "shift": "Matutino",
-  "telephone": "11987654321",
-  "bloodType": "O+",
-  "bus": "Linha 42",
-  "status": "ACTIVE",
-  "isInstitutionalEmail": true,
-  "active": true
+  "data": [],
+  "total": 0,
+  "page": 1,
+  "limit": 20
 }
 ```
 
----
+## POST /student/schedule
+
+Salva grade horária do estudante autenticado.
+
+Roles: `STUDENT`
+
+Body:
+
+```json
+{
+  "selections": [
+    { "day": "SEG", "period": "Manhã" },
+    { "day": "TER", "period": "Noite" }
+  ]
+}
+```
+
+## POST /student/me/license-submit
+
+Envia dados + documentos em multipart para solicitação inicial.
+
+Roles: `STUDENT`
+
+Content-Type: `multipart/form-data`
+
+Campos:
+
+- `institution` (opcional)
+- `degree` (opcional)
+- `shift` (opcional)
+- `bloodType` (opcional)
+- `schedule` (obrigatório, JSON string)
+- `ProfilePhoto` (arquivo opcional)
+- `EnrollmentProof` (arquivo opcional)
+- `CourseSchedule` (arquivo opcional)
+
+Limite de arquivo por campo: 10MB.
+
+## POST /student/me/document-update-request
+
+Solicita alteração de documentos após aprovação inicial.
+
+Roles: `STUDENT`
+
+Content-Type: `multipart/form-data`
+
+Campos:
+
+- `changedDocuments` (obrigatório, JSON string com `PhotoType[]`)
+- arquivos correspondentes aos tipos enviados
+
+## PATCH /student/me/photo
+
+Atualiza foto de perfil do estudante autenticado.
+
+Roles: `STUDENT`
+
+Content-Type: `multipart/form-data`
+
+Campo:
+
+- `photo` (obrigatório)
+
+## DELETE /student/me/photo
+
+Remove foto de perfil do estudante autenticado.
+
+Roles: `STUDENT`
+
+## GET /student/me
+
+Retorna perfil do estudante autenticado com `photo` agregado.
+
+Roles: `STUDENT`
+
+## GET /student/stats/dashboard
+
+Retorna estatísticas agregadas de estudantes.
+
+Roles: `EMPLOYEE`, `ADMIN`
+
+Retorno exemplo:
+
+```json
+{
+  "totalStudents": 120,
+  "studentsWithCard": 45,
+  "studentsWithoutCard": 30,
+  "studentsWithPendingRequest": 45,
+  "transport": {
+    "totalUsing": 90,
+    "byShift": {
+      "morning": 40,
+      "afternoon": 25,
+      "night": 15,
+      "fullTime": 10
+    },
+    "byDay": {
+      "SEG": 85,
+      "TER": 80,
+      "QUA": 78,
+      "QUI": 82,
+      "SEX": 60
+    }
+  },
+  "generatedAt": "2026-04-10T12:00:00.000Z"
+}
+```
 
 ## GET /student/:id
 
-Retorna um estudante pelo ID.
+Busca estudante por ID.
 
-**Roles:** EMPLOYEE, ADMIN  
-**Parâmetro:** `:id` — MongoDB ObjectId (validado por `MongoObjectIdPipe`)
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `200` | Dados do estudante |
-| `400` | ID inválido (não é ObjectId) |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role insuficiente |
-| `404` | Estudante não encontrado |
-
-### Exemplo
-
-```bash
-curl https://api.vrgtransport.com.br/api/v1/student/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "x-session-id: <session-id>"
-```
-
----
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## PATCH /student/me
 
-Atualiza o perfil do estudante autenticado. Todos os campos são opcionais.
+Atualiza perfil do estudante autenticado.
 
-**Roles:** STUDENT (somente o próprio perfil)
-
-### Body
-
-| Campo | Tipo | Obrigatório | Validações |
-|---|---|---|---|
-| `name` | `string` | Não | Máx. 100 chars; espaços removidos nas bordas |
-| `degree` | `string` | Não | Máx. 100 chars |
-| `shift` | `Shift` | Não | Um dos valores do enum Shift |
-| `telephone` | `string` | Não | 10–15 chars (aceita `+`, espaços, hífens, parênteses) |
-| `bloodType` | `BloodType` | Não | Um dos valores do enum BloodType |
-| `bus` | `string` | Não | Máx. 100 chars |
-
-> `email` e `password` não podem ser alterados por este endpoint.
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `200` | Perfil atualizado |
-| `400` | Dados inválidos |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role não é STUDENT |
-| `404` | Estudante não encontrado |
-
-### Exemplo
-
-```bash
-curl -X PATCH https://api.vrgtransport.com.br/api/v1/student/me \
-  -H "x-session-id: <session-id>" \
-  -H "Content-Type: application/json" \
-  -d '{"bus": "Linha 15", "telephone": "11999990000"}'
-```
-
----
+Roles: `STUDENT`
 
 ## PATCH /student/:id
 
-Atualiza os dados de um estudante pelo ID. Todos os campos são opcionais.
+Atualiza estudante por ID.
 
-**Roles:** ADMIN  
-**Parâmetro:** `:id` — MongoDB ObjectId
-
-### Body
-
-Mesmos campos de `PATCH /student/me`.
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `200` | Estudante atualizado |
-| `400` | ID inválido ou dados inválidos |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role não é ADMIN |
-| `404` | Estudante não encontrado |
-
-### Exemplo
-
-```bash
-curl -X PATCH https://api.vrgtransport.com.br/api/v1/student/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "x-session-id: <session-id>" \
-  -H "Content-Type: application/json" \
-  -d '{"degree": "Ensino Superior", "shift": "Noturno"}'
-```
-
----
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## DELETE /student/:id
 
-Remove um estudante pelo ID.
+Remove estudante por ID.
 
-**Roles:** ADMIN  
-**Parâmetro:** `:id` — MongoDB ObjectId
-
-### Respostas
-
-| Status | Descrição |
-|---|---|
-| `200` | Estudante removido |
-| `400` | ID inválido |
-| `401` | Sessão ausente ou inválida |
-| `403` | Role não é ADMIN |
-| `404` | Estudante não encontrado |
-
-### Exemplo
-
-```bash
-curl -X DELETE https://api.vrgtransport.com.br/api/v1/student/64f3a1b2c3d4e5f6a7b8c9d0 \
-  -H "x-session-id: <session-id>"
-```
-
+Roles: `ADMIN`

@@ -36,8 +36,6 @@ import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { LicenseRequestService } from '../license-request/license-request.service';
-import { PhotoType } from '../image/types/photoType.enum';
-import { ImagesService } from '../image/image.service';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -45,17 +43,12 @@ type UploadedImageFile = {
   originalname?: string;
 };
 
-function toDataUrl(file: UploadedImageFile): string {
-  return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-}
-
 @ApiTags('Students')
 @Controller('student')
 export class StudentController {
   constructor(
     private readonly studentService: StudentService,
     private readonly licenseRequestService: LicenseRequestService,
-    private readonly imagesService: ImagesService,
   ) {}
 
   @Get()
@@ -180,67 +173,10 @@ export class StudentController {
       CourseSchedule?: UploadedImageFile[];
     },
   ) {
-    const existingDocuments = await this.imagesService.findByStudentId(
+    return this.licenseRequestService.submitDocumentUpdateRequest(
       req.sessionPayload!.userId,
-    );
-
-    if (existingDocuments.length === 0) {
-      throw new BadRequestException(
-        'Você precisa enviar seus documentos pela primeira vez antes de solicitar alterações.',
-      );
-    }
-
-    let changedDocuments: PhotoType[];
-
-    try {
-      const parsed = JSON.parse(changedDocumentsRaw);
-      if (!Array.isArray(parsed)) {
-        throw new BadRequestException('changedDocuments deve ser um array JSON');
-      }
-
-      const allowed = new Set(Object.values(PhotoType));
-      const invalid = parsed.filter((item) => !allowed.has(item));
-
-      if (invalid.length > 0) {
-        throw new BadRequestException('changedDocuments contém photoTypes inválidos');
-      }
-
-      changedDocuments = parsed as PhotoType[];
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException('changedDocuments deve ser um JSON válido');
-    }
-
-    const profileFile = files?.ProfilePhoto?.[0];
-    const enrollmentFile = files?.EnrollmentProof?.[0];
-    const scheduleFile = files?.CourseSchedule?.[0];
-
-    const fileByType: Partial<Record<PhotoType, UploadedImageFile | undefined>> = {
-      [PhotoType.ProfilePhoto]: profileFile,
-      [PhotoType.EnrollmentProof]: enrollmentFile,
-      [PhotoType.CourseSchedule]: scheduleFile,
-    };
-
-    const pendingImages: Partial<Record<PhotoType, string>> = {};
-
-    for (const photoType of changedDocuments) {
-      const file = fileByType[photoType];
-      if (!file) {
-        throw new BadRequestException(
-          `Arquivo não enviado para o tipo ${photoType}`,
-        );
-      }
-
-      pendingImages[photoType] = toDataUrl(file);
-    }
-
-    return this.licenseRequestService.cancelAndReplaceWithUpdate(
-      req.sessionPayload!.userId,
-      changedDocuments,
-      pendingImages,
+      changedDocumentsRaw,
+      files ?? {},
     );
   }
 

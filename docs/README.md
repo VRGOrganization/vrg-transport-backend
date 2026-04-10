@@ -4,57 +4,44 @@
 ![NestJS](https://img.shields.io/badge/NestJS-11.x-E0234E?logo=nestjs)
 ![MongoDB](https://img.shields.io/badge/MongoDB-7.x-47A248?logo=mongodb)
 
-API REST para o sistema de gestão de transporte escolar municipal. Gerencia o cadastro de estudantes, funcionários e a emissão de carteirinhas digitais com foto.
+Documentação oficial do backend da plataforma VRG Transport.
 
----
+## Visão Geral
+
+API REST em NestJS para gestão de estudantes, funcionários, imagens, solicitações de carteirinha e emissão de carteirinhas.
+
+Base URL padrão:
+
+- Desenvolvimento: `http://localhost:3000/api/v1`
+- Swagger (somente dev + flag): `http://localhost:3000/api/docs`
 
 ## Módulos
 
-| Módulo | Responsabilidade | Roles com acesso |
-|---|---|---|
-| **Auth** | Autenticação por sessão, registro com OTP | Público (com rate limit) |
-| **Student** | CRUD de estudantes | STUDENT (próprio perfil), EMPLOYEE, ADMIN |
-| **Employee** | CRUD de funcionários | ADMIN |
-| **License** | Emissão e gestão de carteirinhas | EMPLOYEE, ADMIN |
-| **Image** | Gestão de fotos dos estudantes | STUDENT (próprias), EMPLOYEE, ADMIN |
-| **Admin** | Schema e seeding de administradores | — |
-| **Common** | Guards, pipes, filtros, enums, audit log | — |
-| **Mail** | Envio de e-mail (OTP) | — |
+| Módulo | Responsabilidade |
+|---|---|
+| Auth | Registro/login, verificação OTP, sessão |
+| Student | Perfil do estudante, grade de horários, envio de solicitação |
+| Employee | Gestão de funcionários |
+| LicenseRequest | Fluxo de aprovação/reprovação de solicitação |
+| License | Emissão, consulta, rejeição e eventos SSE da carteirinha |
+| Image | Fotos e documentos de estudante |
+| Admin | Cadastro de administradores |
+| Mail | Envio de e-mails transacionais (Brevo) |
+| Common | Filtros, pipes, auditoria e utilitários transversais |
 
----
-
-## Quick Start
-
-```bash
-# 1. Instalar dependências
-npm install
-
-# 2. Configurar variáveis de ambiente
-cp .env.example .env
-# Edite .env com suas configurações
-
-# 3. Subir a API em modo de desenvolvimento
-npm run start:dev
-```
-
-A API estará disponível em `http://localhost:3000/api/v1`.  
-Swagger (somente em `NODE_ENV=development` com `ENABLE_SWAGGER=true`): `http://localhost:3000/api/docs`
-
----
-
-## Documentação
+## Índice de Documentos
 
 | Documento | Conteúdo |
 |---|---|
-| [Getting Started](./getting-started.md) | Pré-requisitos, variáveis de ambiente, instalação, seed de admin |
-| [Arquitetura](./architecture.md) | Estrutura de módulos, padrão Repository, fluxo de requisição |
-| [Autenticação](./authentication.md) | Registro OTP, login, sessão e rate limiting |
-| [Roles e Permissões](./roles-and-permissions.md) | Tabela completa endpoint × role |
-| [Segurança](./security.md) | Camadas de segurança, CORS, recomendações para produção |
-| [Tratamento de Erros](./error-handling.md) | Estrutura de erros, códigos HTTP, exemplos |
-| [Contribuindo](./contributing.md) | Padrões de código, convenções de commit, checklist de PR |
+| [getting-started.md](./getting-started.md) | Instalação, variáveis de ambiente, execução e seed |
+| [architecture.md](./architecture.md) | Estrutura de módulos, conexões, fluxo de requisição |
+| [authentication.md](./authentication.md) | Sessão, OTP, x-service-secret, login e logout |
+| [roles-and-permissions.md](./roles-and-permissions.md) | Matriz de acesso por endpoint e role |
+| [security.md](./security.md) | Camadas de segurança e hardening |
+| [error-handling.md](./error-handling.md) | Formato de erros e códigos HTTP |
+| [contributing.md](./contributing.md) | Padrões de contribuição e checklist |
 
-### Referência de Endpoints
+## Referência de API
 
 | Módulo | Documento |
 |---|---|
@@ -62,16 +49,5 @@ Swagger (somente em `NODE_ENV=development` com `ENABLE_SWAGGER=true`): `http://l
 | Students | [api-reference/students.md](./api-reference/students.md) |
 | Employees | [api-reference/employees.md](./api-reference/employees.md) |
 | Licenses | [api-reference/licenses.md](./api-reference/licenses.md) |
+| License Requests | [api-reference/license-requests.md](./api-reference/license-requests.md) |
 | Images | [api-reference/images.md](./api-reference/images.md) |
-
----
-
-## Stack
-
-- **Runtime:** Node.js 22
-- **Framework:** NestJS 11
-- **Banco de dados:** MongoDB (Mongoose 9) — duas conexões separadas (principal + imagens)
-- **Autenticação:** Sessão (session-first, via BFF)
-- **Validação:** class-validator + class-transformer
-- **Documentação:** Swagger / OpenAPI 3
-- **E-mail:** Nodemailer

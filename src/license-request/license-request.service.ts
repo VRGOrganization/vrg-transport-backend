@@ -73,6 +73,55 @@ export class LicenseRequestService {
     return request;
   }
 
+  async submitDocumentUpdateRequest(
+    studentId: string,
+    changedDocumentsRaw: string,
+    files: {
+      ProfilePhoto?: UploadedImageFile[];
+      EnrollmentProof?: UploadedImageFile[];
+      CourseSchedule?: UploadedImageFile[];
+    },
+  ): Promise<LicenseRequest> {
+    const existingDocuments = await this.imagesService.findByStudentId(studentId);
+
+    if (existingDocuments.length === 0) {
+      throw new BadRequestException(
+        'Você precisa enviar seus documentos pela primeira vez antes de solicitar alterações.',
+      );
+    }
+
+    const changedDocuments = this.parseChangedDocuments(changedDocumentsRaw);
+
+    const profileFile = files?.ProfilePhoto?.[0];
+    const enrollmentFile = files?.EnrollmentProof?.[0];
+    const scheduleFile = files?.CourseSchedule?.[0];
+
+    const fileByType: Partial<Record<PhotoType, UploadedImageFile | undefined>> = {
+      [PhotoType.ProfilePhoto]: profileFile,
+      [PhotoType.EnrollmentProof]: enrollmentFile,
+      [PhotoType.CourseSchedule]: scheduleFile,
+    };
+
+    const pendingImages: Partial<Record<PhotoType, string>> = {};
+
+    for (const photoType of changedDocuments) {
+      const file = fileByType[photoType];
+      if (!file) {
+        throw new BadRequestException(
+          `Arquivo não enviado para o tipo ${photoType}`,
+        );
+      }
+
+      pendingImages[photoType] = this.toDataUrl(file);
+    }
+
+    return this.cancelAndReplaceWithUpdate(
+      studentId,
+      changedDocuments,
+      pendingImages,
+    );
+  }
+
   async cancelAndReplaceWithUpdate(
     studentId: string,
     changedDocuments: PhotoType[],
@@ -293,6 +342,34 @@ export class LicenseRequestService {
   async findMyLatest(studentId: string): Promise<LicenseRequest | null> {
     const requests = await this.repository.findByStudentId(studentId);
     return requests[0] ?? null;
+  }
+
+  private parseChangedDocuments(changedDocumentsRaw: string): PhotoType[] {
+    try {
+      const parsed = JSON.parse(changedDocumentsRaw);
+      if (!Array.isArray(parsed)) {
+        throw new BadRequestException('changedDocuments deve ser um array JSON');
+      }
+
+      const allowed = new Set(Object.values(PhotoType));
+      const invalid = parsed.filter((item) => !allowed.has(item));
+
+      if (invalid.length > 0) {
+        throw new BadRequestException('changedDocuments contém photoTypes inválidos');
+      }
+
+      return parsed as PhotoType[];
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException('changedDocuments deve ser um JSON válido');
+    }
+  }
+
+  private toDataUrl(file: UploadedImageFile): string {
+    return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
   }
 
   private dataUrlToUploadedFile(

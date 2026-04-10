@@ -5,6 +5,8 @@ import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { StudentService } from '../student/student.service';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { MailService } from '../mail/mail.service';
+import { LICENSE_REQUEST_REPOSITORY } from '../license-request/interfaces/repository.interface';
+import { LicenseRequestStatus } from '../license-request/schemas/license-request.schema';
 
 global.fetch = jest.fn();
 
@@ -51,6 +53,12 @@ const mockMailService = {
   sendRejectionEmail: jest.fn(),
 };
 
+const mockLicenseRequestRepository = {
+  findByStudentId: jest
+    .fn()
+    .mockResolvedValue([{ status: LicenseRequestStatus.APPROVED }]),
+};
+
 describe('LicenseService', () => {
   let service: LicenseService;
 
@@ -59,6 +67,10 @@ describe('LicenseService', () => {
       providers: [
         LicenseService,
         { provide: LICENSE_REPOSITORY, useValue: mockLicenseRepository },
+        {
+          provide: LICENSE_REQUEST_REPOSITORY,
+          useValue: mockLicenseRequestRepository,
+        },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: StudentService, useValue: mockStudentService },
         { provide: AuditLogService, useValue: mockAuditLogService },

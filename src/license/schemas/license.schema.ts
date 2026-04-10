@@ -40,6 +40,9 @@ export class License {
   verificationCode: string;
 
   @Prop({ type: String, default: null })
+  qrCodeUrl: string | null;
+
+  @Prop({ type: String, default: null })
   rejectionReason: string | null;
 
   @Prop({ type: Date, default: null })
