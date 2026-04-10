@@ -20,7 +20,6 @@ import { CreateImageDto } from '../image/dto/image.dto';
 import { Shift } from '../common/interfaces/student-attributes.enum';
 import { StudentDashboardStats } from './interfaces/student-stats.interface';
 import { StudentStatsVisitor } from './visitor/student-stats.visitor';
-import { fileTypeFromBuffer } from 'file-type';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -281,6 +280,7 @@ export class StudentService {
     photoType: PhotoType,
   ): Promise<string> {
     const mimeType = file.mimetype?.toLowerCase() ?? '';
+    const { fileTypeFromBuffer } = await import('file-type');
     const detected = await fileTypeFromBuffer(file.buffer);
     const detectedMimeType = detected?.mime?.toLowerCase() ?? '';
     const allowedImageMimeTypes = ['image/jpeg', 'image/png'];

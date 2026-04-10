@@ -54,7 +54,11 @@ export class LicenseService {
     this.apiUrl = this.configService.getOrThrow<string>('LICENSE_API_URL');
     this.apiKey = this.configService.getOrThrow<string>('LICENSE_API_KEY');
     this.qrCodeBaseUrl = this.configService.getOrThrow<string>('QR_CODE_BASE_URL');
-    setInterval(() => this.cleanupStaleStreams(), this.CLEANUP_INTERVAL_MS);
+    const cleanupTimer = setInterval(
+      () => this.cleanupStaleStreams(),
+      this.CLEANUP_INTERVAL_MS,
+    );
+    cleanupTimer.unref?.();
   }
 
   issueSseTicket(studentId: string): { ticket: string; expiresInMs: number } {

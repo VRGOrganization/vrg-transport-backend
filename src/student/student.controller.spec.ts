@@ -4,6 +4,7 @@ import { StudentService } from './student.service';
 import { STUDENT_REPOSITORY } from './interfaces/repository.interface';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { ImagesService } from '../image/image.service';
+import { LicenseRequestService } from '../license-request/license-request.service';
 
 const mockStudentRepository = {
   create: jest.fn(),
@@ -25,6 +26,11 @@ const mockImagesService = {
   update: jest.fn(),
 };
 
+const mockLicenseRequestService = {
+  createRequest: jest.fn(),
+  cancelAndReplaceWithUpdate: jest.fn(),
+};
+
 describe('StudentController', () => {
   let controller: StudentController;
 
@@ -36,6 +42,10 @@ describe('StudentController', () => {
         { provide: STUDENT_REPOSITORY, useValue: mockStudentRepository },
         { provide: AuditLogService, useValue: mockAuditLogService },
         { provide: ImagesService, useValue: mockImagesService },
+        {
+          provide: LicenseRequestService,
+          useValue: mockLicenseRequestService,
+        },
       ],
     }).compile();
 

@@ -4,6 +4,7 @@ import { LicenseService } from './license.service';
 import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { StudentService } from '../student/student.service';
 import { AuditLogService } from '../common/audit/audit-log.service';
+import { MailService } from '../mail/mail.service';
 
 global.fetch = jest.fn();
 
@@ -45,6 +46,11 @@ const mockAuditLogService = {
   record: jest.fn(),
 };
 
+const mockMailService = {
+  sendVerificationCode: jest.fn(),
+  sendRejectionEmail: jest.fn(),
+};
+
 describe('LicenseService', () => {
   let service: LicenseService;
 
@@ -56,6 +62,7 @@ describe('LicenseService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: StudentService, useValue: mockStudentService },
         { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: MailService, useValue: mockMailService },
       ],
     }).compile();
 

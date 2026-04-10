@@ -6,6 +6,7 @@ import { LICENSE_REPOSITORY } from '../interfaces/repository.interface';
 import { LicenseStatus } from '../schemas/license.schema';
 import { StudentService } from '../../student/student.service';
 import { AuditLogService } from '../../common/audit/audit-log.service';
+import { MailService } from '../../mail/mail.service';
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -48,6 +49,11 @@ const mockAuditLogService = {
   record: jest.fn(),
 };
 
+const mockMailService = {
+  sendVerificationCode: jest.fn(),
+  sendRejectionEmail: jest.fn(),
+};
+
 const makeLicense = (overrides = {}) => ({
   _id: 'license-id-123',
   studentId: 'student-id-123',
@@ -77,6 +83,7 @@ describe('LicenseService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: StudentService, useValue: mockStudentService },
         { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: MailService, useValue: mockMailService },
       ],
     }).compile();
 
