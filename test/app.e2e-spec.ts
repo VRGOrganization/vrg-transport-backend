@@ -11,6 +11,7 @@ import {
 } from '../src/contracts/auth.contract';
 import { Session, SessionDocument } from '../src/auth/session/session.schema';
 import { Employee, EmployeeDocument } from '../src/employee/schema/employee.schema';
+import { Image, ImageDocument } from '../src/image/schema/image.schema';
 import { clearTestDB, closeTestDB, connectTestDB } from './setup/mongo-memory';
 
 jest.mock('file-type', () => ({
@@ -26,6 +27,7 @@ describe('App security e contracts (e2e)', () => {
   let app: INestApplication<App>;
   let sessionModel: Model<SessionDocument>;
   let employeeModel: Model<EmployeeDocument>;
+  let imageModel: Model<ImageDocument>;
 
   const serviceSecret = 'test-service-secret-32-chars-minimum';
 
@@ -98,6 +100,9 @@ describe('App security e contracts (e2e)', () => {
     );
     employeeModel = moduleFixture.get<Model<EmployeeDocument>>(
       getModelToken(Employee.name),
+    );
+    imageModel = moduleFixture.get<Model<ImageDocument>>(
+      getModelToken(Image.name, 'images'),
     );
   });
 
@@ -192,6 +197,91 @@ describe('App security e contracts (e2e)', () => {
     expect(Array.isArray(response.body)).toBe(true);
     expect(response.body.length).toBeGreaterThan(0);
     expect(response.body[0]).not.toHaveProperty('password');
+  });
+
+  it('deve retornar 403 quando employee tenta acessar endpoint student-only', async () => {
+    const employeeSessionId = await createSession(
+      'employee',
+      '507f1f77bcf86cd799439021',
+    );
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/student/me')
+      .set('x-session-id', employeeSessionId.toHexString())
+      .expect(403);
+
+    expect(() => HttpErrorResponseSchema.parse(response.body)).not.toThrow();
+  });
+
+  it('deve retornar 400 para changedDocuments malformado em update request', async () => {
+    const studentId = '507f1f77bcf86cd799439022';
+    const studentSessionId = await createSession('student', studentId);
+
+    await imageModel.create({
+      studentId,
+      photoType: 'ProfilePhoto',
+      photo3x4: 'data:image/jpeg;base64,AA==',
+      active: true,
+    });
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/student/me/document-update-request')
+      .set('x-session-id', studentSessionId.toHexString())
+      .field('changedDocuments', 'nao-e-json')
+      .expect(400);
+
+    expect(() => HttpErrorResponseSchema.parse(response.body)).not.toThrow();
+    expect(String(response.body.message)).toContain('JSON');
+  });
+
+  it('deve retornar 403 quando aluno tenta ler imagem de outro aluno', async () => {
+    const ownerStudentId = '507f1f77bcf86cd799439023';
+    const attackerStudentId = '507f1f77bcf86cd799439024';
+    const attackerSessionId = await createSession('student', attackerStudentId);
+
+    const image = await imageModel.create({
+      studentId: ownerStudentId,
+      photoType: 'EnrollmentProof',
+      documentImage: 'data:image/jpeg;base64,AA==',
+      active: true,
+    });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/image/${image._id.toString()}/file`)
+      .set('x-session-id', attackerSessionId.toHexString())
+      .expect(403);
+
+    expect(() => HttpErrorResponseSchema.parse(response.body)).not.toThrow();
+  });
+
+  it('deve retornar 403 quando employee tenta emitir ticket SSE de student', async () => {
+    const employeeSessionId = await createSession(
+      'employee',
+      '507f1f77bcf86cd799439025',
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/license/events/token')
+      .set('x-session-id', employeeSessionId.toHexString())
+      .expect(403);
+
+    expect(() => HttpErrorResponseSchema.parse(response.body)).not.toThrow();
+  });
+
+  it('deve retornar 401 quando stream SSE e chamado com ticket invalido', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/license/events?ticket=ticket-invalido')
+      .expect(401);
+
+    expect(() => HttpErrorResponseSchema.parse(response.body)).not.toThrow();
+  });
+
+  it('deve retornar exists=false quando codigo de verificacao de licenca nao e UUID', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/license/verify/codigo-invalido')
+      .expect(200);
+
+    expect(response.body).toEqual({ exists: false });
   });
 
   it('deve retornar contrato valido e sem _id/__v quando sessao e valida', async () => {
