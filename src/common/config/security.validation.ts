@@ -13,15 +13,22 @@ export function validateSecurityConfig(config: Record<string, unknown>) {
     return value.trim();
   };
 
-  const requiredPositiveInt = (key: string) => {
-    const raw = requiredString(key);
-    const value = Number(raw);
-
-    if (!Number.isInteger(value) || value <= 0) {
+  const optionalPositiveInt = (key: string): number | undefined => {
+    const value = config[key];
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== 'string') {
       throw new Error(`Invalid required config value for key: ${key} (must be a positive integer)`);
     }
 
-    return value;
+    const raw = value.trim();
+    if (!raw) return undefined;
+
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error(`Invalid required config value for key: ${key} (must be a positive integer)`);
+    }
+
+    return parsed;
   };
 
   
@@ -36,7 +43,17 @@ export function validateSecurityConfig(config: Record<string, unknown>) {
   const brevoApiKey = requiredString('BREVO_API_KEY', 16);
   const mailFromAddress = requiredString('MAIL_FROM_ADDRESS', 3);
   const serviceSecret = requiredString('SERVICE_SECRET', 32);
-  const sessionTtlDays = requiredPositiveInt('SESSION_TTL_DAYS');
+  const legacySessionTtlDays = optionalPositiveInt('SESSION_TTL_DAYS');
+  const sessionTtlStudentDays =
+    optionalPositiveInt('SESSION_TTL_STUDENT_DAYS') ?? legacySessionTtlDays;
+  const sessionTtlStaffDays =
+    optionalPositiveInt('SESSION_TTL_STAFF_DAYS') ?? legacySessionTtlDays;
+
+  if (!sessionTtlStudentDays || !sessionTtlStaffDays) {
+    throw new Error(
+      'Missing required config values for session TTL (use SESSION_TTL_STUDENT_DAYS and SESSION_TTL_STAFF_DAYS, or legacy SESSION_TTL_DAYS)',
+    );
+  }
   /* const emailHost = requiredString('EMAIL_HOST');
   const emailPort = requiredString('EMAIL_PORT');
   const emailUser = requiredString('EMAIL_USER');
@@ -62,7 +79,9 @@ export function validateSecurityConfig(config: Record<string, unknown>) {
     BREVO_API_KEY:        brevoApiKey,
     MAIL_FROM_ADDRESS:    mailFromAddress,
     SERVICE_SECRET:       serviceSecret,
-    SESSION_TTL_DAYS:     sessionTtlDays,
+    SESSION_TTL_DAYS:     legacySessionTtlDays,
+    SESSION_TTL_STUDENT_DAYS: sessionTtlStudentDays,
+    SESSION_TTL_STAFF_DAYS:   sessionTtlStaffDays,
     /* EMAIL_HOST:           emailHost,
     EMAIL_PORT:           emailPort,
     EMAIL_USER:           emailUser,
