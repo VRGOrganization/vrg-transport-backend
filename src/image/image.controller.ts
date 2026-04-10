@@ -22,12 +22,14 @@ import { UserRole } from '../common/interfaces/user-roles.enum';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
 import { ImageHistory, ImageHistoryDocument } from './schema/image-history.schema';
+import { AuditLogService } from '../common/audit/audit-log.service';
 
 @ApiTags('Images')
 @Controller('image')
 export class ImagesController {
   constructor(
     private readonly imagesService: ImagesService,
+    private readonly auditLog: AuditLogService,
     @InjectModel(ImageHistory.name, 'images')
     private readonly imageHistoryModel: Model<ImageHistoryDocument>,
   ) {}
@@ -158,11 +160,29 @@ export class ImagesController {
     @Param('id', MongoObjectIdPipe) id: string,
     @Req() req: Request,
   ) {
-    const image = await this.imagesService.findOne(id);
+    const image = await this.imagesService.findOne({
+      _id: id,
+      studentId: req.sessionPayload!.userId,
+      active: true,
+    });
 
-    if (image.studentId !== req.sessionPayload!.userId) {
-      throw new ForbiddenException('Acesso negado para este documento');
+    if (!image) {
+      throw new ForbiddenException('Acesso negado');
     }
+
+    await this.auditLog.record({
+      action: 'image.access',
+      outcome: 'success',
+      actor: {
+        id: req.sessionPayload!.userId,
+        role: req.sessionPayload!.userType,
+      },
+      target: { imageId: id, photoType: image.photoType },
+      metadata: {
+        userAgent: req.headers['user-agent'],
+        ip: req.ip,
+      },
+    });
 
     return {
       _id: (image as any)._id,

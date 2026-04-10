@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { createHmac, randomInt, timingSafeEqual } from 'crypto';
+import { createHmac, randomInt, randomBytes } from 'crypto';
 
 import { StudentService } from '../student/student.service';
 import { EmployeeService } from '../employee/employee.service';
@@ -109,7 +109,7 @@ export class AuthService {
         target: { email: dto.email },
         metadata: { reason: 'email_exists' },
       });
-      throw new ConflictException(AUTH_ERROR_MESSAGES.EMAIL_ALREADY_EXISTS);
+      throw new ConflictException('Dados já cadastrados no sistema');
     }
 
     if (existingCpf) {
@@ -119,12 +119,12 @@ export class AuthService {
         target: { email: dto.email },
         metadata: { reason: 'cpf_exists' },
       });
-      throw new ConflictException('CPF já cadastrado');
+      throw new ConflictException('Dados já cadastrados no sistema');
     }
 
     const hashedPassword = await bcrypt.hash(dto.password, this.SALT_ROUNDS);
     const isInstitutional = this.isInstitutionalEmail(dto.email);
-    const { code, codeHash, expiresAt } = this.generateVerificationCode();
+    const { code, codeHash, expiresAt } = await this.generateVerificationCode();
 
     this.logger.debug(`[DEV ONLY] Verification code for ${dto.email}: ${code}`);
 
@@ -194,8 +194,10 @@ export class AuthService {
       throw new UnauthorizedException(AUTH_ERROR_MESSAGES.EXPIRED_CODE);
     }
 
-    const providedHash = this.hashVerificationCode(dto.code);
-    const isMatch = this.safeEqualHex(providedHash, student.verificationCode);
+    const [salt, storedHash] = student.verificationCode.split(':');
+    const isMatch =
+      Boolean(salt && storedHash) &&
+      (await bcrypt.compare(dto.code + salt, storedHash));
 
     if (!isMatch) {
       const attempts = (student.verificationCodeAttempts ?? 0) + 1;
@@ -259,7 +261,7 @@ export class AuthService {
       return genericMessage;
     }
 
-    const { code, codeHash, expiresAt } = this.generateVerificationCode();
+    const { code, codeHash, expiresAt } = await this.generateVerificationCode();
 
     await this.studentService.updateVerificationCode(
       this.getDocumentId(student),
@@ -465,22 +467,16 @@ export class AuthService {
     );
   }
 
-  private generateVerificationCode(): { code: string; codeHash: string; expiresAt: Date } {
+  private async generateVerificationCode(): Promise<{
+    code: string;
+    codeHash: string;
+    expiresAt: Date;
+  }> {
     const code = String(randomInt(100_000, 1_000_000));
-    const codeHash = this.hashVerificationCode(code);
+    const salt = randomBytes(16).toString('hex');
+    const hashedCode = await bcrypt.hash(code + salt, 10);
+    const codeHash = `${salt}:${hashedCode}`;
     const expiresAt = new Date(Date.now() + this.CODE_EXPIRY_MINUTES * 60 * 1000);
     return { code, codeHash, expiresAt };
-  }
-
-  private hashVerificationCode(code: string): string {
-    const pepper = this.configService.getOrThrow<string>('OTP_PEPPER');
-    return createHmac('sha256', pepper).update(code).digest('hex');
-  }
-
-  private safeEqualHex(leftHex: string, rightHex: string): boolean {
-    const left = Buffer.from(leftHex, 'hex');
-    const right = Buffer.from(rightHex, 'hex');
-    if (left.length !== right.length) return false;
-    return timingSafeEqual(left, right);
   }
 }

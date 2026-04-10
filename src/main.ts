@@ -3,7 +3,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
-import { json } from 'express';
+import { json, type Request, type Response, type NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -29,10 +29,35 @@ async function bootstrap() {
   // ── Helmet — headers HTTP defensivos
   app.use(
     helmet({
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-      crossOriginOpenerPolicy: false,
+      crossOriginResourcePolicy: { policy: 'same-site' },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+        },
+      },
     }),
   );
+
+  app.use((_: Request, res: Response, next: NextFunction) => {
+    res.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(), payment=(), usb=(), vr=()',
+    );
+    next();
+  });
 
   // ── CORS
   // Usa getOrThrow para garantir que a variável está definida.

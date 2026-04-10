@@ -88,7 +88,24 @@ export class RateLimitGuard implements CanActivate {
    * Assim o request.ip já vem correto e validado.
    */
   private extractIp(request: Request): string {
-    return request.ip ?? request.socket.remoteAddress ?? 'unknown';
+    const userId = (request as any).sessionPayload?.userId;
+    if (userId) {
+      return `user:${userId}`;
+    }
+
+    const ip = request.ip ?? request.socket.remoteAddress ?? 'unknown';
+
+    if (!this.isValidIp(ip)) {
+      return 'invalid';
+    }
+
+    return `ip:${ip}`;
+  }
+
+  private isValidIp(ip: string): boolean {
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+    return ipv4Regex.test(ip) || ipv6Regex.test(ip);
   }
 
   private cleanup(now: number): void {

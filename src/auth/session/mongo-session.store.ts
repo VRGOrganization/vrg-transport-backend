@@ -36,11 +36,18 @@ export class MongoSessionStore implements ISessionStore {
   async findById(sessionId: string): Promise<SessionPayload | null> {
     if (!Types.ObjectId.isValid(sessionId)) return null;
 
-    const doc = await this.sessionModel.findOne({
-      _id: new Types.ObjectId(sessionId),
-      revoked: false,
-      expiresAt: { $gt: new Date() },
-    });
+    const doc = await this.sessionModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(sessionId),
+        revoked: false,
+        expiresAt: { $gt: new Date() },
+      },
+      {
+        $set: { lastSeenAt: new Date() },
+        $inc: { version: 1 },
+      },
+      { returnDocument: 'after' },
+    );
 
     if (!doc) return null;
     return this.toPayload(doc);

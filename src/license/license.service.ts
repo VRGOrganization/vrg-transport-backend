@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadGatewayException,
+  BadRequestException,
   Logger,
   GatewayTimeoutException,
   MessageEvent,
@@ -11,6 +12,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { Observable, Subject } from 'rxjs';
+import { isUUID } from 'class-validator';
 import type { ILicenseRepository } from './interfaces/repository.interface';
 import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { CreateLicenseDto } from './dto/create-license.dto';
@@ -30,10 +32,14 @@ type SseTicketEntry = {
 @Injectable()
 export class LicenseService {
   private readonly logger = new Logger(LicenseService.name);
+  private readonly MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB 
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private readonly qrCodeBaseUrl: string;
   private readonly studentStreams = new Map<string, Subject<MessageEvent>>();
+  private readonly streamLastActivity = new Map<string, number>();
+  private readonly STREAM_TTL_MS = 5 * 60 * 1000;
+  private readonly CLEANUP_INTERVAL_MS = 60 * 1000;
   private readonly sseTickets = new Map<string, SseTicketEntry>();
   private readonly sseTicketTtlMs = 60_000;
 
@@ -48,6 +54,7 @@ export class LicenseService {
     this.apiUrl = this.configService.getOrThrow<string>('LICENSE_API_URL');
     this.apiKey = this.configService.getOrThrow<string>('LICENSE_API_KEY');
     this.qrCodeBaseUrl = this.configService.getOrThrow<string>('QR_CODE_BASE_URL');
+    setInterval(() => this.cleanupStaleStreams(), this.CLEANUP_INTERVAL_MS);
   }
 
   issueSseTicket(studentId: string): { ticket: string; expiresInMs: number } {
@@ -95,6 +102,7 @@ export class LicenseService {
 
   streamByStudent(studentId: string): Observable<MessageEvent> {
     const stream = this.ensureStream(studentId);
+    this.streamLastActivity.set(studentId, Date.now());
 
     return new Observable<MessageEvent>((subscriber) => {
       const streamSubscription = stream.subscribe(subscriber);
@@ -105,6 +113,7 @@ export class LicenseService {
       });
 
       const heartbeat = setInterval(() => {
+        this.streamLastActivity.set(studentId, Date.now());
         subscriber.next({
           data: JSON.stringify({ type: 'heartbeat', ts: Date.now() }),
         });
@@ -114,9 +123,13 @@ export class LicenseService {
         clearInterval(heartbeat);
         streamSubscription.unsubscribe();
 
-        if (stream.observed === false) {
-          this.studentStreams.delete(studentId);
-        }
+        setTimeout(() => {
+          const lastActivity = this.streamLastActivity.get(studentId);
+          if (!lastActivity || Date.now() - lastActivity > this.STREAM_TTL_MS) {
+            this.studentStreams.delete(studentId);
+            this.streamLastActivity.delete(studentId);
+          }
+        }, this.STREAM_TTL_MS);
       };
     });
   }
@@ -137,6 +150,11 @@ export class LicenseService {
     const verificationCode = randomUUID();
     const qrCodeUrl = `${this.qrCodeBaseUrl}/${verificationCode}`;
 
+    const normalizedPhoto = this.normalizePhotoForLicenseApi(dto.photo);
+    if (normalizedPhoto && normalizedPhoto.length > this.MAX_PHOTO_SIZE_BYTES) {
+      throw new BadRequestException('Foto excede o tamanho máximo permitido de 5MB');
+    }
+
     const payload = {
       id: studentId,
       employee_id: employeeId,
@@ -147,7 +165,7 @@ export class LicenseService {
       telephone: student.telephone,
       blood_type: student.bloodType,
       bus: dto.bus,
-      photo: this.normalizePhotoForLicenseApi(dto.photo),
+      photo: normalizedPhoto,
       qr_code_url: qrCodeUrl,
     }
 
@@ -252,8 +270,12 @@ export class LicenseService {
     return updated;
   }
 
-  async verifyByCode(code: string): Promise<{ exists: boolean; valid?: boolean; status?: LicenseStatus }> {
-    const license = await this.licenseRepository.findOneByVerificationCode(code);
+  async verifyByCode(rawCode: string): Promise<{ exists: boolean; valid?: boolean; status?: LicenseStatus }> {
+    if (!isUUID(rawCode, '4')) {
+      return { exists: false };
+    }
+
+    const license = await this.licenseRepository.findOneByVerificationCode(rawCode);
     if (!license || !license.existing) {
       return { exists: false };
     }
@@ -307,6 +329,11 @@ export class LicenseService {
     const verificationCode = randomUUID();
     const qrCodeUrl = `${this.qrCodeBaseUrl}/${verificationCode}`;
 
+    const normalizedPhoto = this.normalizePhotoForLicenseApi(dto.photo);
+    if (normalizedPhoto && normalizedPhoto.length > this.MAX_PHOTO_SIZE_BYTES) {
+      throw new BadRequestException('Foto excede o tamanho máximo permitido de 5MB');
+    }
+
     const payload = {
       id: studentId,
       employee_id: employeeId,
@@ -317,7 +344,7 @@ export class LicenseService {
       telephone: student.telephone,
       blood_type: student.bloodType,
       bus: dto.bus,
-      photo: this.normalizePhotoForLicenseApi(dto.photo),
+      photo: normalizedPhoto,
       qr_code_url: qrCodeUrl,
     };
 
@@ -377,6 +404,23 @@ export class LicenseService {
         ts: Date.now(),
       }),
     });
+
+    this.streamLastActivity.set(studentId, Date.now());
+  }
+
+  private cleanupStaleStreams(): void {
+    const now = Date.now();
+
+    for (const [studentId, lastActivity] of this.streamLastActivity.entries()) {
+      if (now - lastActivity > this.STREAM_TTL_MS) {
+        const stream = this.studentStreams.get(studentId);
+        if (stream && !stream.observed) {
+          stream.complete();
+          this.studentStreams.delete(studentId);
+          this.streamLastActivity.delete(studentId);
+        }
+      }
+    }
   }
 
 

@@ -20,6 +20,7 @@ import { CreateImageDto } from '../image/dto/image.dto';
 import { Shift } from '../common/interfaces/student-attributes.enum';
 import { StudentDashboardStats } from './interfaces/student-stats.interface';
 import { StudentStatsVisitor } from './visitor/student-stats.visitor';
+import { fileTypeFromBuffer } from 'file-type';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -244,7 +245,7 @@ export class StudentService {
     photoType: PhotoType,
     file: UploadedImageFile,
   ): Promise<void> {
-    const dataUrl = this.toDocumentDataUrl(file, photoType);
+    const dataUrl = await this.toDocumentDataUrl(file, photoType);
     const allImages = await this.imagesService.findByStudentId(studentId);
     const existing = allImages.find((image) => image.photoType === photoType);
 
@@ -275,20 +276,23 @@ export class StudentService {
     });
   }
 
-  private toDocumentDataUrl(
+  private async toDocumentDataUrl(
     file: UploadedImageFile,
     photoType: PhotoType,
-  ): string {
+  ): Promise<string> {
     const mimeType = file.mimetype?.toLowerCase() ?? '';
+    const detected = await fileTypeFromBuffer(file.buffer);
+    const detectedMimeType = detected?.mime?.toLowerCase() ?? '';
+    const allowedImageMimeTypes = ['image/jpeg', 'image/png'];
 
     const acceptsPdf =
       photoType === PhotoType.EnrollmentProof ||
       photoType === PhotoType.CourseSchedule;
 
-    if (
-      !mimeType.startsWith('image/') &&
-      !(acceptsPdf && mimeType === 'application/pdf')
-    ) {
+    const isAllowedImage = allowedImageMimeTypes.includes(detectedMimeType);
+    const isAllowedPdf = acceptsPdf && detectedMimeType === 'application/pdf';
+
+    if (!isAllowedImage && !isAllowedPdf) {
       const message = acceptsPdf
         ? 'Arquivo inválido: envie imagem ou PDF para este documento'
         : 'Arquivo inválido: a foto 3x4 deve ser uma imagem';
@@ -297,7 +301,8 @@ export class StudentService {
     }
 
     const base64 = file.buffer.toString('base64');
-    return `data:${mimeType};base64,${base64}`;
+    const outputMimeType = detectedMimeType || mimeType;
+    return `data:${outputMimeType};base64,${base64}`;
   }
 
   private inferShiftFromSchedule(
