@@ -1,192 +1,141 @@
 # Arquitetura
 
-## Estrutura de Módulos
+## Estrutura de alto nivel
 
-```
-vrg-transport-backend/
-├── src/
-│   ├── main.ts                     # Bootstrap: Helmet, CORS, Swagger, ValidationPipe, prefixo /api/v1
-│   ├── app.module.ts               # Módulo raiz: guards globais, conexões MongoDB
-│   │
-│   ├── auth/                       # Autenticação por sessão, OTP
-│   │   ├── auth.controller.ts
-│   │   ├── auth.service.ts
-│   │   ├── auth.module.ts
-│   │   ├── dto/
-│   │   ├── guards/                 # SessionAuthGuard, RolesGuard
-│   │
-│   ├── student/                    # CRUD de estudantes
-│   │   ├── student.controller.ts
-│   │   ├── student.service.ts
-│   │   ├── student.module.ts
-│   │   ├── schemas/student.schema.ts
-│   │   ├── repositories/
-│   │   └── dto/
-│   │
-│   ├── employee/                   # CRUD de funcionários (ADMIN only)
-│   │   ├── employee.controller.ts
-│   │   ├── employee.service.ts
-│   │   └── ...
-│   │
-│   ├── admin/                      # Schema e service de admins
-│   │   ├── admin.service.ts
-│   │   ├── admin.module.ts
-│   │   └── schemas/admin.schema.ts
-│   │
-│   ├── license/                    # Emissão de carteirinhas (serviço externo)
-│   │   ├── license.controller.ts
-│   │   ├── license.service.ts
-│   │   └── dto/create-license.dto.ts
-│   │
-│   ├── image/                      # Fotos dos estudantes (conexão MongoDB separada)
-│   │   ├── image.controller.ts
-│   │   ├── image.service.ts
-│   │   ├── schemas/
-│   │   ├── dto/
-│   │   └── types/photoType.enum.ts
-│   │
-│   ├── mail/                       # Envio de e-mail OTP (Nodemailer)
-│   │   └── mail.service.ts
-│   │
-│   └── common/                     # Utilitários transversais
-│       ├── config/
-│       │   └── security.validation.ts   # Validação de variáveis de ambiente
-│       ├── decorators/
-│       │   ├── roles.decorator.ts       # @Roles(UserRole.ADMIN)
-│       │   ├── public.decorator.ts      # @Public()
-│       │   └── current-user.decorator.ts # @CurrentUser()
-│       ├── enums/
-│       │   ├── user-role.enum.ts        # ADMIN, EMPLOYEE, STUDENT
-│       │   ├── blood-type.enum.ts       # A+, A-, B+, B-, AB+, AB-, O+, O-
-│       │   └── shift.enum.ts            # Matutino, Vespertino, Noturno, Integral
-│       ├── filters/
-│       │   └── http-exception.filter.ts # Resposta de erro padronizada
-│       ├── guards/
-│       │   ├── session-auth.guard.ts
-│       │   ├── roles.guard.ts
-│       │   └── rate-limit.guard.ts
-│       ├── pipes/
-│       │   └── mongo-object-id.pipe.ts  # Valida ObjectId do MongoDB
-│       └── audit/
-│           └── audit-log.service.ts     # Log de eventos sensíveis
-│
-├── scripts/
-│   └── seed-admin.ts               # Cria o primeiro admin
-└── .env.example
-```
+src/
+  main.ts
+  app.module.ts
+  auth/
+  student/
+  employee/
+  admin/
+  image/
+  license/
+  license-request/
+  enrollment-period/
+  mail/
+  common/
 
----
+## Modulos e responsabilidades
 
-## Dependências entre Módulos
+- AppModule
+  - Config global e conexoes Mongo
+  - Registro dos modulos de dominio
+  - Guards globais de sessao, rate limit e role
 
-```
-AppModule
-  ├── AuthModule ──────────────────── usa StudentModule, EmployeeModule, AdminModule, MailModule
-  ├── StudentModule ───────────────── independente
-  ├── EmployeeModule ──────────────── independente
-  ├── AdminModule ─────────────────── independente
-  ├── LicenseModule ───────────────── independente (chama serviço externo via HTTP)
-  ├── ImagesModule ────────────────── usa conexão 'images' (MongoDB separado)
-  ├── MailModule ──────────────────── independente
-  └── CommonModule ────────────────── transversal (guards, pipes, filtros, enums)
-```
+- AuthModule
+  - Registro/login por perfil
+  - OTP e verificacao de conta
+  - Sessao server-side
+  - ServiceSecretGuard no controller de auth
 
----
+- StudentModule
+  - Perfil, horario e envio inicial de documentos
+  - Endpoint unico de submit inicial
+  - Pedido de alteracao de documentos
 
-## Conexões com o Banco de Dados
+- EnrollmentPeriodModule
+  - Criacao e administracao de periodos de inscricao
+  - Preview e confirmacao de liberacao de fila
+  - Encerramento da fila no fim do ciclo do periodo
 
-A aplicação mantém **duas conexões MongoDB distintas**:
+- LicenseRequestModule
+  - Solicitacoes initial e update
+  - Estados pending/approved/rejected/cancelled/waitlisted
+  - Aprovacao com controle atomico de vagas
 
-| Conexão | Variável | Dados armazenados |
+- LicenseModule
+  - Emissao e atualizacao de carteirinhas
+  - SSE por ticket efemero
+  - Verificacao publica por codigo
+  - Desativacao de licencas expiradas
+
+- ImageModule
+  - Armazenamento de foto e documentos
+  - Historico de versoes para updates
+
+## Modelo de dados relevante ao fluxo novo
+
+- enrollment_periods
+  - janela: startDate/endDate
+  - capacidade: totalSlots/filledSlots
+  - validade: licenseValidityMonths
+  - fila: waitlistSequence, closedWaitlistCount, waitlistClosedAt
+
+- license_requests
+  - type: initial/update
+  - status: pending/approved/rejected/cancelled/waitlisted
+  - vinculo de ciclo: enrollmentPeriodId
+  - fila: filaPosition
+
+- licenses
+  - status: active/inactive/expired/rejected
+  - existing: soft delete funcional
+  - expirationDate
+  - vinculo ao periodo: enrollmentPeriodId
+
+## Conexoes de banco
+
+| Conexao | Variavel | Uso |
 |---|---|---|
-| Principal (padrão) | `MONGODB_URI` | Estudantes, funcionários, admins, licenças, audit log |
-| Imagens (`images`) | `MONGODB_URI_IMAGE` | Fotos dos estudantes (base64) |
+| Principal | MONGODB_URI | estudantes, funcionarios, admins, periodos, solicitacoes, licencas |
+| Imagens (connection images) | MONGODB_URI_IMAGE | imagens e historico de imagens |
 
-A separação evita que documentos grandes de imagem degradem a performance das consultas principais.
+## Pipeline de requisicao
 
----
+Guards globais:
 
-## Padrão Repository
+1. SessionAuthGuard
+2. RateLimitGuard
+3. RolesGuard
 
-Módulos como `Student` e `Employee` utilizam o padrão Repository para desacoplar a camada de acesso a dados:
+No modulo Auth, alem dos globais:
 
-```
-Controller
-    │ chama
-    ▼
-Service (regras de negócio)
-    │ chama interface
-    ▼
-IStudentRepository (contrato)
-    │ implementado por
-    ▼
-StudentRepository (Mongoose)
-```
+- ServiceSecretGuard
+- rate limit por endpoint com decorator RateLimit
 
-**Estrutura de arquivos:**
+## Fluxos criticos
 
-```
-student/
-├── repositories/
-│   ├── student.repository.interface.ts   # contrato (interface)
-│   └── student.repository.ts             # implementação com Mongoose
-```
+### Fluxo de solicitacao inicial
 
-O `StudentService` depende da interface, não da implementação. Isso permite trocar a implementação sem alterar o service.
+1. Student envia POST /student/me/license-submit com multipart.
+2. Controller valida elegibilidade antes de side effects.
+3. Service cria request initial:
+   - pending quando ha vaga
+   - waitlisted quando nao ha vaga
+4. Em waitlist, filaPosition e gerada de forma atomica no periodo.
 
-> **Atenção:** O `AdminService` ainda usa consultas Mongoose diretas (sem o padrão Repository). Isso é inconsistente com os demais módulos e deve ser corrigido em refatoração futura.
+### Fluxo de liberacao de fila
 
----
+1. Admin faz preview de slots do periodo.
+2. Admin confirma requestIds.
+3. Promocao waitlisted -> pending e atomica por request.
+4. Fila remanescente e reindexada.
 
-## Fluxo de uma Requisição Autenticada
+### Fluxo de aprovacao
 
-```
-Cliente
-  │
-  │ HTTPS + x-session-id
-  ▼
-Express (main.ts)
-  ├── Helmet (headers de segurança)
-  ├── CORS (origem verificada contra ALLOWED_ORIGINS)
-  └── Body parser (limite 2MB, antes de qualquer parse)
-  │
-  ▼
-NestJS Pipeline
-  ├── 1. RateLimitGuard (global) ── verifica IP + keyPrefix do endpoint
-  ├── 2. SessionAuthGuard (global) ─ verifica sessao (pula rotas @Public())
-  ├── 3. RolesGuard (global) ─────── verifica @Roles() no handler
-  ├── 4. MongoObjectIdPipe ─────────── valida parâmetros :id (aplicado por endpoint)
-  ├── 5. ValidationPipe (global) ──── valida e transforma o body (whitelist, forbidNonWhitelisted)
-  │
-  ▼
-Controller
-  └── chama Service
-        └── chama Repository / Serviço externo
-              └── retorna dado ou lança exceção
-  │
-  ▼
-HttpExceptionFilter (global)
-  └── formata resposta de erro padronizada
-  │
-  ▼
-Cliente recebe resposta
-```
+1. Employee/Admin aprova request pending.
+2. Para initial com periodo vinculado:
+   - incrementa vagas preenchidas de forma atomica
+   - emite licenca vinculada ao periodo
+3. Em erro de emissao, faz rollback de vaga preenchida.
 
----
+### Ciclo de vida do periodo
 
-## Decisões Arquiteturais
+1. Periodo ativo com janela vencida e finalizado ao ser consultado/criar novo.
+2. Fila waitlisted do periodo e cancelada em lote no encerramento.
+3. Historico do tamanho da fila encerrada permanece no periodo.
 
-### Por que MongoDB?
-O modelo de dados tem estrutura variável por perfil (estudante, funcionário, admin possuem campos distintos). O MongoDB permite schemas flexíveis sem migrações complexas.
+### Validade e expiracao de carteirinhas
 
-### Por que dois databases separados?
-Documentos de imagem em base64 podem ter até 2MB cada. Mantê-los em uma coleção separada evita que queries nas coleções principais carreguem esses dados desnecessariamente.
+1. Se licenseValidityMonths mudar, licencas ativas daquele periodo sao ajustadas por delta.
+2. Licencas expiradas sao desativadas em lote (status expired + existing false).
 
-### Por que módulos isolados?
-Cada domínio (Student, Employee, License, Image) é autônomo. Adicionar ou remover um módulo não afeta os demais. Os guards e pipes transversais vivem em `CommonModule` e são aplicados globalmente em `AppModule`.
+## Bootstrap e seguranca de entrada
 
-### Por que audit log?
-Eventos sensíveis (login, logout, registro, verificação de e-mail, emissão de carteirinha) são registrados com dados redatados (hash de e-mail, telefone, código OTP). Permite rastrear atividade suspeita sem expor dados pessoais nos logs.
-
-### Por que sessao server-side?
-Sessoes permitem revogacao imediata e expiracao por TTL sem expor tokens ao browser. O BFF persiste apenas o cookie `sid` e envia `x-session-id` ao backend.
+- Prefixo global /api/v1
+- ValidationPipe global (whitelist, forbidNonWhitelisted, transform)
+- HttpExceptionFilter global
+- Body limit 2MB
+- helmet + CSP + HSTS
+- CORS por ALLOWED_ORIGINS

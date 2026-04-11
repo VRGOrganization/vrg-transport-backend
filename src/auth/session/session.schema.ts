@@ -38,6 +38,9 @@ export class Session {
 
   @Prop({ type: Date, default: null })
   revokedAt!: Date | null;
+
+  @Prop({ default: 0 })
+  version!: number;
 }
 
 export const SessionSchema = SchemaFactory.createForClass(Session);

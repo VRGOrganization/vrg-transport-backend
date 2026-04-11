@@ -28,11 +28,31 @@ Ajuste as variáveis conforme necessário:
 NODE_ENV=production
 PORT=3000
 
-MONGODB_USER=admin
-MONGODB_PASSWORD=root
-MONGODB_DATABASE=vrg_transport
-MONGODB_PORT=27017
+SERVICE_SECRET=<segredo_compartilhado_bff_backend>
+SESSION_TTL_STUDENT_DAYS=3
+SESSION_TTL_STAFF_DAYS=1
+
+MONGODB_URI=mongodb://127.0.0.1:27017/transport-api
+MONGODB_URI_IMAGE=mongodb://127.0.0.1:27017/transport-images
+
+ALLOWED_ORIGINS=http://localhost:3001,http://localhost:3002
 ```
+
+### Sessão por Perfil
+
+O backend suporta TTL de sessão por perfil:
+
+- `SESSION_TTL_STUDENT_DAYS`: duração da sessão de aluno.
+- `SESSION_TTL_STAFF_DAYS`: duração da sessão de funcionário e admin.
+
+Compatibilidade legado:
+
+- `SESSION_TTL_DAYS` ainda funciona como fallback único quando as novas chaves não forem informadas.
+
+Fluxo recomendado:
+
+- Aluno: `SESSION_TTL_STUDENT_DAYS=3`
+- Funcionário/Admin: `SESSION_TTL_STAFF_DAYS=1`
 
 ## Como Rodar
 

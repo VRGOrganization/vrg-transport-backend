@@ -20,6 +20,9 @@ export class License {
   @Prop({ required: true })
   employeeId: string;
 
+  @Prop({ type: String, default: null })
+  enrollmentPeriodId: string | null;
+
   @Prop({ required: true })
   imageLicense: string;
 
@@ -40,6 +43,9 @@ export class License {
   verificationCode: string;
 
   @Prop({ type: String, default: null })
+  qrCodeUrl: string | null;
+
+  @Prop({ type: String, default: null })
   rejectionReason: string | null;
 
   @Prop({ type: Date, default: null })
@@ -49,3 +55,4 @@ export class License {
 export const LicenseSchema = SchemaFactory.createForClass(License);
 
 LicenseSchema.index({ studentId: 1 });
+LicenseSchema.index({ enrollmentPeriodId: 1 });

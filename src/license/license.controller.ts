@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Controller,
   Get,
   Post,
@@ -13,7 +12,6 @@ import {
   HttpStatus,
   MessageEvent,
   Req,
-  Inject,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { Observable } from 'rxjs';
@@ -31,22 +29,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { LICENSE_REQUEST_REPOSITORY } from '../license-request/interfaces/repository.interface';
-import type { ILicenseRequestRepository } from '../license-request/interfaces/repository.interface';
-import {
-  LicenseRequest,
-  LicenseRequestStatus,
-} from '../license-request/schemas/license-request.schema';
 
 @ApiTags('Licenses')
 @Controller('license')
 @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
 export class LicenseController {
-  constructor(
-    private readonly licenseService: LicenseService,
-    @Inject(LICENSE_REQUEST_REPOSITORY)
-    private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
-  ) {}
+  constructor(private readonly licenseService: LicenseService) {}
 
   @Post('/events/token')
   @Roles(UserRole.STUDENT)
@@ -108,19 +96,6 @@ export class LicenseController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
   async create(@Body() dto: CreateLicenseDto, @Req() req: Request) {
-    const requests = await this.licenseRequestRepository.findByStudentId(
-      dto.id,
-    );
-    const hasApprovedRequest = requests.some(
-      (request) => request.status === LicenseRequestStatus.APPROVED,
-    );
-
-    if (!hasApprovedRequest) {
-      throw new BadRequestException(
-        'Não é possível criar uma carteirinha sem uma solicitação aprovada.',
-      );
-    }
-
     return this.licenseService.create(dto, req.sessionPayload!.userId);
   }
 

@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadGatewayException,
+  BadRequestException,
   Logger,
   GatewayTimeoutException,
   MessageEvent,
@@ -11,6 +12,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { Observable, Subject } from 'rxjs';
+import { isUUID } from 'class-validator';
 import type { ILicenseRepository } from './interfaces/repository.interface';
 import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
 import { CreateLicenseDto } from './dto/create-license.dto';
@@ -20,6 +22,12 @@ import { StudentService } from '../student/student.service';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { AUTH_ERROR_MESSAGES } from '../auth/constants/auth.constants';
 import { MailService } from '../mail/mail.service';
+import { LICENSE_REQUEST_REPOSITORY } from '../license-request/interfaces/repository.interface';
+import type { ILicenseRequestRepository } from '../license-request/interfaces/repository.interface';
+import {
+  LicenseRequest,
+  LicenseRequestStatus,
+} from '../license-request/schemas/license-request.schema';
 
 type SseTicketEntry = {
   studentId: string;
@@ -30,16 +38,22 @@ type SseTicketEntry = {
 @Injectable()
 export class LicenseService {
   private readonly logger = new Logger(LicenseService.name);
+  private readonly MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB 
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private readonly qrCodeBaseUrl: string;
   private readonly studentStreams = new Map<string, Subject<MessageEvent>>();
+  private readonly streamLastActivity = new Map<string, number>();
+  private readonly STREAM_TTL_MS = 5 * 60 * 1000;
+  private readonly CLEANUP_INTERVAL_MS = 60 * 1000;
   private readonly sseTickets = new Map<string, SseTicketEntry>();
   private readonly sseTicketTtlMs = 60_000;
 
   constructor(
     @Inject(LICENSE_REPOSITORY)
     private readonly licenseRepository: ILicenseRepository<License>,
+    @Inject(LICENSE_REQUEST_REPOSITORY)
+    private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
     private readonly studentService: StudentService,
     private readonly configService: ConfigService,
     private readonly auditLog: AuditLogService,
@@ -48,6 +62,11 @@ export class LicenseService {
     this.apiUrl = this.configService.getOrThrow<string>('LICENSE_API_URL');
     this.apiKey = this.configService.getOrThrow<string>('LICENSE_API_KEY');
     this.qrCodeBaseUrl = this.configService.getOrThrow<string>('QR_CODE_BASE_URL');
+    const cleanupTimer = setInterval(
+      () => this.cleanupStaleStreams(),
+      this.CLEANUP_INTERVAL_MS,
+    );
+    cleanupTimer.unref?.();
   }
 
   issueSseTicket(studentId: string): { ticket: string; expiresInMs: number } {
@@ -95,6 +114,7 @@ export class LicenseService {
 
   streamByStudent(studentId: string): Observable<MessageEvent> {
     const stream = this.ensureStream(studentId);
+    this.streamLastActivity.set(studentId, Date.now());
 
     return new Observable<MessageEvent>((subscriber) => {
       const streamSubscription = stream.subscribe(subscriber);
@@ -105,6 +125,7 @@ export class LicenseService {
       });
 
       const heartbeat = setInterval(() => {
+        this.streamLastActivity.set(studentId, Date.now());
         subscriber.next({
           data: JSON.stringify({ type: 'heartbeat', ts: Date.now() }),
         });
@@ -114,9 +135,13 @@ export class LicenseService {
         clearInterval(heartbeat);
         streamSubscription.unsubscribe();
 
-        if (stream.observed === false) {
-          this.studentStreams.delete(studentId);
-        }
+        setTimeout(() => {
+          const lastActivity = this.streamLastActivity.get(studentId);
+          if (!lastActivity || Date.now() - lastActivity > this.STREAM_TTL_MS) {
+            this.studentStreams.delete(studentId);
+            this.streamLastActivity.delete(studentId);
+          }
+        }, this.STREAM_TTL_MS);
       };
     });
   }
@@ -129,13 +154,28 @@ export class LicenseService {
    * @param dto        Dados da licença vindos do client
    * @param employeeId ID extraído da sessão no controller — nunca do body
    */
-  async create(dto: CreateLicenseDto, employeeId: string): Promise<License> {
+  async create(
+    dto: CreateLicenseDto,
+    employeeId: string,
+    licenseValidityMonths = 6,
+    enrollmentPeriodId: string | null = null,
+    skipApprovedRequestValidation = false,
+  ): Promise<License> {
+    if (!skipApprovedRequestValidation) {
+      await this.assertHasApprovedRequest(dto.id);
+    }
+
     const student = await this.studentService.findOneOrFail(dto.id);
 
     const studentId = (student as any)._id.toString();
 
     const verificationCode = randomUUID();
     const qrCodeUrl = `${this.qrCodeBaseUrl}/${verificationCode}`;
+
+    const normalizedPhoto = this.normalizePhotoForLicenseApi(dto.photo);
+    if (normalizedPhoto && normalizedPhoto.length > this.MAX_PHOTO_SIZE_BYTES) {
+      throw new BadRequestException('Foto excede o tamanho máximo permitido de 5MB');
+    }
 
     const payload = {
       id: studentId,
@@ -147,7 +187,7 @@ export class LicenseService {
       telephone: student.telephone,
       blood_type: student.bloodType,
       bus: dto.bus,
-      photo: this.normalizePhotoForLicenseApi(dto.photo),
+      photo: normalizedPhoto,
       qr_code_url: qrCodeUrl,
     }
 
@@ -162,11 +202,13 @@ export class LicenseService {
     const created = await this.licenseRepository.create({
       studentId,
       employeeId,
+      enrollmentPeriodId,
       imageLicense: data.image,
       status: LicenseStatus.ACTIVE,
       existing: true,
-      expirationDate: addMonthsBR(nowInBR(), 7),
+      expirationDate: addMonthsBR(nowInBR(), licenseValidityMonths),
       verificationCode,
+      qrCodeUrl,
     });
 
     this.emitLicenseEvent(studentId, {
@@ -175,6 +217,69 @@ export class LicenseService {
     });
 
     return created;
+  }
+
+  async syncValidityMonthsForEnrollmentPeriod(
+    enrollmentPeriodId: string,
+    oldMonths: number,
+    newMonths: number,
+  ): Promise<number> {
+    const deltaMonths = newMonths - oldMonths;
+    if (deltaMonths === 0) {
+      return 0;
+    }
+
+    const licenses = await this.licenseRepository.findByEnrollmentPeriodId(
+      enrollmentPeriodId,
+    );
+
+    const activeExistingLicenses = licenses.filter(
+      (license) => license.existing && license.status === LicenseStatus.ACTIVE,
+    );
+
+    let updatedCount = 0;
+    for (const license of activeExistingLicenses) {
+      const id = (license as any)._id?.toString?.();
+      if (!id) {
+        continue;
+      }
+
+      const updatedExpiration = addMonthsBR(
+        new Date(license.expirationDate),
+        deltaMonths,
+      );
+
+      const now = nowInBR();
+      const isExpiredAfterAdjust = updatedExpiration.getTime() < now.getTime();
+
+      await this.licenseRepository.update(id, {
+        expirationDate: updatedExpiration,
+        status: isExpiredAfterAdjust ? LicenseStatus.EXPIRED : LicenseStatus.ACTIVE,
+        existing: !isExpiredAfterAdjust,
+      });
+      updatedCount += 1;
+    }
+
+    return updatedCount;
+  }
+
+  async deactivateExpiredLicenses(): Promise<number> {
+    return this.licenseRepository.deactivateExpiredActive(nowInBR());
+  }
+
+  private async assertHasApprovedRequest(studentId: string): Promise<void> {
+    const requests = await this.licenseRequestRepository.findByStudentId(
+      studentId,
+    );
+    const hasApprovedRequest = requests.some(
+      (request) => request.status === LicenseRequestStatus.APPROVED,
+    );
+
+    if (!hasApprovedRequest) {
+      throw new BadRequestException(
+        'Não é possível criar uma carteirinha sem uma solicitação aprovada.',
+      );
+    }
   }
 
   async getLicenseByStudentId(studentId: string): Promise<License> {
@@ -252,8 +357,12 @@ export class LicenseService {
     return updated;
   }
 
-  async verifyByCode(code: string): Promise<{ exists: boolean; valid?: boolean; status?: LicenseStatus }> {
-    const license = await this.licenseRepository.findOneByVerificationCode(code);
+  async verifyByCode(rawCode: string): Promise<{ exists: boolean; valid?: boolean; status?: LicenseStatus }> {
+    if (!isUUID(rawCode, '4')) {
+      return { exists: false };
+    }
+
+    const license = await this.licenseRepository.findOneByVerificationCode(rawCode);
     if (!license || !license.existing) {
       return { exists: false };
     }
@@ -296,6 +405,7 @@ export class LicenseService {
     studentId: string,
     dto: { institution: string; bus: string; photo?: string },
     employeeId: string,
+    licenseValidityMonths = 6,
   ): Promise<License> {
     const existing = await this.licenseRepository.findOneByStudentId(studentId);
     if (!existing) {
@@ -307,6 +417,11 @@ export class LicenseService {
     const verificationCode = randomUUID();
     const qrCodeUrl = `${this.qrCodeBaseUrl}/${verificationCode}`;
 
+    const normalizedPhoto = this.normalizePhotoForLicenseApi(dto.photo);
+    if (normalizedPhoto && normalizedPhoto.length > this.MAX_PHOTO_SIZE_BYTES) {
+      throw new BadRequestException('Foto excede o tamanho máximo permitido de 5MB');
+    }
+
     const payload = {
       id: studentId,
       employee_id: employeeId,
@@ -317,7 +432,7 @@ export class LicenseService {
       telephone: student.telephone,
       blood_type: student.bloodType,
       bus: dto.bus,
-      photo: this.normalizePhotoForLicenseApi(dto.photo),
+      photo: normalizedPhoto,
       qr_code_url: qrCodeUrl,
     };
 
@@ -329,8 +444,9 @@ export class LicenseService {
       imageLicense: data.image,
       status: LicenseStatus.ACTIVE,
       existing: true,
-      expirationDate: addMonthsBR(nowInBR(), 7),
+      expirationDate: addMonthsBR(nowInBR(), licenseValidityMonths),
       verificationCode,
+      qrCodeUrl,
       rejectionReason: null,
       rejectedAt: null,
     });
@@ -363,9 +479,17 @@ export class LicenseService {
     return created;
   }
 
-  private emitLicenseEvent(
+  emitLicenseEvent(
     studentId: string,
-    payload: { type: 'license.changed'; reason: 'created' | 'updated' | 'removed' | 'rejected' },
+    payload: {
+      type: 'license.changed';
+      reason:
+        | 'created'
+        | 'updated'
+        | 'removed'
+        | 'rejected'
+        | 'waitlist_promoted';
+    },
   ): void {
     const stream = this.studentStreams.get(studentId);
     if (!stream) return;
@@ -377,6 +501,23 @@ export class LicenseService {
         ts: Date.now(),
       }),
     });
+
+    this.streamLastActivity.set(studentId, Date.now());
+  }
+
+  private cleanupStaleStreams(): void {
+    const now = Date.now();
+
+    for (const [studentId, lastActivity] of this.streamLastActivity.entries()) {
+      if (now - lastActivity > this.STREAM_TTL_MS) {
+        const stream = this.studentStreams.get(studentId);
+        if (stream && !stream.observed) {
+          stream.complete();
+          this.studentStreams.delete(studentId);
+          this.streamLastActivity.delete(studentId);
+        }
+      }
+    }
   }
 
 

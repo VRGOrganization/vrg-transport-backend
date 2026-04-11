@@ -42,6 +42,65 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
       .exec() as Promise<LicenseRequest | null>;
   }
 
+  async findWaitlistedByEnrollmentPeriod(
+    enrollmentPeriodId: string,
+  ): Promise<LicenseRequest[]> {
+    return this.model
+      .find({
+        enrollmentPeriodId,
+        status: LicenseRequestStatus.WAITLISTED,
+      })
+      .sort({ createdAt: 1 })
+      .lean()
+      .exec() as Promise<LicenseRequest[]>;
+  }
+
+  async promoteWaitlistedForPeriod(
+    id: string,
+    enrollmentPeriodId: string,
+  ): Promise<LicenseRequest | null> {
+    return this.model
+      .findOneAndUpdate(
+        {
+          _id: id,
+          enrollmentPeriodId,
+          status: LicenseRequestStatus.WAITLISTED,
+        },
+        {
+          $set: {
+            status: LicenseRequestStatus.PENDING,
+            filaPosition: null,
+          },
+        },
+        { returnDocument: 'after' },
+      )
+      .lean()
+      .exec() as Promise<LicenseRequest | null>;
+  }
+
+  async cancelWaitlistedByEnrollmentPeriod(
+    enrollmentPeriodId: string,
+    cancellationReason: string,
+  ): Promise<number> {
+    const result = await this.model
+      .updateMany(
+        {
+          enrollmentPeriodId,
+          status: LicenseRequestStatus.WAITLISTED,
+        },
+        {
+          $set: {
+            status: LicenseRequestStatus.CANCELLED,
+            cancellationReason,
+            filaPosition: null,
+          },
+        },
+      )
+      .exec();
+
+    return result.modifiedCount ?? 0;
+  }
+
   async findAll(): Promise<LicenseRequest[]> {
     return this.model.find().sort({ createdAt: -1 }).lean().exec() as Promise<
       LicenseRequest[]
@@ -63,7 +122,7 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
     data: Partial<LicenseRequest>,
   ): Promise<LicenseRequest | null> {
     return this.model
-      .findByIdAndUpdate(id, { $set: data }, { new: true })
+      .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after' })
       .lean()
       .exec() as Promise<LicenseRequest | null>;
   }

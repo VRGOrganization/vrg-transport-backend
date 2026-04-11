@@ -5,7 +5,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { createHmac } from 'crypto';
 
 import { AuthService } from '../auth.service';
 import { StudentService } from '../../student/student.service';
@@ -192,14 +191,13 @@ describe('AuthService (Fase 2 - Session First)', () => {
     const dto = { email: 'aluno@test.com', code: '123456' };
 
     it('deve verificar, ativar e criar sessão', async () => {
-      const codeHash = createHmac('sha256', 'test-pepper')
-        .update('123456')
-        .digest('hex');
+      const salt = 'salt-test-123';
+      const storedHash = await bcrypt.hash(`${dto.code}${salt}`, 10);
 
       mockStudentService.findByEmailWithSensitiveFields.mockResolvedValue(
         makeStudent({
           status: StudentStatus.PENDING,
-          verificationCode: codeHash,
+          verificationCode: `${salt}:${storedHash}`,
           verificationCodeExpiresAt: new Date(Date.now() + 60_000),
         }),
       );

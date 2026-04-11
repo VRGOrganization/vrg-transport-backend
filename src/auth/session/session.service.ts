@@ -10,15 +10,23 @@ import type {
 
 @Injectable()
 export class SessionService {
-  private readonly sessionTtlMs: number;
+  private readonly studentSessionTtlMs: number;
+  private readonly staffSessionTtlMs: number;
 
   constructor(
     @Inject(SESSION_STORE) private readonly store: ISessionStore,
     private readonly config: ConfigService,
   ) {
-    // SESSION_TTL_DAYS padrão: 7 dias — mesmo tempo do refresh token atual
-    const days = this.config.get<number>('SESSION_TTL_DAYS') ?? 7;
-    this.sessionTtlMs = days * 24 * 60 * 60 * 1000;
+    const legacyDays = this.config.get<number>('SESSION_TTL_DAYS');
+    const studentDays = this.config.get<number>('SESSION_TTL_STUDENT_DAYS') ?? legacyDays ?? 7;
+    const staffDays = this.config.get<number>('SESSION_TTL_STAFF_DAYS') ?? legacyDays ?? 7;
+
+    this.studentSessionTtlMs = studentDays * 24 * 60 * 60 * 1000;
+    this.staffSessionTtlMs = staffDays * 24 * 60 * 60 * 1000;
+  }
+
+  private getSessionTtlMs(userType: UserType): number {
+    return userType === 'student' ? this.studentSessionTtlMs : this.staffSessionTtlMs;
   }
 
   /**
@@ -30,7 +38,7 @@ export class SessionService {
     userType: UserType,
     context: { userAgent?: string; ipAddress?: string },
   ): Promise<SessionPayload> {
-    const expiresAt = new Date(Date.now() + this.sessionTtlMs);
+    const expiresAt = new Date(Date.now() + this.getSessionTtlMs(userType));
 
     const dto: CreateSessionDto = {
       userId,

@@ -1,5 +1,4 @@
 import {
-  ForbiddenException,
   Controller,
   Get,
   Post,
@@ -12,25 +11,18 @@ import {
   Req,
   Query,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
 import type { Request } from 'express';
-import { Model } from 'mongoose';
 import { ImagesService } from './image.service';
 import { CreateImageDto, UpdateImageDto, UploadMyDocumentDto } from './dto/image.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
-import { ImageHistory, ImageHistoryDocument } from './schema/image-history.schema';
 
 @ApiTags('Images')
 @Controller('image')
 export class ImagesController {
-  constructor(
-    private readonly imagesService: ImagesService,
-    @InjectModel(ImageHistory.name, 'images')
-    private readonly imageHistoryModel: Model<ImageHistoryDocument>,
-  ) {}
+  constructor(private readonly imagesService: ImagesService) {}
 
   @Post()
   @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
@@ -127,11 +119,7 @@ export class ImagesController {
   findImageHistoryByStudentId(
     @Param('studentId', MongoObjectIdPipe) studentId: string,
   ) {
-    return this.imageHistoryModel
-      .find({ studentId })
-      .sort({ replacedAt: -1 })
-      .lean()
-      .exec();
+    return this.imagesService.findHistoryByStudentId(studentId);
   }
 
   @Get('student/:studentId')
@@ -158,21 +146,13 @@ export class ImagesController {
     @Param('id', MongoObjectIdPipe) id: string,
     @Req() req: Request,
   ) {
-    const image = await this.imagesService.findOne(id);
-
-    if (image.studentId !== req.sessionPayload!.userId) {
-      throw new ForbiddenException('Acesso negado para este documento');
-    }
-
-    return {
-      _id: (image as any)._id,
-      studentId: image.studentId,
-      photoType: image.photoType,
-      active: image.active,
-      photo3x4: image.photo3x4,
-      documentImage: image.documentImage,
-      studentCard: image.studentCard,
-    };
+    return this.imagesService.findMyImageFileById(
+      id,
+      req.sessionPayload!.userId,
+      req.sessionPayload!.userType,
+      req.headers['user-agent'],
+      req.ip,
+    );
   }
 
   @Get(':id')

@@ -47,17 +47,18 @@ export class ServiceSecretGuard implements CanActivate {
   private compareSecrets(a: string, b: string): boolean {
     const aBuffer = Buffer.from(a);
     const bBuffer = Buffer.from(b);
+    const maxLength = Math.max(aBuffer.length, bBuffer.length);
 
-    if (aBuffer.length !== bBuffer.length) {
-      const maxLength = Math.max(aBuffer.length, bBuffer.length);
-      const paddedA = Buffer.alloc(maxLength);
-      const paddedB = Buffer.alloc(maxLength);
-      aBuffer.copy(paddedA);
-      bBuffer.copy(paddedB);
-      timingSafeEqual(paddedA, paddedB);
+    const paddedA = Buffer.alloc(maxLength, 0);
+    const paddedB = Buffer.alloc(maxLength, 0);
+
+    aBuffer.copy(paddedA);
+    bBuffer.copy(paddedB);
+
+    try {
+      return timingSafeEqual(paddedA, paddedB);
+    } catch {
       return false;
     }
-
-    return timingSafeEqual(aBuffer, bBuffer);
   }
 }

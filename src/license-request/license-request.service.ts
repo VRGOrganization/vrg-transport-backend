@@ -1,10 +1,13 @@
 import {
   BadRequestException,
+  forwardRef,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditLogService } from '../common/audit/audit-log.service';
+import { EnrollmentPeriodService } from '../enrollment-period/enrollment-period.service';
 import { LicenseService } from '../license/license.service';
 import { MailService } from '../mail/mail.service';
 import { StudentService } from '../student/student.service';
@@ -26,9 +29,13 @@ type UploadedImageFile = {
 
 @Injectable()
 export class LicenseRequestService {
+  private readonly logger = new Logger(LicenseRequestService.name);
+
   constructor(
     @Inject(LICENSE_REQUEST_REPOSITORY)
     private readonly repository: ILicenseRequestRepository<LicenseRequest>,
+    @Inject(forwardRef(() => EnrollmentPeriodService))
+    private readonly enrollmentPeriodService: EnrollmentPeriodService,
     private readonly studentService: StudentService,
     private readonly licenseService: LicenseService,
     private readonly imagesService: ImagesService,
@@ -36,18 +43,112 @@ export class LicenseRequestService {
     private readonly auditLog: AuditLogService,
   ) {}
 
-  async createRequest(studentId: string): Promise<LicenseRequest> {
+  async assertInitialRequestEligibility(studentId: string): Promise<void> {
     const requests = await this.repository.findByStudentId(studentId);
-    const existingPendingInitial = requests.find(
+    const existingPendingOrWaitlistedInitial = requests.find(
       (request) =>
-        request.status === LicenseRequestStatus.PENDING &&
+        (request.status === LicenseRequestStatus.PENDING ||
+          request.status === LicenseRequestStatus.WAITLISTED) &&
         request.type === 'initial',
     );
 
-    if (existingPendingInitial) {
+    if (existingPendingOrWaitlistedInitial) {
       throw new BadRequestException(
         'Você já possui uma solicitação em andamento. Aguarde a análise antes de enviar uma nova.',
       );
+    }
+
+    const activePeriod = await this.enrollmentPeriodService.getActive();
+
+    if (!activePeriod) {
+      throw new BadRequestException(
+        'Inscrições encerradas. Aguarde a abertura de um novo período.',
+      );
+    }
+
+    this.assertPeriodWindow(activePeriod.startDate, activePeriod.endDate);
+  }
+
+  async createRequest(studentId: string): Promise<LicenseRequest> {
+    const requests = await this.repository.findByStudentId(studentId);
+    const existingPendingOrWaitlistedInitial = requests.find(
+      (request) =>
+        (request.status === LicenseRequestStatus.PENDING ||
+          request.status === LicenseRequestStatus.WAITLISTED) &&
+        request.type === 'initial',
+    );
+
+    if (existingPendingOrWaitlistedInitial) {
+      throw new BadRequestException(
+        'Você já possui uma solicitação em andamento. Aguarde a análise antes de enviar uma nova.',
+      );
+    }
+
+    const activePeriod = await this.enrollmentPeriodService.getActive();
+
+    if (!activePeriod) {
+      throw new BadRequestException(
+        'Inscrições encerradas. Aguarde a abertura de um novo período.',
+      );
+    }
+
+    this.assertPeriodWindow(activePeriod.startDate, activePeriod.endDate);
+
+    const enrollmentPeriodId = (activePeriod as any)._id?.toString?.();
+    if (!enrollmentPeriodId) {
+      throw new BadRequestException('Período de inscrição inválido.');
+    }
+
+    const hasAvailableSlots =
+      activePeriod.filledSlots < activePeriod.totalSlots;
+
+    if (!hasAvailableSlots) {
+      const filaPosition =
+        await this.enrollmentPeriodService.reserveWaitlistPosition(
+          enrollmentPeriodId,
+        );
+
+      const request = await this.repository.create({
+        studentId,
+        type: 'initial',
+        status: LicenseRequestStatus.WAITLISTED,
+        rejectionReason: null,
+        cancellationReason: null,
+        rejectedAt: null,
+        approvedByEmployeeId: null,
+        rejectedByEmployeeId: null,
+        licenseId: null,
+        pendingImages: [],
+        changedDocuments: [],
+        enrollmentPeriodId,
+        filaPosition,
+      });
+
+      try {
+        const student = await this.studentService.findOneOrFail(studentId);
+        await this.mailService.sendWaitlistConfirmation(
+          student.email,
+          student.name,
+          filaPosition,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Falha ao enviar email de confirmacao de fila para ${studentId}: ${(error as Error)?.message}`,
+        );
+      }
+
+      await this.auditLog.record({
+        action: 'license_request.waitlisted',
+        outcome: 'success',
+        target: { studentId, enrollmentPeriodId },
+        metadata: { filaPosition },
+      });
+
+      return {
+        ...(request as any),
+        waitlisted: true,
+        filaPosition,
+      };
     }
 
     const request = await this.repository.create({
@@ -62,15 +163,69 @@ export class LicenseRequestService {
       licenseId: null,
       pendingImages: [],
       changedDocuments: [],
+      enrollmentPeriodId,
+      filaPosition: null,
     });
 
     await this.auditLog.record({
       action: 'license_request.create',
       outcome: 'success',
-      target: { studentId },
+      target: { studentId, enrollmentPeriodId },
     });
 
-    return request;
+    return {
+      ...(request as any),
+      waitlisted: false,
+    };
+  }
+
+  async submitDocumentUpdateRequest(
+    studentId: string,
+    changedDocumentsRaw: string,
+    files: {
+      ProfilePhoto?: UploadedImageFile[];
+      EnrollmentProof?: UploadedImageFile[];
+      CourseSchedule?: UploadedImageFile[];
+    },
+  ): Promise<LicenseRequest> {
+    const existingDocuments = await this.imagesService.findByStudentId(studentId);
+
+    if (existingDocuments.length === 0) {
+      throw new BadRequestException(
+        'Você precisa enviar seus documentos pela primeira vez antes de solicitar alterações.',
+      );
+    }
+
+    const changedDocuments = this.parseChangedDocuments(changedDocumentsRaw);
+
+    const profileFile = files?.ProfilePhoto?.[0];
+    const enrollmentFile = files?.EnrollmentProof?.[0];
+    const scheduleFile = files?.CourseSchedule?.[0];
+
+    const fileByType: Partial<Record<PhotoType, UploadedImageFile | undefined>> = {
+      [PhotoType.ProfilePhoto]: profileFile,
+      [PhotoType.EnrollmentProof]: enrollmentFile,
+      [PhotoType.CourseSchedule]: scheduleFile,
+    };
+
+    const pendingImages: Partial<Record<PhotoType, string>> = {};
+
+    for (const photoType of changedDocuments) {
+      const file = fileByType[photoType];
+      if (!file) {
+        throw new BadRequestException(
+          `Arquivo não enviado para o tipo ${photoType}`,
+        );
+      }
+
+      pendingImages[photoType] = this.toDataUrl(file);
+    }
+
+    return this.cancelAndReplaceWithUpdate(
+      studentId,
+      changedDocuments,
+      pendingImages,
+    );
   }
 
   async cancelAndReplaceWithUpdate(
@@ -149,61 +304,86 @@ export class LicenseRequestService {
       throw new BadRequestException('Solicitação não está pendente');
     }
 
-    let license: { _id: { toString(): string } };
+    let validityMonths = 6;
+    let reservedPeriodId: string | null = null;
 
-    if (request.type === 'update') {
-      const changedDocuments = request.changedDocuments ?? [];
-      const images = await this.imagesService.findByStudentId(request.studentId);
-      const pendingMap = Object.fromEntries(
-        (request.pendingImages ?? []).map((p) => [p.photoType, p.dataUrl]),
+    if (request.type === 'initial' && request.enrollmentPeriodId) {
+      const period = await this.enrollmentPeriodService.findById(
+        request.enrollmentPeriodId,
       );
+      validityMonths = period?.licenseValidityMonths ?? 6;
 
-      for (const photoType of changedDocuments) {
-        const image = images.find((item) => item.photoType === photoType);
-        if (!image) {
-          throw new NotFoundException(
-            `Imagem do tipo ${photoType} não encontrada para arquivamento`,
+      await this.enrollmentPeriodService.incrementFilled(
+        request.enrollmentPeriodId,
+      );
+      reservedPeriodId = request.enrollmentPeriodId;
+    }
+
+    let license: { _id: { toString(): string } };
+    try {
+      if (request.type === 'update') {
+        const changedDocuments = request.changedDocuments ?? [];
+        const images = await this.imagesService.findByStudentId(request.studentId);
+        const pendingMap = Object.fromEntries(
+          (request.pendingImages ?? []).map((p) => [p.photoType, p.dataUrl]),
+        );
+
+        for (const photoType of changedDocuments) {
+          const image = images.find((item) => item.photoType === photoType);
+          if (!image) {
+            throw new NotFoundException(
+              `Imagem do tipo ${photoType} não encontrada para arquivamento`,
+            );
+          }
+
+          const imageId = (image as any)._id.toString();
+          await this.imagesService.archiveToHistory(imageId);
+        }
+
+        const updatedLicense = await this.licenseService.regenerateExistingForStudent(
+          request.studentId,
+          {
+            institution: dto.institution,
+            bus: dto.bus,
+            photo: dto.photo,
+          },
+          employeeId,
+          validityMonths,
+        );
+
+        for (const photoType of changedDocuments) {
+          const pendingDataUrl = pendingMap[photoType];
+          if (!pendingDataUrl) continue;
+
+          await this.studentService.createOrUpdateImage(
+            request.studentId,
+            photoType,
+            this.dataUrlToUploadedFile(pendingDataUrl, photoType),
           );
         }
 
-        const imageId = (image as any)._id.toString();
-        await this.imagesService.archiveToHistory(imageId);
-      }
-
-      const updatedLicense = await this.licenseService.regenerateExistingForStudent(
-        request.studentId,
-        {
-          institution: dto.institution,
-          bus: dto.bus,
-          photo: dto.photo,
-        },
-        employeeId,
-      );
-
-      for (const photoType of changedDocuments) {
-        const pendingDataUrl = pendingMap[photoType];
-        if (!pendingDataUrl) continue;
-
-        await this.studentService.createOrUpdateImage(
-          request.studentId,
-          photoType,
-          this.dataUrlToUploadedFile(pendingDataUrl, photoType),
+        license = updatedLicense as any;
+      } else {
+        const createdLicense = await this.licenseService.create(
+          {
+            id: request.studentId,
+            institution: dto.institution,
+            bus: dto.bus,
+            photo: dto.photo,
+          },
+          employeeId,
+          validityMonths,
+          request.enrollmentPeriodId ?? null,
+          true,
         );
+
+        license = createdLicense as any;
       }
-
-      license = updatedLicense as any;
-    } else {
-      const createdLicense = await this.licenseService.create(
-        {
-          id: request.studentId,
-          institution: dto.institution,
-          bus: dto.bus,
-          photo: dto.photo,
-        },
-        employeeId,
-      );
-
-      license = createdLicense as any;
+    } catch (error) {
+      if (reservedPeriodId) {
+        await this.enrollmentPeriodService.decrementFilled(reservedPeriodId);
+      }
+      throw error;
     }
 
     const licenseId = license._id.toString();
@@ -232,6 +412,10 @@ export class LicenseRequestService {
       outcome: 'success',
       actor: { id: employeeId, role: 'employee' },
       target: { studentId: request.studentId, requestId },
+      metadata: {
+        enrollmentPeriodId: request.enrollmentPeriodId,
+        validityMonths,
+      },
     });
 
     return updated!;
@@ -293,6 +477,48 @@ export class LicenseRequestService {
   async findMyLatest(studentId: string): Promise<LicenseRequest | null> {
     const requests = await this.repository.findByStudentId(studentId);
     return requests[0] ?? null;
+  }
+
+  private assertPeriodWindow(startDateRaw: Date, endDateRaw: Date): void {
+    const now = new Date();
+    const startDate = new Date(startDateRaw);
+    const endDate = new Date(endDateRaw);
+
+    if (now < startDate) {
+      throw new BadRequestException('O período de inscrições ainda não começou.');
+    }
+
+    if (now > endDate) {
+      throw new BadRequestException('O período de inscrições foi encerrado.');
+    }
+  }
+
+  private parseChangedDocuments(changedDocumentsRaw: string): PhotoType[] {
+    try {
+      const parsed = JSON.parse(changedDocumentsRaw);
+      if (!Array.isArray(parsed)) {
+        throw new BadRequestException('changedDocuments deve ser um array JSON');
+      }
+
+      const allowed = new Set(Object.values(PhotoType));
+      const invalid = parsed.filter((item) => !allowed.has(item));
+
+      if (invalid.length > 0) {
+        throw new BadRequestException('changedDocuments contém photoTypes inválidos');
+      }
+
+      return parsed as PhotoType[];
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException('changedDocuments deve ser um JSON válido');
+    }
+  }
+
+  private toDataUrl(file: UploadedImageFile): string {
+    return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
   }
 
   private dataUrlToUploadedFile(

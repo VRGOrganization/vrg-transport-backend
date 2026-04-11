@@ -6,7 +6,6 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { time } from 'console';
 import { Request, Response } from 'express';
 
 // Este filter substitui os try/catch repetidos em cada controller.
@@ -22,6 +21,12 @@ import { Request, Response } from 'express';
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
+  private readonly sensitivePatterns = [
+    /(password|secret|token|key|api[_-]?key)["']?\s*[:=]\s*["']?[^"'\s]{8,}/gi,
+    /(mongodb:\/\/|postgres:\/\/|mysql:\/\/)[^@\s]+@/gi,
+    /[a-z0-9_-]*@[a-z0-9.-]+\.[a-z]{2,}/gi,
+    /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g,
+  ];
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -41,9 +46,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
           : 'Internal server error';
 
     if (status >= 500) {
+      const rawStack = exception instanceof Error ? exception.stack : String(exception);
       this.logger.error(
         `[${request.method}] ${request.url} → ${status}`,
-        exception instanceof Error ? exception.stack : String(exception),
+        this.sanitizeStackTrace(rawStack ?? ''),
       );
     } else {
       this.logger.warn(`[${request.method}] ${request.url} → ${status}: ${message}`);
@@ -81,5 +87,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     return exception.message;
+  }
+
+  private sanitizeStackTrace(stack: string): string {
+    let sanitized = stack;
+
+    for (const pattern of this.sensitivePatterns) {
+      sanitized = sanitized.replace(pattern, '[REDACTED]');
+    }
+
+    return sanitized;
   }
 }
