@@ -26,13 +26,13 @@ export class Student {
   @Prop({ required: false, trim: true })
   degree: string;
 
-  @Prop({ required: false, trim: true, enum: Object.values(Shift) })
+  @Prop({ type: String, required: false, trim: true, enum: Object.values(Shift) })
   shift: Shift;
 
   @Prop({ required: true, trim: true })
   telephone: string;
 
-  @Prop({ required: false, trim: true, enum: Object.values(BloodType) })
+  @Prop({ type: String, required: false, trim: true, enum: Object.values(BloodType) })
   bloodType: BloodType;
 
   @Prop({ required: false, trim: true })
@@ -72,12 +72,6 @@ export class Student {
   @Prop({ type: Date, default: null, select: false })
   verificationCodeLastSentAt: Date | null;
 
-  @Prop({ type: String, default: null, select: false })
-  refreshTokenHash: string | null;
-
-  @Prop({ type: Number, default: 0, select: false })
-  refreshTokenVersion: number;
-
   @Prop({ default: true })
   active: boolean;
 }
@@ -96,8 +90,6 @@ StudentSchema.set('toJSON', {
     delete ret.verificationCodeAttempts;
     delete ret.verificationCodeLockedUntil;
     delete ret.verificationCodeLastSentAt;
-    delete ret.refreshTokenHash;
-    delete ret.refreshTokenVersion;
     return ret;
   },
 });

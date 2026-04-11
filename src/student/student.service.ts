@@ -18,6 +18,8 @@ import { ImagesService } from '../image/image.service';
 import { PhotoType } from '../image/types/photoType.enum';
 import { CreateImageDto } from '../image/dto/image.dto';
 import { Shift } from '../common/interfaces/student-attributes.enum';
+import { StudentDashboardStats } from './interfaces/student-stats.interface';
+import { StudentStatsVisitor } from './visitor/student-stats.visitor';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -39,6 +41,13 @@ export class StudentService {
 
   async findAll(): Promise<Student[]> {
     return this.studentRepository.findAll();
+  }
+
+  async findAllPaginated(
+    page: number,
+    limit: number,
+  ): Promise<{ data: Student[]; total: number; page: number; limit: number }> {
+    return this.studentRepository.findAllPaginated(page, limit);
   }
 
   async findById(id: string): Promise<Student | null> {
@@ -73,8 +82,6 @@ export class StudentService {
     delete allowedFields['photo'];
     delete allowedFields['status'];
     delete allowedFields['password'];
-    delete allowedFields['refreshTokenHash'];
-    delete allowedFields['refreshTokenVersion'];
     delete allowedFields['verificationCode'];
     delete allowedFields['verificationCodeExpiresAt'];
     delete allowedFields['verificationCodeAttempts'];
@@ -184,12 +191,60 @@ export class StudentService {
     return student;
   }
 
-  private async createOrUpdateImage(
+  async updateProfilePhoto(
+    studentId: string,
+    file: UploadedImageFile,
+  ): Promise<{ message: string; photo: string | null }> {
+    await this.findOneOrFail(studentId);
+    await this.createOrUpdateImage(studentId, PhotoType.ProfilePhoto, file);
+
+    await this.auditLog.record({
+      action: 'student.update_profile_photo',
+      outcome: 'success',
+      target: { studentId },
+    });
+
+    const photo = await this.getProfilePhotoOrNull(studentId);
+    return { message: 'Foto de perfil atualizada com sucesso', photo };
+  }
+
+  async removeProfilePhoto(studentId: string): Promise<{ message: string }> {
+    await this.findOneOrFail(studentId);
+
+    const profilePhoto = await this.imagesService.findProfilePhoto(studentId);
+    const imageId = (
+      profilePhoto as unknown as { _id: { toString(): string } }
+    )._id.toString();
+
+    await this.imagesService.remove(imageId);
+
+    await this.auditLog.record({
+      action: 'student.remove_profile_photo',
+      outcome: 'success',
+      target: { studentId },
+    });
+
+    return { message: 'Foto de perfil removida com sucesso' };
+  }
+
+  async getProfilePhotoOrNull(studentId: string): Promise<string | null> {
+    try {
+      const profilePhoto = await this.imagesService.findProfilePhoto(studentId);
+      return (
+        (profilePhoto as unknown as { photo3x4?: string | null }).photo3x4 ??
+        null
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async createOrUpdateImage(
     studentId: string,
     photoType: PhotoType,
     file: UploadedImageFile,
   ): Promise<void> {
-    const dataUrl = this.toDocumentDataUrl(file, photoType);
+    const dataUrl = await this.toDocumentDataUrl(file, photoType);
     const allImages = await this.imagesService.findByStudentId(studentId);
     const existing = allImages.find((image) => image.photoType === photoType);
 
@@ -220,20 +275,25 @@ export class StudentService {
     });
   }
 
-  private toDocumentDataUrl(
+  private async toDocumentDataUrl(
     file: UploadedImageFile,
     photoType: PhotoType,
-  ): string {
+  ): Promise<string> {
     const mimeType = file.mimetype?.toLowerCase() ?? '';
+    const { fileTypeFromBuffer } = await import('file-type');
+    const detected = await fileTypeFromBuffer(file.buffer);
+    const detectedMimeType = detected?.mime?.toLowerCase() ?? '';
+    const allowedImageMimeTypes = ['image/jpeg', 'image/png'];
 
     const acceptsPdf =
       photoType === PhotoType.EnrollmentProof ||
       photoType === PhotoType.CourseSchedule;
 
-    if (
-      !mimeType.startsWith('image/') &&
-      !(acceptsPdf && mimeType === 'application/pdf')
-    ) {
+    const isAllowedImage = allowedImageMimeTypes.includes(detectedMimeType);
+    
+    const isAllowedPdf = acceptsPdf && detectedMimeType === 'application/pdf';
+
+    if (!isAllowedImage && !isAllowedPdf) {
       const message = acceptsPdf
         ? 'Arquivo inválido: envie imagem ou PDF para este documento'
         : 'Arquivo inválido: a foto 3x4 deve ser uma imagem';
@@ -242,7 +302,8 @@ export class StudentService {
     }
 
     const base64 = file.buffer.toString('base64');
-    return `data:${mimeType};base64,${base64}`;
+    const outputMimeType = isAllowedPdf ? 'application/pdf' : (detectedMimeType || mimeType);
+    return `data:${outputMimeType};base64,${base64}`;
   }
 
   private inferShiftFromSchedule(
@@ -300,25 +361,6 @@ export class StudentService {
     });
   }
 
-  async updateRefreshToken(
-    id: string,
-    hash: string,
-    version: number,
-  ): Promise<void> {
-    await this.studentRepository.update(id, {
-      refreshTokenHash: hash,
-      refreshTokenVersion: version,
-    });
-  }
-
-  async clearRefreshToken(id: string): Promise<void> {
-    await this.studentRepository.update(id, {
-      refreshTokenHash: null,
-      // Incrementa a versão mesmo no logout — invalida qualquer token em trânsito
-      refreshTokenVersion: Date.now(), // valor arbitrariamente alto, nunca vai bater
-    });
-  }
-
   async remove(id: string): Promise<{ message: string }> {
     const result = await this.studentRepository.remove(id);
     if (!result) throw new NotFoundException(`Student ${id} não encontrado`);
@@ -330,5 +372,15 @@ export class StudentService {
     });
 
     return { message: 'Student removido com sucesso' };
+  }
+  async getDashboardStats(): Promise<StudentDashboardStats> {
+    const students = await this.studentRepository.findAll(); // já filtra active: true
+
+    const visitor = new StudentStatsVisitor();
+    for (const student of students) {
+      visitor.visit(student);
+    }
+
+    return visitor.getResult();
   }
 }

@@ -1,189 +1,51 @@
 # Contribuindo
 
-## Pré-requisitos
+## Pre-requisitos
 
-- Node.js >= 22
-- npm >= 10
-- MongoDB local ou Atlas
-- Leia [getting-started.md](./getting-started.md) antes de começar
+- Node.js 22+
+- npm 10+
+- MongoDB local ou via Docker
 
----
+## Fluxo recomendado
 
-## Nomenclatura de Arquivos e Classes
+1. Crie branch por tema: feat, fix, docs, refactor ou test.
+2. Aplique mudanca pequena e verificavel.
+3. Rode testes afetados e depois suite completa.
+4. Atualize docs na pasta docs quando houver mudanca de contrato/regra.
+5. Abra PR com contexto, impacto e evidencias de teste.
 
-| Artefato | Padrão | Exemplo |
-|---|---|---|
-| Arquivos | `kebab-case` | `student.service.ts` |
-| Classes | `PascalCase` | `StudentService` |
-| Interfaces | `PascalCase` com `I` prefixo | `IStudentRepository` |
-| Enums | `PascalCase` | `UserRole`, `BloodType` |
-| DTOs | `PascalCase` + sufixo `Dto` | `CreateStudentDto`, `UpdateStudentDto` |
-| Schemas Mongoose | `PascalCase` + sufixo `Schema` | `StudentSchema` |
-| Guards | `PascalCase` + sufixo `Guard` | `JwtAuthGuard`, `RolesGuard` |
-| Pipes | `PascalCase` + sufixo `Pipe` | `MongoObjectIdPipe` |
-| Filtros | `PascalCase` + sufixo `Filter` | `HttpExceptionFilter` |
+## Padroes de codigo do projeto
 
----
+- DTO com class-validator.
+- Controller fino, regra no service.
+- Repositorio para acesso a dados.
+- Validacao de ID via MongoObjectIdPipe.
+- Controle de acesso via decorator Roles.
+- Trate concorrencia explicitamente em fluxos criticos.
 
-## Criando um Novo Módulo
+## Scripts uteis
 
-Siga a estrutura dos módulos existentes (Student ou Employee como referência):
-
-```
-src/[modulo]/
-├── [modulo].module.ts
-├── [modulo].controller.ts
-├── [modulo].service.ts
-├── schemas/
-│   └── [modulo].schema.ts
-├── repositories/
-│   ├── [modulo].repository.interface.ts
-│   └── [modulo].repository.ts
-└── dto/
-    ├── create-[modulo].dto.ts
-    └── update-[modulo].dto.ts (geralmente Partial do Create)
-```
-
-**Passos:**
-
-1. Crie a estrutura de arquivos acima
-2. Defina o schema Mongoose com `select: false` em campos sensíveis
-3. Defina a interface do repository com os métodos necessários
-4. Implemente o repository usando Mongoose
-5. Crie os DTOs com decorators de `class-validator`
-6. Implemente o service usando a interface do repository (não a implementação direta)
-7. Implemente o controller com `@UseGuards(JwtAuthGuard, RolesGuard)` e `@Roles(...)` por endpoint
-8. Registre o módulo em `AppModule`
-
-**Regra:** O service nunca importa a implementação concreta do repository — apenas a interface. Injete via token de provider:
-
-```typescript
-// [modulo].module.ts
-providers: [
-  {
-    provide: 'IStudentRepository',
-    useClass: StudentRepository,
-  },
-  StudentService,
-],
-```
-
-```typescript
-// [modulo].service.ts
-constructor(
-  @Inject('IStudentRepository')
-  private readonly studentRepository: IStudentRepository,
-) {}
-```
-
----
-
-## Padrão de DTO
-
-Sempre use `class-validator` e `class-transformer`:
-
-```typescript
-import { IsEmail, IsNotEmpty, MaxLength } from 'class-validator';
-import { Transform } from 'class-transformer';
-
-export class CreateExampleDto {
-  @IsNotEmpty()
-  @MaxLength(100)
-  @Transform(({ value }) => value?.trim())
-  name: string;
-
-  @IsEmail({}, { message: 'E-mail inválido' })
-  @IsNotEmpty()
-  @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
-}
-```
-
-`UpdateExampleDto` deve ser `PartialType(CreateExampleDto)` do `@nestjs/mapped-types`.
-
----
-
-## Executando Testes
-
-```bash
-# Testes unitários
-npm run test
-
-# Testes unitários com watch
-npm run test:watch
-
-# Cobertura
-npm run test:cov
-
-# Testes e2e
+npm run start:dev
+npm run build
+npm run lint
+npm test
 npm run test:e2e
-```
+npm run seed:admin
 
-> Verifique se há configuração de testes em `jest.config.ts` ou `package.json` antes de rodar.
+## Convencao de commit
 
----
-
-## Convenções de Commit
-
-Use [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-<tipo>(<escopo>): <descrição curta em minúsculas>
-
-[corpo opcional]
-
-[rodapé opcional]
-```
-
-| Tipo | Quando usar |
-|---|---|
-| `feat` | Nova funcionalidade |
-| `fix` | Correção de bug |
-| `refactor` | Refatoração sem mudança de comportamento |
-| `test` | Adição ou correção de testes |
-| `docs` | Documentação |
-| `chore` | Tarefas de manutenção (deps, configs) |
-| `perf` | Melhoria de performance |
-| `security` | Correção de vulnerabilidade |
-
-**Exemplos:**
-
-```
-feat(auth): adicionar verificação de e-mail por OTP
-fix(student): corrigir query de busca por status
-docs(auth): documentar fluxo de refresh token
-chore(deps): atualizar NestJS para 11.0.5
-```
-
----
+- feat: nova funcionalidade
+- fix: correcao de bug
+- docs: documentacao
+- refactor: refatoracao sem mudanca funcional
+- test: testes
+- chore: manutencao
 
 ## Checklist de PR
 
-Antes de abrir um Pull Request, verifique:
-
-- [ ] O código segue a estrutura de módulos definida neste guia
-- [ ] Campos sensíveis nos schemas Mongoose têm `select: false`
-- [ ] DTOs usam `class-validator` com mensagens em português
-- [ ] Endpoints novos têm `@UseGuards(JwtAuthGuard, RolesGuard)` e `@Roles(...)` aplicados
-- [ ] Parâmetros `:id` usam `MongoObjectIdPipe`
-- [ ] Rotas públicas têm `@Public()` explicitamente
-- [ ] Não há segredos (passwords, tokens, keys) hardcoded no código
-- [ ] O arquivo `.env` **não** está incluído no commit
-- [ ] Testes unitários foram adicionados ou atualizados
-- [ ] Testes passam localmente (`npm run test`)
-- [ ] O `CHANGELOG` ou PR description descreve a mudança
-- [ ] Se adicionou endpoint novo, a documentação em `docs/api-reference/` foi atualizada
-
----
-
-## Estrutura de Branch
-
-| Padrão | Uso |
-|---|---|
-| `feat/<descricao>` | Nova funcionalidade |
-| `fix/<descricao>` | Correção de bug |
-| `refactor/<descricao>` | Refatoração |
-| `docs/<descricao>` | Documentação |
-| `chore/<descricao>` | Manutenção |
-
-PRs devem ser abertos contra a branch `main` (ou `develop`, se existir).
+- [ ] Regra de negocio validada
+- [ ] Concorrencia revisada (quando aplicavel)
+- [ ] DTO/guard/role revisados
+- [ ] Testes unitarios e e2e executados
+- [ ] Documentacao atualizada
+- [ ] Sem segredo em commit

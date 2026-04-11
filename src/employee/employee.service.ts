@@ -41,8 +41,6 @@ export class EmployeeService {
       email: dto.email,
       registrationId: dto.registrationId,
       password: hashedPassword,
-      refreshTokenHash: null,
-      refreshTokenVersion: 0,
     });
 
     await this.auditLog.record({
@@ -105,22 +103,6 @@ export class EmployeeService {
     });
 
     return employee;
-  }
-
-  
-  async updateRefreshToken(id: string, hash: string, version: number): Promise<void> {
-    await this.employeeRepository.update(id, {
-      refreshTokenHash: hash,
-      refreshTokenVersion: version,
-    } as Partial<Employee>);
-  }
-
-  
-  async clearRefreshToken(id: string): Promise<void> {
-    await this.employeeRepository.update(id, {
-      refreshTokenHash: null,
-      refreshTokenVersion: Date.now(),
-    } as Partial<Employee>);
   }
 
   async deactivate(id: string): Promise<{ message: string }> {

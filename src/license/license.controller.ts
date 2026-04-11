@@ -2,55 +2,88 @@ import {
   Controller,
   Get,
   Post,
+  Sse,
   Patch,
   Delete,
   Body,
+  Query,
   Param,
-  UseGuards,
   HttpCode,
   HttpStatus,
+  MessageEvent,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import { Observable } from 'rxjs';
 import { LicenseService } from './license.service';
-import { CreateLicenseDto } from './dto/create-license.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { CreateLicenseDto, RejectLicenseDto } from './dto/create-license.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
 import {
-  ApiBearerAuth,
   ApiBody,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Licenses')
-@ApiBearerAuth()
 @Controller('license')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
 export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}
+
+  @Post('/events/token')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({
+    summary: 'Emitir ticket efêmero para SSE',
+    description:
+      'Gera ticket de uso único para conexão do stream de eventos de licença.',
+  })
+  @ApiResponse({ status: 200, description: 'Ticket SSE emitido com sucesso.' })
+  issueEventsTicket(@Req() req: Request) {
+    return this.licenseService.issueSseTicket(req.sessionPayload!.userId);
+  }
+
+  @Sse('/events')
+  @Public()
+  @ApiOperation({
+    summary: 'Stream de eventos da licença do aluno (SSE)',
+    description:
+      'Canal SSE por aluno autenticado via ticket efêmero na query string.',
+  })
+  @ApiQuery({
+    name: 'ticket',
+    required: true,
+    description:
+      'Ticket efêmero e de uso único emitido por /license/events/token.',
+  })
+  streamEvents(@Query('ticket') ticket: string): Observable<MessageEvent> {
+    const studentId = this.licenseService.consumeSseTicket(ticket);
+    return this.licenseService.streamByStudent(studentId);
+  }
 
   @Get('/verify/:code')
   @Public()
   @ApiOperation({
     summary: 'Verificar autenticidade de carteirinha',
-    description: 'Rota pública. Valida se uma carteirinha existe e está ativa pelo código de verificação do QR code.',
+    description:
+      'Rota pública. Valida se uma carteirinha existe e está ativa pelo código de verificação do QR code.',
   })
-  @ApiParam({ name: 'code', description: 'Código de verificação (UUID gerado na emissão)' })
+  @ApiParam({
+    name: 'code',
+    description: 'Código de verificação (UUID gerado na emissão)',
+  })
   @ApiResponse({ status: 200, description: 'Resultado da verificação.' })
   async verify(@Param('code') code: string) {
     return this.licenseService.verifyByCode(code);
   }
 
   @Post('/create')
-  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create License',
@@ -62,32 +95,28 @@ export class LicenseController {
   @ApiResponse({ status: 400, description: 'Invalid data.' })
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
-  async create(
-    @Body() dto: CreateLicenseDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.licenseService.create(dto, user.id);
+  async create(@Body() dto: CreateLicenseDto, @Req() req: Request) {
+    return this.licenseService.create(dto, req.sessionPayload!.userId);
   }
 
-  //INVESTIGAR SE VAI NECESSARIO MANTER PROTEGIDO POR ROLE ADMIN
   @Get('/health')
-  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Health check do serviço de licenças',
     description:
-      'Verifica o status do serviço externo de geração de carteirinhas. Exclusivo para ADMIN.',
+      'Verifica o status do serviço externo de geração de carteirinhas. Disponível para ADMIN ou EMPLOYEE.',
   })
   @ApiResponse({ status: 200, description: 'Service is operational.' })
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires ADMIN role).',
+    description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).',
   })
   checkHealth() {
     return this.licenseService.checkHealth();
   }
 
   @Get('/all')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
     summary: 'List all licenses',
     description: 'Returns all registered licenses.',
@@ -103,6 +132,7 @@ export class LicenseController {
   }
 
   @Get('/searchByStudent/:studentId')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
     summary: 'Find license by student ID',
     description: 'Returns the license associated with a specific student.',
@@ -136,11 +166,14 @@ export class LicenseController {
   })
   @ApiResponse({ status: 200, description: 'License data.' })
   @ApiResponse({ status: 404, description: 'License not found.' })
-  async findMine(@CurrentUser() user: AuthenticatedUser) {
-    return this.licenseService.getLicenseByStudentId(user.id);
+  async findMine(@Req() req: Request) {
+    return this.licenseService.getLicenseByStudentId(
+      req.sessionPayload!.userId,
+    );
   }
 
   @Get('/:id')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
     summary: 'Find license by ID',
     description: 'Returns the data of a specific license.',
@@ -162,6 +195,7 @@ export class LicenseController {
   }
 
   @Patch('/update/:id')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
     summary: 'Update license',
     description: 'Updates the data of an existing license.',
@@ -183,9 +217,32 @@ export class LicenseController {
   async update(
     @Param('id', MongoObjectIdPipe) id: string,
     @Body() dto: CreateLicenseDto,
-    @CurrentUser() user: any,
+    @Req() req: Request,
   ) {
-    return this.licenseService.update(id, dto, user.id);
+    return this.licenseService.update(id, dto, req.sessionPayload!.userId);
+  }
+
+  @Patch('/reject/:id')
+  @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Recusar carteirinha',
+    description: 'Marca a licença como recusada e notifica o aluno por email.',
+  })
+  @ApiParam({ name: 'id', description: 'License ID (MongoDB ObjectId)' })
+  @ApiBody({ type: RejectLicenseDto })
+  @ApiResponse({ status: 200, description: 'Licença recusada com sucesso.' })
+  @ApiResponse({ status: 404, description: 'Licença não encontrada.' })
+  async reject(
+    @Param('id', MongoObjectIdPipe) id: string,
+    @Body() dto: RejectLicenseDto,
+    @Req() req: Request,
+  ) {
+    return this.licenseService.reject(
+      id,
+      dto.reason,
+      req.sessionPayload!.userId,
+    );
   }
 
   @Delete('/delete/:id')
@@ -202,7 +259,7 @@ export class LicenseController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).',
+    description: 'Insufficient permissions (requires ADMIN role).',
   })
   @ApiResponse({ status: 404, description: 'License not found.' })
   @Roles(UserRole.ADMIN)

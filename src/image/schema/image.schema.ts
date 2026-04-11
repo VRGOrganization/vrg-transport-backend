@@ -11,6 +11,7 @@ export class Image {
   studentId: string;
 
   @Prop({
+    type: String,
     required: true,
     enum: Object.values(PhotoType),
   })

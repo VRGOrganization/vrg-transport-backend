@@ -1,167 +1,84 @@
 # Getting Started
 
-## Pré-requisitos
+## Pre-requisitos
 
-- **Node.js** >= 22.x
-- **npm** >= 10.x
-- **MongoDB** >= 7.x (local ou Atlas)
-- Duas instâncias ou databases MongoDB: uma para dados principais, outra para imagens
+- Node.js 22+
+- npm 10+
+- MongoDB 7+
+- Docker (opcional)
 
----
+## Instalacao
 
-## Variáveis de Ambiente
+1. Instale dependencias:
 
-Copie `.env.example` para `.env` e preencha os valores. O servidor recusa inicializar se variáveis obrigatórias estiverem ausentes ou com valores inválidos (validação em `src/common/config/security.validation.ts`).
+	npm install
 
-### Servidor
+2. Configure env local:
 
-| Variável | Obrigatória | Padrão | Descrição |
-|---|---|---|---|
-| `NODE_ENV` | Sim | — | `development` ou `production` |
-| `PORT` | Não | `3000` | Porta HTTP da API |
-| `ALLOWED_ORIGINS` | Sim | — | Origens permitidas no CORS, separadas por vírgula. **Não use `*` em produção.** |
-| `TRUST_PROXY_HOPS` | Não | `0` | Número de proxies reversos à frente da API (para rate limiting por IP real) |
+	copie .env.example para .env e ajuste os valores.
 
-### Banco de Dados
+## Variaveis obrigatorias
 
-| Variável | Obrigatória | Descrição |
+| Variavel | Descricao |
+|---|---|
+| SERVICE_SECRET | Segredo compartilhado entre BFF e backend (min 32) |
+| SESSION_TTL_STUDENT_DAYS ou SESSION_TTL_DAYS | TTL de sessao para estudante |
+| SESSION_TTL_STAFF_DAYS ou SESSION_TTL_DAYS | TTL de sessao para staff |
+| ALLOWED_ORIGINS | Lista CSV de origens permitidas |
+| MONGODB_URI | Mongo principal |
+| MONGODB_URI_IMAGE | Mongo de imagens |
+| OTP_PEPPER | Segredo OTP (min 16) |
+| CPF_HMAC_SECRET | Segredo hash de CPF (min 16) |
+| LICENSE_API_URL | URL do emissor externo |
+| LICENSE_API_KEY | Chave do emissor externo |
+| QR_CODE_BASE_URL | URL base de verificacao publica |
+| BREVO_API_KEY | Chave Brevo |
+| MAIL_FROM_ADDRESS | Email remetente |
+
+## Variaveis opcionais relevantes
+
+| Variavel | Padrao | Descricao |
 |---|---|---|
-| `MONGODB_URI` | Sim | URI de conexão MongoDB principal (estudantes, funcionários, licenças, audit) |
-| `MONGODB_URI_IMAGE` | Sim | URI de conexão MongoDB para imagens (conexão separada nomeada `images`) |
+| PORT | 3000 | Porta HTTP |
+| NODE_ENV | development | Ambiente |
+| MAIL_FROM_NAME | VRG Transport | Nome remetente |
+| LICENSE_API_TIMEOUT_MS | 5000 | Timeout emissor externo |
+| ENABLE_SWAGGER | false | Swagger em dev/homolog |
+| TRUST_PROXY_HOPS | 1 | Hops de proxy |
 
-### JWT
+## Execucao
 
-| Variável | Obrigatória | Restrições | Descrição |
-|---|---|---|---|
-| `JWT_SECRET` | Sim | Mínimo 32 caracteres | Chave de assinatura dos access tokens |
-| `JWT_EXPIRES_IN` | Sim | — | Tempo de expiração do access token (ex: `15m`, `1h`) |
-| `JWT_REFRESH_SECRET` | Sim | Mínimo 32 caracteres | Chave de assinatura dos refresh tokens |
-| `JWT_REFRESH_EXPIRES_IN` | Sim | — | Tempo de expiração do refresh token (ex: `7d`, `30d`) |
+Desenvolvimento:
 
-### OTP
-
-| Variável | Obrigatória | Restrições | Descrição |
-|---|---|---|---|
-| `OTP_PEPPER` | Sim | Mínimo 16 caracteres | Segredo para HMAC-SHA256 dos códigos de verificação |
-
-### E-mail
-
-| Variável | Obrigatória | Padrão (exemplo) | Descrição |
-|---|---|---|---|
-| `MAIL_HOST` | Sim | `localhost` | Servidor SMTP |
-| `MAIL_PORT` | Sim | `1025` | Porta SMTP |
-| `MAIL_SECURE` | Não | `false` | TLS no SMTP (`true`/`false`) |
-| `MAIL_USER` | Sim | — | Usuário SMTP |
-| `MAIL_PASS` | Sim | — | Senha SMTP |
-| `MAIL_FROM_NAME` | Não | `VRG Transport` | Nome exibido no remetente |
-
-### API de Licenças (serviço externo)
-
-| Variável | Obrigatória | Descrição |
-|---|---|---|
-| `LICENSE_API_URL` | Sim | URL base do serviço externo de geração de carteirinhas |
-| `LICENSE_API_KEY` | Sim | Chave de autenticação do serviço externo |
-| `LICENSE_API_TIMEOUT_MS` | Não | Timeout em ms para chamadas ao serviço (padrão: `5000`) |
-
-### APIs Externas (Sight)
-
-| Variável | Obrigatória | Descrição |
-|---|---|---|
-| `API_USER_SIGHT` | A confirmar | Usuário da API Sight |
-| `API_KEY_SIGHT` | A confirmar | Chave da API Sight |
-
-### Feature Flags
-
-| Variável | Obrigatória | Padrão | Descrição |
-|---|---|---|---|
-| `ENABLE_SWAGGER` | Não | `false` | Habilita o Swagger UI (só funciona com `NODE_ENV=development`) |
-
----
-
-## Instalação
-
-```bash
-# Clonar o repositório
-git clone https://github.com/VRGOrganization/vrg-transport-backend.git
-cd vrg-transport-backend
-
-# Instalar dependências
-npm install
-
-# Configurar ambiente
-cp .env.example .env
-# Edite .env com os valores corretos
-```
-
----
-
-## Executando
-
-### Desenvolvimento
-
-```bash
 npm run start:dev
-```
 
-O NestJS iniciará com hot-reload. Logs de saída incluem a porta e se o Swagger está ativo.
+Build + producao:
 
-### Produção
-
-```bash
 npm run build
 npm run start:prod
-```
 
-### Docker
+Docker:
 
-```bash
-# Subir todos os serviços (API + MongoDB)
 npm run docker:up
-
-# Ver logs
 npm run docker:logs
-
-# Parar
 npm run docker:down
 
-# Reiniciar
-npm run docker:restart
-```
+## Seed de admin
 
----
+npm run seed:admin
 
-## Seed do Administrador
+## Testes
 
-O sistema não expõe endpoint público para criar administradores. O primeiro admin deve ser criado via script:
+npm test
+npm run test:e2e
 
-```bash
-npx ts-node scripts/seed-admin.ts
-```
+## Swagger
 
-O script cria um usuário admin com as credenciais definidas em `ADMIN_SEED_USERNAME` e `ADMIN_SEED_PASSWORD` (ou valores padrão definidos no próprio script — verifique antes de rodar em produção).
+Disponivel quando:
 
----
+- ENABLE_SWAGGER=true
+- NODE_ENV diferente de production
 
-## Acessando o Swagger
+URL padrao:
 
-O Swagger está disponível **apenas em desenvolvimento** com `ENABLE_SWAGGER=true`:
-
-```
 http://localhost:3000/api/docs
-```
-
-Para autenticar no Swagger:
-1. Faça login via `POST /api/v1/auth/student/login` (ou employee/admin)
-2. Copie o `access_token` da resposta
-3. Clique em **Authorize** no Swagger UI
-4. Cole o token no campo `Bearer` (sem o prefixo "Bearer ")
-
----
-
-## Verificando a API
-
-```bash
-# Health check básico (requer autenticação ADMIN)
-curl -H "Authorization: Bearer <token>" \
-  http://localhost:3000/api/v1/license/health
-```

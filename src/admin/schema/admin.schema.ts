@@ -13,13 +13,6 @@ export class Admin {
 
   @Prop({ required: true, select: false })
   password: string;
-
-  @Prop({type: String, default: null, select: false})
-  refreshTokenHash: string | null;
-
-  // Increment this field to invalidate all existing refresh tokens
-  @Prop({ type: Number, default: 0,  select: false })
-  refreshTokenVersion: number;
 }
 
 export const AdminSchema = SchemaFactory.createForClass(Admin);
@@ -27,8 +20,6 @@ export const AdminSchema = SchemaFactory.createForClass(Admin);
 AdminSchema.set('toJSON', {
   transform: (_doc, ret: any) => {
     delete ret.password;
-    delete ret.refreshTokenHash;
-    delete ret.refreshTokenVersion;
     return ret;
   },
 });
