@@ -1,137 +1,96 @@
-# API Reference — Licenses
+# API Reference - Licenses
 
-Base: `/api/v1/license`
+Base: /api/v1/license
 
 ## POST /license/events/token
 
-Emite ticket efêmero para conexão SSE.
+Emite ticket efemero para SSE.
 
-Roles: `STUDENT`
+Role: STUDENT
 
 Resposta:
 
-```json
 {
   "ticket": "uuid",
   "expiresInMs": 60000
 }
-```
 
 ## GET /license/events?ticket=...
 
-Canal SSE público protegido por ticket de uso único.
+Canal SSE publico protegido por ticket de uso unico.
 
-Eventos enviados:
+Eventos:
 
-- `connected`
-- `heartbeat`
-- `license.changed` (`created`, `updated`, `removed`, `rejected`)
+- connected
+- heartbeat
+- license.changed (created, updated, removed, rejected, waitlist_promoted)
 
 ## GET /license/verify/:code
 
-Rota pública para verificar autenticidade da carteirinha.
+Verificacao publica por codigo.
 
-Resposta:
+Resposta tipica:
 
-```json
 {
   "exists": true,
   "valid": true,
   "status": "active"
 }
-```
-
-Se código inválido/inexistente:
-
-```json
-{
-  "exists": false
-}
-```
 
 ## POST /license/create
 
-Emite carteirinha para estudante.
+Emite carteirinha manualmente.
 
-Roles: `ADMIN`
+Role: ADMIN
 
-Pré-condição: estudante precisa ter ao menos uma solicitação `APPROVED` em `license-request`.
+Pre-condicao: estudante com solicitacao approved.
 
-Body:
-
-```json
-{
-  "id": "studentObjectId",
-  "institution": "Universidade Federal Fluminense",
-  "bus": "205",
-  "photo": "data:image/jpeg;base64,..."
-}
-```
-
-Respostas: `201`, `400`, `404`, `502`, `504`
+Respostas: 201, 400, 404, 502, 504
 
 ## GET /license/health
 
-Healthcheck do serviço externo de licença.
+Healthcheck do emissor externo.
 
-Roles: `EMPLOYEE`, `ADMIN`
+Roles: EMPLOYEE, ADMIN
 
 ## GET /license/all
 
-Lista todas as licenças.
+Lista licencas existentes.
 
-Roles: `EMPLOYEE`, `ADMIN`
+Roles: EMPLOYEE, ADMIN
 
 ## GET /license/searchByStudent/:studentId
 
-Busca licença por estudante.
+Busca licenca por estudante.
 
-Roles: `EMPLOYEE`, `ADMIN`
+Roles: EMPLOYEE, ADMIN
 
 ## GET /license/me
 
-Busca licença do estudante autenticado.
+Busca licenca do estudante autenticado.
 
-Roles: `STUDENT`
+Role: STUDENT
 
 ## GET /license/:id
 
-Busca licença por ID.
+Busca licenca por id.
 
-Roles: `EMPLOYEE`, `ADMIN`
+Roles: EMPLOYEE, ADMIN
 
 ## PATCH /license/update/:id
 
-Atualiza licença (gera nova licença e remove a anterior).
+Atualiza licenca (gera nova e desativa anterior).
 
-Roles: `EMPLOYEE`, `ADMIN`
-
-Body: mesmo formato de `POST /license/create`.
+Roles: EMPLOYEE, ADMIN
 
 ## PATCH /license/reject/:id
 
-Marca licença como rejeitada e envia e-mail.
+Marca licenca como rejected e envia notificacao.
 
-Roles: `EMPLOYEE`, `ADMIN`
-
-Body:
-
-```json
-{
-  "reason": "Foto inadequada ou ilegível"
-}
-```
-
-Motivos aceitos:
-
-- Foto inadequada ou ilegível
-- Comprovante de matrícula inválido
-- Grade horária não corresponde aos documentos
-- Documentos ilegíveis ou corrompidos
-- Informações inconsistentes
+Roles: EMPLOYEE, ADMIN
 
 ## DELETE /license/delete/:id
 
-Remove licença.
+Desativa licenca por id (soft delete funcional).
 
-Roles: `ADMIN`
+Role: ADMIN

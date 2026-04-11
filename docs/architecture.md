@@ -1,8 +1,7 @@
 # Arquitetura
 
-## Estrutura de alto nível
+## Estrutura de alto nivel
 
-```text
 src/
   main.ts
   app.module.ts
@@ -13,82 +12,130 @@ src/
   image/
   license/
   license-request/
+  enrollment-period/
   mail/
   common/
-```
 
-## Módulos e dependências principais
+## Modulos e responsabilidades
 
-- `AppModule`
-  - Config global (`ConfigModule`)
-  - Conexão Mongo principal (`MONGODB_URI`)
-  - Conexão Mongo de imagens (`MONGODB_URI_IMAGE`, connectionName `images`)
-  - Registro de módulos de domínio
-  - Registro de guards globais
+- AppModule
+  - Config global e conexoes Mongo
+  - Registro dos modulos de dominio
+  - Guards globais de sessao, rate limit e role
 
-- `AuthModule`
-  - Registro e login por perfil
-  - Verificação OTP
-  - Sessões server-side
-  - Proteção com `ServiceSecretGuard` nas rotas de auth
+- AuthModule
+  - Registro/login por perfil
+  - OTP e verificacao de conta
+  - Sessao server-side
+  - ServiceSecretGuard no controller de auth
 
-- `StudentModule`
-  - Perfil e atualização de dados
-  - Grade horária
-  - Envio de solicitação inicial de carteirinha
-  - Pedido de alteração de documentos
-  - Estatísticas de dashboard
+- StudentModule
+  - Perfil, horario e envio inicial de documentos
+  - Endpoint unico de submit inicial
+  - Pedido de alteracao de documentos
 
-- `LicenseRequestModule`
-  - Aprovação/reprovação por funcionário/admin
-  - Fluxo de `initial` e `update`
+- EnrollmentPeriodModule
+  - Criacao e administracao de periodos de inscricao
+  - Preview e confirmacao de liberacao de fila
+  - Encerramento da fila no fim do ciclo do periodo
 
-- `LicenseModule`
-  - Emissão de carteirinha via serviço externo
-  - Verificação pública por código
-  - SSE por estudante com ticket efêmero
+- LicenseRequestModule
+  - Solicitacoes initial e update
+  - Estados pending/approved/rejected/cancelled/waitlisted
+  - Aprovacao com controle atomico de vagas
 
-- `ImagesModule`
-  - Armazenamento de foto/documentos em base64/PDF
-  - Histórico de versão de imagens de estudante
+- LicenseModule
+  - Emissao e atualizacao de carteirinhas
+  - SSE por ticket efemero
+  - Verificacao publica por codigo
+  - Desativacao de licencas expiradas
 
-## Conexões de banco
+- ImageModule
+  - Armazenamento de foto e documentos
+  - Historico de versoes para updates
 
-| Conexão | Variável | Uso |
+## Modelo de dados relevante ao fluxo novo
+
+- enrollment_periods
+  - janela: dataInicio/dataFim
+  - capacidade: qtdVagasTotais/qtdVagasPreenchidas
+  - validade: validadeCarteirinhaMeses
+  - fila: waitlistSequence, qtdFilaEncerrada, filaEncerradaEm
+
+- license_requests
+  - type: initial/update
+  - status: pending/approved/rejected/cancelled/waitlisted
+  - vinculo de ciclo: enrollmentPeriodId
+  - fila: filaPosition
+
+- licenses
+  - status: active/inactive/expired/rejected
+  - existing: soft delete funcional
+  - expirationDate
+  - vinculo ao periodo: enrollmentPeriodId
+
+## Conexoes de banco
+
+| Conexao | Variavel | Uso |
 |---|---|---|
-| Principal | `MONGODB_URI` | estudantes, funcionários, admins, licenças, solicitações |
-| Imagens (`images`) | `MONGODB_URI_IMAGE` | imagens e histórico de imagens |
+| Principal | MONGODB_URI | estudantes, funcionarios, admins, periodos, solicitacoes, licencas |
+| Imagens (connection images) | MONGODB_URI_IMAGE | imagens e historico de imagens |
 
-## Pipeline de requisição
+## Pipeline de requisicao
 
-### Global (AppModule)
+Guards globais:
 
-1. `SessionAuthGuard`
-2. `RateLimitGuard`
-3. `RolesGuard`
+1. SessionAuthGuard
+2. RateLimitGuard
+3. RolesGuard
 
-### No módulo Auth (AuthController)
+No modulo Auth, alem dos globais:
 
-Além dos guards globais, o controller aplica:
+- ServiceSecretGuard
+- rate limit por endpoint com decorator RateLimit
 
-- `ServiceSecretGuard`
-- `RateLimitGuard` com limites por endpoint via decorator `@RateLimit(...)`
+## Fluxos criticos
 
-## Segurança no bootstrap (`main.ts`)
+### Fluxo de solicitacao inicial
 
-- Body parser manual com limite de 2MB (`json` e `urlencoded`)
-- `cookie-parser`
-- `helmet` com CSP e HSTS
-- header `Permissions-Policy`
-- CORS restrito por `ALLOWED_ORIGINS`
-- prefixo global `/api/v1`
-- `ValidationPipe` global (`whitelist`, `forbidNonWhitelisted`, `transform`)
-- `HttpExceptionFilter` global
+1. Student envia POST /student/me/license-submit com multipart.
+2. Controller valida elegibilidade antes de side effects.
+3. Service cria request initial:
+   - pending quando ha vaga
+   - waitlisted quando nao ha vaga
+4. Em waitlist, filaPosition e gerada de forma atomica no periodo.
 
-## Fluxo funcional resumido (licença)
+### Fluxo de liberacao de fila
 
-1. Estudante envia dados e arquivos em `POST /student/me/license-submit`
-2. Sistema cria solicitação pendente em `license-request`
-3. Funcionário/admin aprova (`PATCH /license-request/approve/:id`) ou rejeita
-4. Em aprovação, backend chama API externa para gerar carteirinha
-5. Aluno acompanha status por SSE (`/license/events` com ticket)
+1. Admin faz preview de slots do periodo.
+2. Admin confirma requestIds.
+3. Promocao waitlisted -> pending e atomica por request.
+4. Fila remanescente e reindexada.
+
+### Fluxo de aprovacao
+
+1. Employee/Admin aprova request pending.
+2. Para initial com periodo vinculado:
+   - incrementa vagas preenchidas de forma atomica
+   - emite licenca vinculada ao periodo
+3. Em erro de emissao, faz rollback de vaga preenchida.
+
+### Ciclo de vida do periodo
+
+1. Periodo ativo com janela vencida e finalizado ao ser consultado/criar novo.
+2. Fila waitlisted do periodo e cancelada em lote no encerramento.
+3. Historico do tamanho da fila encerrada permanece no periodo.
+
+### Validade e expiracao de carteirinhas
+
+1. Se validadeCarteirinhaMeses mudar, licencas ativas daquele periodo sao ajustadas por delta.
+2. Licencas expiradas sao desativadas em lote (status expired + existing false).
+
+## Bootstrap e seguranca de entrada
+
+- Prefixo global /api/v1
+- ValidationPipe global (whitelist, forbidNonWhitelisted, transform)
+- HttpExceptionFilter global
+- Body limit 2MB
+- helmet + CSP + HSTS
+- CORS por ALLOWED_ORIGINS

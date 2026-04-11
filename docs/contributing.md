@@ -1,53 +1,51 @@
 # Contribuindo
 
-## Pré-requisitos
+## Pre-requisitos
 
 - Node.js 22+
 - npm 10+
-- MongoDB local ou ambiente docker
+- MongoDB local ou via Docker
 
 ## Fluxo recomendado
 
-1. Criar branch (`feat/...`, `fix/...`, `docs/...`)
-2. Implementar mudanças com testes
-3. Atualizar documentação em `docs/`
-4. Abrir PR com descrição objetiva
+1. Crie branch por tema: feat, fix, docs, refactor ou test.
+2. Aplique mudanca pequena e verificavel.
+3. Rode testes afetados e depois suite completa.
+4. Atualize docs na pasta docs quando houver mudanca de contrato/regra.
+5. Abra PR com contexto, impacto e evidencias de teste.
 
-## Padrões de código
+## Padroes de codigo do projeto
 
-- TypeScript com tipagem explícita quando necessário
-- DTOs com `class-validator` e `class-transformer`
-- Controllers finos, regras em services
-- Repositórios para acesso a dados dos módulos de domínio
-- Uso de `MongoObjectIdPipe` em parâmetros de ID
-- Uso de `@Roles(...)` em endpoints protegidos por perfil
+- DTO com class-validator.
+- Controller fino, regra no service.
+- Repositorio para acesso a dados.
+- Validacao de ID via MongoObjectIdPipe.
+- Controle de acesso via decorator Roles.
+- Trate concorrencia explicitamente em fluxos criticos.
 
-## Scripts úteis
+## Scripts uteis
 
-```bash
 npm run start:dev
 npm run build
 npm run lint
-npm run test
+npm test
 npm run test:e2e
 npm run seed:admin
-```
 
-## Convenção de commit
+## Convencao de commit
 
-Conventional Commits:
-
-- `feat:` nova funcionalidade
-- `fix:` correção de bug
-- `docs:` documentação
-- `refactor:` refatoração sem mudar comportamento
-- `test:` testes
-- `chore:` manutenção
+- feat: nova funcionalidade
+- fix: correcao de bug
+- docs: documentacao
+- refactor: refatoracao sem mudanca funcional
+- test: testes
+- chore: manutencao
 
 ## Checklist de PR
 
-- [ ] Mudança atende o requisito funcional
-- [ ] DTOs/guards/roles revisados
-- [ ] Testes locais executados (quando aplicável)
-- [ ] Documentação em `docs/` atualizada
-- [ ] Sem segredos em código ou commit
+- [ ] Regra de negocio validada
+- [ ] Concorrencia revisada (quando aplicavel)
+- [ ] DTO/guard/role revisados
+- [ ] Testes unitarios e e2e executados
+- [ ] Documentacao atualizada
+- [ ] Sem segredo em commit

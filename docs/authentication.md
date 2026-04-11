@@ -1,45 +1,38 @@
-# Autenticação
+# Autenticacao
 
 ## Modelo atual
 
-A API usa sessão server-side e dois cabeçalhos principais:
+A API usa sessao server-side e dois headers principais:
 
-- `x-session-id`: identifica sessão ativa
-- `x-service-secret`: segredo compartilhado entre BFF e backend
+- x-session-id: identifica sessao ativa
+- x-service-secret: segredo compartilhado para rotas de auth
 
-No módulo `Auth`, `x-service-secret` é obrigatório em todos os endpoints.
+No AuthController, todos endpoints exigem x-service-secret.
 
-## Fluxo de registro de estudante (OTP)
+## Fluxo de estudante com OTP
 
-1. `POST /api/v1/auth/student/register`
-   - body: `name`, `email`, `password`, `telephone`, `cpf`
-   - valida CPF, email único e CPF único (hash HMAC)
-   - cria estudante com status `PENDING`
-   - gera OTP com expiração de 15 minutos
-   - envia e-mail via Brevo
+1. POST /api/v1/auth/student/register
+   - body: name, email, password, telephone, cpf
+   - cria conta pendente e envia OTP
 
-2. `POST /api/v1/auth/student/verify`
-   - body: `email`, `code`
-   - valida código
-   - bloqueia após tentativas inválidas repetidas
-   - ativa conta e cria sessão
+2. POST /api/v1/auth/student/verify
+   - body: email, code
+   - ativa conta e cria sessao
 
-3. `POST /api/v1/auth/student/resend-code`
-   - body: `email`
-   - retorna mensagem genérica para evitar enumeração de usuário
-   - respeita cooldown
+3. POST /api/v1/auth/student/resend-code
+   - body: email
+   - resposta generica anti-enumeracao
 
 ## Logins por perfil
 
-| Endpoint | Credenciais |
+| Endpoint | Credencial |
 |---|---|
-| `POST /auth/student/login` | `email`, `password` |
-| `POST /auth/employee/login` | `registrationId`, `password` |
-| `POST /auth/admin/login` | `username`, `password` |
+| POST /auth/student/login | email + password |
+| POST /auth/employee/login | registrationId + password |
+| POST /auth/admin/login | username + password |
 
-Todos retornam:
+Resposta de login/verify:
 
-```json
 {
   "ok": true,
   "sessionId": "...",
@@ -50,36 +43,36 @@ Todos retornam:
     "name": "..."
   }
 }
-```
 
-## Sessão e TTL por perfil
+## Sessao e expiracao
 
-A duração da sessão é configurada por variável de ambiente:
+TTL por env:
 
-- `SESSION_TTL_STUDENT_DAYS` para estudante
-- `SESSION_TTL_STAFF_DAYS` para funcionário/admin
-- fallback legado: `SESSION_TTL_DAYS`
+- SESSION_TTL_STUDENT_DAYS para estudante
+- SESSION_TTL_STAFF_DAYS para employee/admin
+- fallback legado: SESSION_TTL_DAYS
 
 ## Logout
 
-`POST /auth/logout`:
+POST /auth/logout:
 
-- é público do ponto de vista de sessão (`@Public`)
-- continua exigindo `x-service-secret`
-- `x-session-id` é opcional
-- resposta idempotente: `{ "ok": true }`
+- publico em relacao a sessao
+- continua exigindo x-service-secret
+- x-session-id opcional
+- resposta idempotente: { "ok": true }
 
-## Rate limit aplicado em Auth
+## Rate limit no modulo Auth
 
 | Endpoint | Limite |
 |---|---|
-| `POST /auth/student/register` | 20 req / 60s |
-| `POST /auth/student/verify` | 5 req / 60s |
-| `POST /auth/student/resend-code` | 3 req / 60s |
-| `POST /auth/student/login` | 5 req / 60s |
-| `POST /auth/employee/login` | 5 req / 60s |
-| `POST /auth/admin/login` | 3 req / 60s |
+| POST /auth/student/register | 20 req / 60s |
+| POST /auth/student/verify | 5 req / 60s |
+| POST /auth/student/resend-code | 3 req / 60s |
+| POST /auth/student/login | 5 req / 60s |
+| POST /auth/employee/login | 5 req / 60s |
+| POST /auth/admin/login | 3 req / 60s |
 
-## Observação sobre uso no frontend
+## Recomendacao de consumo
 
-`x-service-secret` nunca deve ser exposto no browser. O consumo correto é via BFF/server-side.
+Nao exponha x-service-secret no browser.
+Use BFF/server-side para intermediar chamadas de auth.

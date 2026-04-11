@@ -1,81 +1,82 @@
-# API Reference — License Requests
+# API Reference - License Requests
 
-Base: `/api/v1/license-request`
+Base: /api/v1/license-request
 
 ## Conceitos
 
-- `type`:
-  - `initial`: primeira solicitação
-  - `update`: alteração de documentos após aprovação inicial
-- `status`:
-  - `pending`
-  - `approved`
-  - `rejected`
-  - `cancelled`
+- type
+  - initial: primeira solicitacao
+  - update: alteracao de documentos
+
+- status
+  - pending
+  - approved
+  - rejected
+  - cancelled
+  - waitlisted
 
 ## GET /license-request/all
 
-Lista todas as solicitações.
+Lista todas as solicitacoes.
 
-Roles: `EMPLOYEE`, `ADMIN`
+Roles: EMPLOYEE, ADMIN
 
 ## GET /license-request/pending
 
-Lista solicitações pendentes.
+Lista solicitacoes pendentes.
 
-Roles: `EMPLOYEE`, `ADMIN`
+Roles: EMPLOYEE, ADMIN
 
 ## GET /license-request/me
 
-Retorna solicitação mais recente do estudante autenticado.
+Retorna solicitacao mais recente do estudante autenticado.
 
-Roles: `STUDENT`
+Role: STUDENT
 
 ## GET /license-request/student/:studentId
 
-Lista solicitações de um estudante.
+Lista solicitacoes de um estudante.
 
-Roles: `EMPLOYEE`, `ADMIN`
+Roles: EMPLOYEE, ADMIN
 
 ## PATCH /license-request/approve/:id
 
-Aprova solicitação.
+Aprova solicitacao pendente.
 
-Roles: `EMPLOYEE`, `ADMIN`
+Roles: EMPLOYEE, ADMIN
 
 Body:
 
-```json
 {
   "bus": "205",
   "institution": "Universidade Federal Fluminense",
   "photo": "data:image/jpeg;base64,..."
 }
-```
 
 Comportamento:
 
-- Para `initial`: cria licença
-- Para `update`: regenera licença existente, arquiva versões antigas de imagem e aplica pendências
+- initial
+  - valida vaga com incremento atomico no periodo
+  - cria licenca vinculada ao enrollmentPeriodId da solicitacao
+  - usa validadeCarteirinhaMeses do periodo
+  - em erro, faz rollback da vaga reservada
+
+- update
+  - regenera licenca existente
+  - arquiva imagens antigas e aplica pendencias
+
+Respostas: 200, 400, 404, 409
 
 ## PATCH /license-request/reject/:id
 
-Rejeita solicitação.
+Rejeita solicitacao pendente.
 
-Roles: `EMPLOYEE`, `ADMIN`
+Roles: EMPLOYEE, ADMIN
 
 Body:
 
-```json
 {
-  "reason": "Documentos ilegíveis ou corrompidos"
+  "reason": "Documentos ilegiveis ou corrompidos"
 }
-```
 
-Motivos aceitos:
-
-- Foto inadequada ou ilegível
-- Comprovante de matrícula inválido
-- Grade horária não corresponde aos documentos
-- Documentos ilegíveis ou corrompidos
-- Informações inconsistentes
+Respostas: 200, 400, 404

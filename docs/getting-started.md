@@ -1,100 +1,84 @@
 # Getting Started
 
-## Pré-requisitos
+## Pre-requisitos
 
 - Node.js 22+
 - npm 10+
 - MongoDB 7+
-- Docker (opcional para ambiente local)
+- Docker (opcional)
 
-## Instalação
+## Instalacao
 
-```bash
-npm install
-```
+1. Instale dependencias:
 
-## Variáveis de ambiente
+	npm install
 
-Copie `.env.example` para `.env`.
+2. Configure env local:
 
-```bash
-cp .env.example .env
-```
+	copie .env.example para .env e ajuste os valores.
 
-A API valida configuração no bootstrap (`validateSecurityConfig`) e falha ao iniciar se chaves obrigatórias estiverem ausentes.
+## Variaveis obrigatorias
 
-### Obrigatórias
-
-| Variável | Descrição |
+| Variavel | Descricao |
 |---|---|
-| `SERVICE_SECRET` | Segredo compartilhado BFF <-> backend (mín. 32 chars) |
-| `SESSION_TTL_STUDENT_DAYS` ou `SESSION_TTL_DAYS` | TTL de sessão para estudante |
-| `SESSION_TTL_STAFF_DAYS` ou `SESSION_TTL_DAYS` | TTL de sessão para funcionário/admin |
-| `ALLOWED_ORIGINS` | Lista CSV de origens permitidas no CORS (sem `*`) |
-| `MONGODB_URI` | Conexão Mongo principal |
-| `MONGODB_URI_IMAGE` | Conexão Mongo de imagens |
-| `OTP_PEPPER` | Segredo OTP (mín. 16 chars) |
-| `CPF_HMAC_SECRET` | Segredo para hash de CPF (mín. 16 chars) |
-| `LICENSE_API_URL` | URL do serviço externo de emissão |
-| `LICENSE_API_KEY` | Chave da API externa de emissão |
-| `QR_CODE_BASE_URL` | URL base usada no QR code de verificação |
-| `BREVO_API_KEY` | API key da Brevo |
-| `MAIL_FROM_ADDRESS` | E-mail remetente |
+| SERVICE_SECRET | Segredo compartilhado entre BFF e backend (min 32) |
+| SESSION_TTL_STUDENT_DAYS ou SESSION_TTL_DAYS | TTL de sessao para estudante |
+| SESSION_TTL_STAFF_DAYS ou SESSION_TTL_DAYS | TTL de sessao para staff |
+| ALLOWED_ORIGINS | Lista CSV de origens permitidas |
+| MONGODB_URI | Mongo principal |
+| MONGODB_URI_IMAGE | Mongo de imagens |
+| OTP_PEPPER | Segredo OTP (min 16) |
+| CPF_HMAC_SECRET | Segredo hash de CPF (min 16) |
+| LICENSE_API_URL | URL do emissor externo |
+| LICENSE_API_KEY | Chave do emissor externo |
+| QR_CODE_BASE_URL | URL base de verificacao publica |
+| BREVO_API_KEY | Chave Brevo |
+| MAIL_FROM_ADDRESS | Email remetente |
 
-### Opcionais relevantes
+## Variaveis opcionais relevantes
 
-| Variável | Padrão | Descrição |
+| Variavel | Padrao | Descricao |
 |---|---|---|
-| `PORT` | `3000` | Porta HTTP |
-| `NODE_ENV` | `development` | Ambiente |
-| `MAIL_FROM_NAME` | `VRG Transport` | Nome do remetente |
-| `LICENSE_API_TIMEOUT_MS` | `5000` | Timeout da chamada externa de licença |
-| `ENABLE_SWAGGER` | `false` | Habilita Swagger (apenas fora de produção) |
-| `TRUST_PROXY_HOPS` | `1` | Número de hops de proxy para IP real |
+| PORT | 3000 | Porta HTTP |
+| NODE_ENV | development | Ambiente |
+| MAIL_FROM_NAME | VRG Transport | Nome remetente |
+| LICENSE_API_TIMEOUT_MS | 5000 | Timeout emissor externo |
+| ENABLE_SWAGGER | false | Swagger em dev/homolog |
+| TRUST_PROXY_HOPS | 1 | Hops de proxy |
 
-### Chaves presentes no `.env.example` mas não utilizadas no runtime atual
+## Execucao
 
-- `BFF_STUDENT_URL`
-- `BFF_EMPLOYEE_URL`
-- `API_USER_SIGHT`
-- `API_KEY_SIGHT`
+Desenvolvimento:
 
-## Execução
-
-### Desenvolvimento
-
-```bash
 npm run start:dev
-```
 
-### Produção
+Build + producao:
 
-```bash
 npm run build
 npm run start:prod
-```
 
-### Docker
+Docker:
 
-```bash
 npm run docker:up
 npm run docker:logs
 npm run docker:down
-```
 
 ## Seed de admin
 
-```bash
 npm run seed:admin
-```
+
+## Testes
+
+npm test
+npm run test:e2e
 
 ## Swagger
 
-Disponível apenas quando:
+Disponivel quando:
 
-- `ENABLE_SWAGGER=true`
-- `NODE_ENV` diferente de `production`
+- ENABLE_SWAGGER=true
+- NODE_ENV diferente de production
 
-URL:
+URL padrao:
 
-- `http://localhost:3000/api/docs`
+http://localhost:3000/api/docs

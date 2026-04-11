@@ -1,68 +1,63 @@
 # Tratamento de Erros
 
-## Estrutura padrão
+## Padrao de resposta
 
-Todas as exceções passam por `HttpExceptionFilter` global.
+As excecoes passam pelo HttpExceptionFilter global.
 
-Formato:
+Formato padrao:
 
-```json
 {
   "statusCode": 400,
   "message": "...",
   "timestamp": "2026-04-10T15:00:00.000Z",
   "path": "/api/v1/..."
 }
-```
 
-Observações:
+Observacoes:
 
-- `path` aparece fora de produção
-- em erros 5xx, a mensagem ao cliente é sempre `Internal server error`
-- stack de 5xx é sanitizada antes do log
+- path aparece fora de producao
+- mensagens 5xx sao sanitizadas para o cliente
 
-## Códigos mais comuns
+## Codigos usados com mais frequencia
 
-| Código | Situação típica |
+| Codigo | Quando aparece |
 |---|---|
-| `400` | DTO inválido, ObjectId inválido, regra de negócio inválida |
-| `401` | Sessão ausente/expirada, credenciais inválidas, secret inválido |
-| `403` | Role sem permissão |
-| `404` | Recurso não encontrado |
-| `409` | Conflito de unicidade (e-mail/matrícula/imagem por tipo) |
-| `429` | Limite de requisição excedido |
-| `500` | Falha inesperada |
-| `502` | Erro ao comunicar com API externa de licença |
-| `504` | Timeout ao comunicar com API externa de licença |
+| 400 | DTO invalido, regra de negocio invalida, janela fora do periodo |
+| 401 | Sessao invalida/expirada, credenciais invalidas, secret invalido |
+| 403 | Role sem permissao |
+| 404 | Recurso nao encontrado |
+| 409 | Conflito de unicidade ou concorrencia de operacao |
+| 429 | Rate limit excedido |
+| 500 | Erro interno nao tratado |
+| 502 | Falha no servico externo de emissao |
+| 504 | Timeout no servico externo de emissao |
 
-## Exemplos práticos
+## Casos importantes do fluxo de inscricao
 
-### Sessão ausente
+- 400
+  - tentativa de solicitacao inicial fora da janela
+  - tentativa de reabrir periodo com janela encerrada
+  - payload de confirm-release com IDs duplicados
 
-```json
-{
-  "statusCode": 401,
-  "message": "Sessão não encontrada.",
-  "timestamp": "..."
-}
-```
+- 409
+  - create/reopen de periodo com conflito de ativo (inclusive E11000)
+  - aprovacao de request sem vaga disponivel em corrida
+  - confirm-release em que nada foi promovido por corrida
 
-### Sem permissão
+## Exemplos
 
-```json
+Sem permissao:
+
 {
   "statusCode": 403,
-  "message": "Você não tem permissão para acessar este recurso",
+  "message": "Voce nao tem permissao para acessar este recurso",
   "timestamp": "..."
 }
-```
 
-### Rate limit
+Conflito de periodo ativo:
 
-```json
 {
-  "statusCode": 429,
-  "message": "You have exceeded the maximum of 5 requests. Try again in 12 seconds.",
+  "statusCode": 409,
+  "message": "Ja existe um periodo de inscricao ativo.",
   "timestamp": "..."
 }
-```

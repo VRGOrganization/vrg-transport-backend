@@ -1,89 +1,59 @@
-# Segurança
+# Seguranca
 
 ## Camadas ativas
 
-### 1. Config fail-fast
+1. Config fail-fast
+	- validateSecurityConfig interrompe bootstrap se env critica estiver ausente.
 
-No startup, `validateSecurityConfig` valida chaves obrigatórias de segurança e runtime. Se faltar valor crítico, a API não sobe.
+2. Hardening HTTP
+	- helmet com CSP, HSTS e headers de protecao.
+	- Permissions-Policy definido no bootstrap.
 
-### 2. Header hardening (`helmet`)
+3. CORS restrito
+	- ALLOWED_ORIGINS obrigatorio, sem wildcard.
+	- headers permitidos: Content-Type, x-session-id, x-service-secret.
 
-Aplicado em `main.ts` com:
+4. Limite de payload
+	- body parser com limite de 2MB.
 
-- HSTS
-- CSP
-- cross-origin resource policy
-- remoção de `x-powered-by`
-- `Permissions-Policy` custom
+5. Validacao global
+	- ValidationPipe com whitelist, forbidNonWhitelisted e transform.
 
-### 3. CORS estrito
+6. Sessao server-side
+	- SessionAuthGuard global valida x-session-id.
 
-`ALLOWED_ORIGINS` obrigatório e sem wildcard.
+7. Controle de acesso por role
+	- RolesGuard global + decorators por endpoint.
 
-Headers aceitos:
+8. Segredo de servico no Auth
+	- ServiceSecretGuard no AuthController com comparacao timing-safe.
 
-- `Content-Type`
-- `x-session-id`
-- `x-service-secret`
-- `x-sse-ticket`
+9. Rate limiting
+	- RateLimitGuard por endpoint.
+	- chave por usuario autenticado ou IP em rotas publicas.
 
-### 4. Limite de payload
+10. Credenciais e OTP
+	 - senha com bcrypt.
+	 - OTP com expiração e controle de tentativas.
 
-Body parser manual com limite de 2MB (`json` e `urlencoded`) antes da cadeia do Nest.
+11. Dados sensiveis
+	 - CPF persistido como hash (cpfHash).
+	 - stack 5xx nao e retornada ao cliente.
 
-### 5. ValidationPipe global
+12. Auditoria
+	 - eventos criticos registrados por AuditLogService.
 
-Configuração:
+## Pontos de seguranca funcionais do fluxo novo
 
-- `whitelist: true`
-- `forbidNonWhitelisted: true`
-- `forbidUnknownValues: true`
-- `transform: true`
+- Fila com atualizacao atomica de posicao.
+- Promocao de waitlist atomica para evitar dupla promocao.
+- Validacao de elegibilidade inicial antes de side effects no submit.
+- Conflito de unicidade de periodo ativo tratado com resposta de conflito.
 
-### 6. Autenticação por sessão
+## Recomendacoes de operacao
 
-`SessionAuthGuard` global:
-
-- lê `x-session-id`
-- valida sessão em store
-- injeta `request.sessionPayload` e `request.user`
-
-### 7. Controle de acesso por role
-
-`RolesGuard` global usando decorators `@Roles(...)`.
-
-### 8. Proteção de endpoints de auth por segredo de serviço
-
-`ServiceSecretGuard` no `AuthController` exige `x-service-secret` e compara em timing-safe.
-
-### 9. Rate limiting
-
-`RateLimitGuard` aplicado com decorator por endpoint, usando:
-
-- `user:<id>` quando autenticado
-- `ip:<ip>` quando público
-
-### 10. Senhas e OTP
-
-- Senhas com bcrypt (`SALT_ROUNDS = 12`)
-- OTP com hash bcrypt + salt aleatório
-- expiração de OTP em 15 min
-- controles de tentativa e cooldown
-
-### 11. Proteção de dados sensíveis
-
-- CPF armazenado como hash (`cpfHash`)
-- campos sensíveis ocultos no schema/toJSON
-- filtro global sanitiza stack trace em erro 5xx
-
-### 12. Auditoria
-
-Ações críticas (registro, login, aprovar/rejeitar licença, etc.) são registradas por `AuditLogService`.
-
-## Recomendações de produção
-
-- Definir `NODE_ENV=production`
-- Usar origens explícitas em `ALLOWED_ORIGINS`
-- Configurar `TRUST_PROXY_HOPS` conforme infraestrutura
-- Rotacionar `SERVICE_SECRET`, `OTP_PEPPER` e `CPF_HMAC_SECRET`
-- Monitorar falhas 401/403/429 em observabilidade
+- Use NODE_ENV=production em producao.
+- Restrinja ALLOWED_ORIGINS aos domínios reais.
+- Rotacione SERVICE_SECRET, OTP_PEPPER e CPF_HMAC_SECRET.
+- Monitore picos de 401, 403, 409 e 429.
+- Centralize logs de auditoria e erros.

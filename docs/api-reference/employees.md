@@ -1,54 +1,50 @@
-# API Reference — Employees
+# API Reference - Employees
 
-Base: `/api/v1/employee`
+Base: /api/v1/employee
 
-Todos os endpoints exigem role `ADMIN`.
+Todos endpoints exigem ADMIN.
 
 ## POST /employee
 
-Cria funcionário.
+Cria funcionario.
 
 Body:
 
-```json
 {
-  "name": "João Ferreira",
+  "name": "Joao Ferreira",
   "email": "joao@prefeitura.gov.br",
   "registrationId": "EMP001",
   "password": "Senha123"
 }
-```
 
-Respostas: `201`, `400`, `409`
+Respostas: 201, 400, 409
 
 ## GET /employee
 
-Lista funcionários ativos.
+Lista funcionarios ativos.
 
-Respostas: `200`
+Respostas: 200
 
 ## GET /employee/inactive
 
-Lista funcionários inativos.
+Lista funcionarios inativos.
 
-Respostas: `200`
+Respostas: 200
 
 ## GET /employee/:id
 
-Busca funcionário por ID.
+Busca funcionario por id.
 
-Respostas: `200`, `400`, `404`
+Respostas: 200, 400, 404
 
 ## PATCH /employee/:id
 
-Atualiza funcionário por ID.
+Atualiza funcionario por id.
 
-Campos são opcionais; senha é re-hasheada quando enviada.
-
-Respostas: `200`, `400`, `404`
+Respostas: 200, 400, 404
 
 ## DELETE /employee/:id
 
-Desativa funcionário (soft delete).
+Desativa funcionario (soft delete).
 
-Respostas: `200`, `400`, `404`
+Respostas: 200, 400, 404

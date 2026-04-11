@@ -1,23 +1,22 @@
-# API Reference — Auth
+# API Reference - Auth
 
-Base: `/api/v1/auth`
+Base: /api/v1/auth
 
-Todos os endpoints deste módulo exigem `x-service-secret`.
+Todos endpoints do controller de auth exigem x-service-secret.
 
 ## Headers
 
-- `x-service-secret`: obrigatório
-- `x-session-id`: obrigatório apenas em rotas autenticadas
+- x-service-secret: obrigatorio
+- x-session-id: obrigatorio em rotas autenticadas
 
 ## POST /auth/student/register
 
-Cria estudante pendente e envia OTP por e-mail.
+Cria estudante pendente e envia OTP.
 
 Rate limit: 20 req / 60s
 
 Body:
 
-```json
 {
   "name": "Maria Silva",
   "email": "maria@escola.edu.br",
@@ -25,42 +24,37 @@ Body:
   "telephone": "21999998888",
   "cpf": "12345678909"
 }
-```
 
-Respostas: `201`, `400`, `409`, `429`
+Respostas: 201, 400, 409, 429
 
 ## POST /auth/student/verify
 
-Valida OTP e cria sessão.
+Valida OTP e cria sessao.
 
 Rate limit: 5 req / 60s
 
 Body:
 
-```json
 {
   "email": "maria@escola.edu.br",
   "code": "123456"
 }
-```
 
-Respostas: `200`, `400`, `401`, `429`
+Respostas: 200, 400, 401, 429
 
 ## POST /auth/student/resend-code
 
-Reenvia OTP com cooldown e resposta genérica anti-enumeração.
+Reenvia OTP com resposta generica anti-enumeracao.
 
 Rate limit: 3 req / 60s
 
 Body:
 
-```json
 {
   "email": "maria@escola.edu.br"
 }
-```
 
-Respostas: `200`, `429`
+Respostas: 200, 429
 
 ## POST /auth/student/login
 
@@ -68,14 +62,12 @@ Rate limit: 5 req / 60s
 
 Body:
 
-```json
 {
   "email": "maria@escola.edu.br",
   "password": "Senha123"
 }
-```
 
-Respostas: `200`, `401`, `429`
+Respostas: 200, 401, 429
 
 ## POST /auth/employee/login
 
@@ -83,14 +75,12 @@ Rate limit: 5 req / 60s
 
 Body:
 
-```json
 {
   "registrationId": "EMP001",
   "password": "Senha123"
 }
-```
 
-Respostas: `200`, `401`, `429`
+Respostas: 200, 401, 429
 
 ## POST /auth/admin/login
 
@@ -98,48 +88,40 @@ Rate limit: 3 req / 60s
 
 Body:
 
-```json
 {
   "username": "admin",
   "password": "Admin123"
 }
-```
 
-Respostas: `200`, `401`, `429`
+Respostas: 200, 401, 429
 
 ## GET /auth/me
 
-Retorna sessão atual.
+Retorna dados basicos da sessao:
 
-Respostas: `200`, `401`
-
-Exemplo de retorno:
-
-```json
 {
   "userId": "...",
   "userType": "student"
 }
-```
+
+Respostas: 200, 401
 
 ## POST /auth/logout
 
 Logout idempotente.
 
-- público em relação à sessão
-- ainda exige `x-service-secret`
-- `x-session-id` opcional
+- Publico do ponto de vista de sessao
+- x-service-secret continua obrigatorio
+- x-session-id opcional
 
 Retorno:
 
-```json
 {
   "ok": true
 }
-```
 
 ## GET /auth/admin/dashboard
 
-Acesso restrito a admin.
+Somente ADMIN.
 
-Respostas: `200`, `403`
+Respostas: 200, 403
