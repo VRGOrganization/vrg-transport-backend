@@ -159,8 +159,11 @@ export class LicenseService {
     employeeId: string,
     licenseValidityMonths = 6,
     enrollmentPeriodId: string | null = null,
+    skipApprovedRequestValidation = false,
   ): Promise<License> {
-    await this.assertHasApprovedRequest(dto.id);
+    if (!skipApprovedRequestValidation) {
+      await this.assertHasApprovedRequest(dto.id);
+    }
 
     const student = await this.studentService.findOneOrFail(dto.id);
 

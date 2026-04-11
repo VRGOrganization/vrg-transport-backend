@@ -221,6 +221,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         'employee-1',
         8,
         'period-1',
+        true,
       );
       expect(mockEnrollmentPeriodService.incrementFilled).toHaveBeenCalledWith(
         'period-1',

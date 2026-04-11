@@ -374,6 +374,7 @@ export class LicenseRequestService {
           employeeId,
           validityMonths,
           request.enrollmentPeriodId ?? null,
+          true,
         );
 
         license = createdLicense as any;
