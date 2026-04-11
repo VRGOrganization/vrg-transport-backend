@@ -8,4 +8,6 @@ export interface ILicenseRepository<T> {
   remove(id: string): Promise<boolean>;
   findOneByStudentId(studentId: string): Promise<T | null>;
   findOneByVerificationCode(code: string): Promise<T | null>;
+  findByEnrollmentPeriodId(enrollmentPeriodId: string): Promise<T[]>;
+  deactivateExpiredActive(referenceDate: Date): Promise<number>;
 }

@@ -1,0 +1,87 @@
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import type { IEnrollmentPeriodRepository } from '../interfaces/repository.interface';
+import {
+  EnrollmentPeriod,
+  type EnrollmentPeriodDocument,
+} from '../schemas/enrollment-period.schema';
+
+@Injectable()
+export class EnrollmentPeriodRepository
+  implements IEnrollmentPeriodRepository<EnrollmentPeriod>
+{
+  constructor(
+    @InjectModel(EnrollmentPeriod.name)
+    private readonly model: Model<EnrollmentPeriodDocument>,
+  ) {}
+
+  async create(data: Partial<EnrollmentPeriod>): Promise<EnrollmentPeriod> {
+    return this.model.create(data);
+  }
+
+  async findAll(): Promise<EnrollmentPeriod[]> {
+    return this.model
+      .find()
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec() as Promise<EnrollmentPeriod[]>;
+  }
+
+  async findById(id: string): Promise<EnrollmentPeriod | null> {
+    return this.model.findById(id).lean().exec() as Promise<EnrollmentPeriod | null>;
+  }
+
+  async findActive(): Promise<EnrollmentPeriod | null> {
+    return this.model
+      .findOne({ ativo: true })
+      .lean()
+      .exec() as Promise<EnrollmentPeriod | null>;
+  }
+
+  async update(
+    id: string,
+    data: Partial<EnrollmentPeriod>,
+  ): Promise<EnrollmentPeriod | null> {
+    return this.model
+      .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after' })
+      .lean()
+      .exec() as Promise<EnrollmentPeriod | null>;
+  }
+
+  async incrementWaitlistSequence(id: string): Promise<EnrollmentPeriod | null> {
+    return this.model
+      .findOneAndUpdate(
+        { _id: id },
+        { $inc: { waitlistSequence: 1 } },
+        { returnDocument: 'after' },
+      )
+      .lean()
+      .exec() as Promise<EnrollmentPeriod | null>;
+  }
+
+  async incrementFilledIfAvailable(id: string): Promise<EnrollmentPeriod | null> {
+    return this.model
+      .findOneAndUpdate(
+        {
+          _id: id,
+          $expr: { $lt: ['$qtdVagasPreenchidas', '$qtdVagasTotais'] },
+        },
+        { $inc: { qtdVagasPreenchidas: 1 } },
+        { returnDocument: 'after' },
+      )
+      .lean()
+      .exec() as Promise<EnrollmentPeriod | null>;
+  }
+
+  async decrementFilled(id: string): Promise<EnrollmentPeriod | null> {
+    return this.model
+      .findOneAndUpdate(
+        { _id: id, qtdVagasPreenchidas: { $gt: 0 } },
+        { $inc: { qtdVagasPreenchidas: -1 } },
+        { returnDocument: 'after' },
+      )
+      .lean()
+      .exec() as Promise<EnrollmentPeriod | null>;
+  }
+}

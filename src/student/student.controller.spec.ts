@@ -21,6 +21,7 @@ const mockAuditLogService = {
 };
 
 const mockLicenseRequestService = {
+  assertInitialRequestEligibility: jest.fn(),
   createRequest: jest.fn(),
   cancelAndReplaceWithUpdate: jest.fn(),
   submitDocumentUpdateRequest: jest.fn(),

@@ -7,6 +7,7 @@ export enum LicenseRequestStatus {
   APPROVED = 'approved',
   REJECTED = 'rejected',
   CANCELLED = 'cancelled',
+  WAITLISTED = 'waitlisted',
 }
 
 export type LicenseRequestDocument = LicenseRequest & Document;
@@ -58,6 +59,16 @@ export class LicenseRequest {
     default: [],
   })
   changedDocuments: PhotoType[];
+
+  @Prop({ type: String, default: null })
+  enrollmentPeriodId: string | null;
+
+  @Prop({ type: Number, default: null })
+  filaPosition: number | null;
+
+  createdAt?: Date;
+
+  updatedAt?: Date;
 }
 
 export const LicenseRequestSchema =
@@ -65,3 +76,4 @@ export const LicenseRequestSchema =
 
 LicenseRequestSchema.index({ studentId: 1 });
 LicenseRequestSchema.index({ status: 1 });
+LicenseRequestSchema.index({ enrollmentPeriodId: 1, status: 1, createdAt: 1 });

@@ -15,6 +15,7 @@ import { ImagesModule } from './image/image.module';
 import { MailModule } from './mail/mail.module';
 import { SessionModule } from './auth/session/session.module';
 import { LicenseRequestModule } from './license-request/license-request.module';
+import { EnrollmentPeriodModule } from './enrollment-period/enrollment-period.module';
 
 import { SessionAuthGuard } from './auth/guards/session-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
@@ -51,6 +52,7 @@ import { validateSecurityConfig } from './common/config/security.validation';
     MailModule,
     SessionModule,
     LicenseRequestModule,
+    EnrollmentPeriodModule,
     CommonModule,
   ],
   controllers: [AppController],

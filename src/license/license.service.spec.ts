@@ -85,4 +85,67 @@ describe('LicenseService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  describe('dynamic expiration months (TDD)', () => {
+    beforeEach(() => {
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ image: 'base64-image' }),
+      });
+    });
+
+    it('deve usar os meses informados ao criar licenca', async () => {
+      await (service as any).create(
+        {
+          id: 'student-id-123',
+          institution: 'IF',
+          bus: 'A01',
+          photo: 'data:image/png;base64,AAAA',
+        },
+        'employee-1',
+        4,
+      );
+
+      const payload = mockLicenseRepository.create.mock.calls[0][0];
+      const expiration = new Date(payload.expirationDate);
+      const now = new Date();
+      const monthDiff =
+        (expiration.getFullYear() - now.getFullYear()) * 12 +
+        (expiration.getMonth() - now.getMonth());
+
+      expect(monthDiff).toBeGreaterThanOrEqual(4);
+      expect(monthDiff).toBeLessThanOrEqual(5);
+    });
+
+    it('deve usar os meses informados ao regenerar licenca existente', async () => {
+      mockLicenseRepository.findOneByStudentId.mockResolvedValue({
+        _id: { toString: () => 'license-id-1' },
+        studentId: 'student-id-123',
+      });
+      mockLicenseRepository.update.mockResolvedValue({
+        _id: { toString: () => 'license-id-1' },
+      });
+
+      await (service as any).regenerateExistingForStudent(
+        'student-id-123',
+        {
+          institution: 'IF',
+          bus: 'A01',
+          photo: 'data:image/png;base64,AAAA',
+        },
+        'employee-1',
+        9,
+      );
+
+      const payload = mockLicenseRepository.update.mock.calls[0][1];
+      const expiration = new Date(payload.expirationDate);
+      const now = new Date();
+      const monthDiff =
+        (expiration.getFullYear() - now.getFullYear()) * 12 +
+        (expiration.getMonth() - now.getMonth());
+
+      expect(monthDiff).toBeGreaterThanOrEqual(9);
+      expect(monthDiff).toBeLessThanOrEqual(10);
+    });
+  });
 });

@@ -121,6 +121,10 @@ export class StudentController {
       CourseSchedule?: UploadedImageFile[];
     },
   ) {
+    await this.licenseRequestService.assertInitialRequestEligibility(
+      req.sessionPayload!.userId,
+    );
+
     const result = await this.studentService.submitLicenseRequest(
       req.sessionPayload!.userId,
       dto,

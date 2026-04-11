@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditModule } from 'src/common/audit/audit.module';
+import { EnrollmentPeriodModule } from 'src/enrollment-period/enrollment-period.module';
 import { LicenseModule } from 'src/license/license.module';
 import { MailModule } from 'src/mail/mail.module';
 import { StudentModule } from 'src/student/student.module';
@@ -20,6 +21,7 @@ import {
       { name: LicenseRequest.name, schema: LicenseRequestSchema },
     ]),
     forwardRef(() => LicenseModule),
+    forwardRef(() => EnrollmentPeriodModule),
     forwardRef(() => StudentModule),
     ImagesModule,
     MailModule,

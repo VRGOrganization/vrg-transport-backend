@@ -196,4 +196,71 @@ export class MailService {
       throw error;
     }
   }
+
+  async sendWaitlistConfirmation(
+    email: string,
+    name: string,
+    filaPosition: number,
+  ): Promise<void> {
+    const studentName = name ?? 'Estudante';
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Solicitação recebida em fila de espera',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#1d4ed8">Fila de espera confirmada</h2>
+            <p>Olá, <strong>${studentName}</strong>.</p>
+            <p>Sua solicitação foi recebida, mas no momento todas as vagas estão preenchidas.</p>
+            <div style="background:#eff6ff;border-left:4px solid #2563eb;padding:16px;border-radius:4px;margin:16px 0">
+              <p style="color:#1e3a8a;font-weight:600;margin:0">Posição atual na fila: ${filaPosition}</p>
+            </div>
+            <p>Assim que houver liberação de vaga, você será notificado.</p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de confirmacao de fila enviado para ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar email de confirmacao de fila para ${email}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async sendWaitlistPromotion(email: string, name: string): Promise<void> {
+    const studentName = name ?? 'Estudante';
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Sua solicitação saiu da fila de espera',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#166534">Vaga liberada para sua solicitação</h2>
+            <p>Olá, <strong>${studentName}</strong>.</p>
+            <p>Boa notícia! Sua solicitação foi promovida da fila de espera e voltou para análise.</p>
+            <p>Em breve ela será avaliada pela equipe responsável.</p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de promocao de fila enviado para ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar email de promocao de fila para ${email}`,
+        error,
+      );
+      throw error;
+    }
+  }
 }

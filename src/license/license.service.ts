@@ -154,7 +154,12 @@ export class LicenseService {
    * @param dto        Dados da licença vindos do client
    * @param employeeId ID extraído da sessão no controller — nunca do body
    */
-  async create(dto: CreateLicenseDto, employeeId: string): Promise<License> {
+  async create(
+    dto: CreateLicenseDto,
+    employeeId: string,
+    validadeCarteirinhaMeses = 6,
+    enrollmentPeriodId: string | null = null,
+  ): Promise<License> {
     await this.assertHasApprovedRequest(dto.id);
 
     const student = await this.studentService.findOneOrFail(dto.id);
@@ -194,10 +199,11 @@ export class LicenseService {
     const created = await this.licenseRepository.create({
       studentId,
       employeeId,
+      enrollmentPeriodId,
       imageLicense: data.image,
       status: LicenseStatus.ACTIVE,
       existing: true,
-      expirationDate: addMonthsBR(nowInBR(), 7),
+      expirationDate: addMonthsBR(nowInBR(), validadeCarteirinhaMeses),
       verificationCode,
       qrCodeUrl,
     });
@@ -208,6 +214,54 @@ export class LicenseService {
     });
 
     return created;
+  }
+
+  async syncValidityMonthsForEnrollmentPeriod(
+    enrollmentPeriodId: string,
+    oldMonths: number,
+    newMonths: number,
+  ): Promise<number> {
+    const deltaMonths = newMonths - oldMonths;
+    if (deltaMonths === 0) {
+      return 0;
+    }
+
+    const licenses = await this.licenseRepository.findByEnrollmentPeriodId(
+      enrollmentPeriodId,
+    );
+
+    const activeExistingLicenses = licenses.filter(
+      (license) => license.existing && license.status === LicenseStatus.ACTIVE,
+    );
+
+    let updatedCount = 0;
+    for (const license of activeExistingLicenses) {
+      const id = (license as any)._id?.toString?.();
+      if (!id) {
+        continue;
+      }
+
+      const updatedExpiration = addMonthsBR(
+        new Date(license.expirationDate),
+        deltaMonths,
+      );
+
+      const now = nowInBR();
+      const isExpiredAfterAdjust = updatedExpiration.getTime() < now.getTime();
+
+      await this.licenseRepository.update(id, {
+        expirationDate: updatedExpiration,
+        status: isExpiredAfterAdjust ? LicenseStatus.EXPIRED : LicenseStatus.ACTIVE,
+        existing: !isExpiredAfterAdjust,
+      });
+      updatedCount += 1;
+    }
+
+    return updatedCount;
+  }
+
+  async deactivateExpiredLicenses(): Promise<number> {
+    return this.licenseRepository.deactivateExpiredActive(nowInBR());
   }
 
   private async assertHasApprovedRequest(studentId: string): Promise<void> {
@@ -348,6 +402,7 @@ export class LicenseService {
     studentId: string,
     dto: { institution: string; bus: string; photo?: string },
     employeeId: string,
+    validadeCarteirinhaMeses = 6,
   ): Promise<License> {
     const existing = await this.licenseRepository.findOneByStudentId(studentId);
     if (!existing) {
@@ -386,7 +441,7 @@ export class LicenseService {
       imageLicense: data.image,
       status: LicenseStatus.ACTIVE,
       existing: true,
-      expirationDate: addMonthsBR(nowInBR(), 7),
+      expirationDate: addMonthsBR(nowInBR(), validadeCarteirinhaMeses),
       verificationCode,
       qrCodeUrl,
       rejectionReason: null,
@@ -421,9 +476,17 @@ export class LicenseService {
     return created;
   }
 
-  private emitLicenseEvent(
+  emitLicenseEvent(
     studentId: string,
-    payload: { type: 'license.changed'; reason: 'created' | 'updated' | 'removed' | 'rejected' },
+    payload: {
+      type: 'license.changed';
+      reason:
+        | 'created'
+        | 'updated'
+        | 'removed'
+        | 'rejected'
+        | 'waitlist_promoted';
+    },
   ): void {
     const stream = this.studentStreams.get(studentId);
     if (!stream) return;
