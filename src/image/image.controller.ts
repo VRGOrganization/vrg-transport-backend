@@ -6,24 +6,21 @@ import {
   Param,
   Patch,
   Delete,
-  UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
+  Query,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ImagesService } from './image.service';
 import { CreateImageDto, UpdateImageDto, UploadMyDocumentDto } from './dto/image.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
-import type { AuthenticatedUser } from '../auth/interfaces/auth.interface';
 
 @ApiTags('Images')
 @Controller('image')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class ImagesController {
   constructor(private readonly imagesService: ImagesService) {}
 
@@ -46,8 +43,13 @@ export class ImagesController {
   @ApiResponse({ status: 200, description: 'List of images.' })
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
-  findAll() {
-    return this.imagesService.findAll();
+  findAll(
+    @Query('page') pageRaw?: string,
+    @Query('limit') limitRaw?: string,
+  ) {
+    const page = Math.max(1, Number.parseInt(pageRaw ?? '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(limitRaw ?? '20', 10) || 20));
+    return this.imagesService.findAllPaginated(page, limit);
   }
 
   @Post('me')
@@ -57,12 +59,12 @@ export class ImagesController {
   @ApiResponse({ status: 201, description: 'Image created successfully.' })
   @ApiResponse({ status: 409, description: 'Image of this type already exists.' })
   createMyImage(
-    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
     @Body() dto: Omit<CreateImageDto, 'studentId'>,
   ) {
     return this.imagesService.create({
       ...dto,
-      studentId: user.id,
+      studentId: req.sessionPayload!.userId,
     } as CreateImageDto);
   }
 
@@ -72,8 +74,8 @@ export class ImagesController {
   @ApiResponse({ status: 200, description: 'Images for the authenticated student.' })
   @ApiResponse({ status: 401, description: 'Not authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
-  findMyImages(@CurrentUser() user: AuthenticatedUser) {
-    return this.imagesService.findByStudentId(user.id);
+  findMyImages(@Req() req: Request) {
+    return this.imagesService.findByStudentId(req.sessionPayload!.userId);
   }
 
   @Get('me/profile')
@@ -83,8 +85,41 @@ export class ImagesController {
   @ApiResponse({ status: 401, description: 'NNot authenticated.' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
   @ApiResponse({ status: 404, description: 'Profile photo not found.' })
-  findMyProfilePhoto(@CurrentUser() user: any) {
-    return this.imagesService.findProfilePhoto(user.id);
+  findMyProfilePhoto(@Req() req: Request) {
+    return this.imagesService.findProfilePhoto(req.sessionPayload!.userId);
+  }
+
+  @Get('student/me')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'My images (student alias)', description: 'Returns all images for the authenticated student.' })
+  @ApiResponse({ status: 200, description: 'Images for the authenticated student.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
+  findMyImagesByStudentAlias(@Req() req: Request) {
+    return this.imagesService
+      .findByStudentId(req.sessionPayload!.userId)
+      .then((images) =>
+        images.map((image) => ({
+          _id: (image as any)._id,
+          studentId: image.studentId,
+          photoType: image.photoType,
+          active: image.active,
+          hasFile: Boolean(image.photo3x4 || image.documentImage || image.studentCard),
+        })),
+      );
+  }
+
+  @Get('history/student/:studentId')
+  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  @ApiOperation({ summary: 'Image history by student', description: 'Returns archived previous image versions for a student sorted by most recent replacement.' })
+  @ApiParam({ name: 'studentId', description: 'Student ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
+  @ApiResponse({ status: 200, description: 'Image history for the student.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  findImageHistoryByStudentId(
+    @Param('studentId', MongoObjectIdPipe) studentId: string,
+  ) {
+    return this.imagesService.findHistoryByStudentId(studentId);
   }
 
   @Get('student/:studentId')
@@ -97,6 +132,27 @@ export class ImagesController {
   @ApiResponse({ status: 404, description: 'Student not found.' })
   findByStudentId(@Param('studentId', MongoObjectIdPipe) studentId: string) {
     return this.imagesService.findByStudentId(studentId);
+  }
+
+  @Get(':id/file')
+  @Roles(UserRole.STUDENT)
+  @ApiOperation({ summary: 'Get my image file by id', description: 'Returns full base64 payload for one image document of the authenticated student.' })
+  @ApiParam({ name: 'id', description: 'Image ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
+  @ApiResponse({ status: 200, description: 'Image file payload.' })
+  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions or image does not belong to authenticated student.' })
+  @ApiResponse({ status: 404, description: 'Image not found.' })
+  async findMyImageFileById(
+    @Param('id', MongoObjectIdPipe) id: string,
+    @Req() req: Request,
+  ) {
+    return this.imagesService.findMyImageFileById(
+      id,
+      req.sessionPayload!.userId,
+      req.sessionPayload!.userType,
+      req.headers['user-agent'],
+      req.ip,
+    );
   }
 
   @Get(':id')

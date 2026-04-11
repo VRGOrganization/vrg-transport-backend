@@ -7,6 +7,7 @@ export enum LicenseStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
   EXPIRED = 'expired',
+  REJECTED = 'rejected',
 }
 
 export type LicenseDocument = License & Document;
@@ -18,6 +19,9 @@ export class License {
 
   @Prop({ required: true })
   employeeId: string;
+
+  @Prop({ type: String, default: null })
+  enrollmentPeriodId: string | null;
 
   @Prop({ required: true })
   imageLicense: string;
@@ -37,8 +41,18 @@ export class License {
 
   @Prop({ required: true, unique: true })
   verificationCode: string;
+
+  @Prop({ type: String, default: null })
+  qrCodeUrl: string | null;
+
+  @Prop({ type: String, default: null })
+  rejectionReason: string | null;
+
+  @Prop({ type: Date, default: null })
+  rejectedAt: Date | null;
 }
 
 export const LicenseSchema = SchemaFactory.createForClass(License);
 
 LicenseSchema.index({ studentId: 1 });
+LicenseSchema.index({ enrollmentPeriodId: 1 });

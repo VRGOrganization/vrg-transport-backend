@@ -3,6 +3,8 @@ import { NotFoundException } from '@nestjs/common';
 import { StudentService } from '../student.service';
 import { STUDENT_REPOSITORY } from '../interfaces/repository.interface';
 import { StudentStatus } from '../schemas/student.schema';
+import { AuditLogService } from '../../common/audit/audit-log.service';
+import { ImagesService } from '../../image/image.service';
 
 const mockStudentRepository = {
   create: jest.fn(),
@@ -12,6 +14,16 @@ const mockStudentRepository = {
   findByEmailWithSensitiveFields: jest.fn(),
   update: jest.fn(),
   remove: jest.fn(),
+};
+
+const mockAuditLogService = {
+  record: jest.fn(),
+};
+
+const mockImagesService = {
+  findByStudentId: jest.fn(),
+  create: jest.fn(),
+  updateByStudentId: jest.fn(),
 };
 
 const makeStudent = (overrides = {}) => ({
@@ -31,6 +43,8 @@ describe('StudentService', () => {
       providers: [
         StudentService,
         { provide: STUDENT_REPOSITORY, useValue: mockStudentRepository },
+        { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: ImagesService, useValue: mockImagesService },
       ],
     }).compile();
 
@@ -64,11 +78,14 @@ describe('StudentService', () => {
 
       expect(mockStudentRepository.update).toHaveBeenCalledWith(
         'student-id-123',
-        {
+        expect.objectContaining({
           status: StudentStatus.ACTIVE,
           verificationCode: null,
           verificationCodeExpiresAt: null,
-        },
+          verificationCodeAttempts: 0,
+          verificationCodeLockedUntil: null,
+          verificationCodeLastSentAt: null,
+        }),
       );
     });
   });

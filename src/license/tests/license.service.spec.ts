@@ -4,6 +4,11 @@ import { ConfigService } from '@nestjs/config';
 import { LicenseService } from '../license.service';
 import { LICENSE_REPOSITORY } from '../interfaces/repository.interface';
 import { LicenseStatus } from '../schemas/license.schema';
+import { StudentService } from '../../student/student.service';
+import { AuditLogService } from '../../common/audit/audit-log.service';
+import { MailService } from '../../mail/mail.service';
+import { LICENSE_REQUEST_REPOSITORY } from '../../license-request/interfaces/repository.interface';
+import { LicenseRequestStatus } from '../../license-request/schemas/license-request.schema';
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -20,13 +25,41 @@ const mockLicenseRepository = {
 const mockConfigService = {
   getOrThrow: jest.fn((key: string) => {
     const config: Record<string, string> = {
-      BASE_URL_API_LICENSE: 'https://mock-license-api.com',
-      X_API_KEY: 'mock-api-key',
+      LICENSE_API_URL: 'https://mock-license-api.com',
+      LICENSE_API_KEY: 'mock-api-key',
+      QR_CODE_BASE_URL: 'https://mock-license-api.com/qr',
     };
     const value = config[key];
     if (!value) throw new Error(`Config ${key} not found`);
     return value;
   }),
+  get: jest.fn((_key: string, fallback: number) => fallback),
+};
+
+const mockStudentService = {
+  findOneOrFail: jest.fn().mockResolvedValue({
+    _id: 'student-id-123',
+    name: 'Joao Silva',
+    degree: 'CC',
+    shift: 'Noturno',
+    telephone: '11999999999',
+    bloodType: 'A+',
+  }),
+};
+
+const mockAuditLogService = {
+  record: jest.fn(),
+};
+
+const mockMailService = {
+  sendVerificationCode: jest.fn(),
+  sendRejectionEmail: jest.fn(),
+};
+
+const mockLicenseRequestRepository = {
+  findByStudentId: jest
+    .fn()
+    .mockResolvedValue([{ status: LicenseRequestStatus.APPROVED }]),
 };
 
 const makeLicense = (overrides = {}) => ({
@@ -34,6 +67,7 @@ const makeLicense = (overrides = {}) => ({
   studentId: 'student-id-123',
   employeeId: 'employee-id-123',
   imageLicense: 'https://image.url/license.png',
+  qrCodeUrl: 'https://mock-license-api.com/qr/mock-verification-code',
   status: LicenseStatus.ACTIVE,
   existing: true,
   expirationDate: new Date(),
@@ -55,7 +89,14 @@ describe('LicenseService', () => {
       providers: [
         LicenseService,
         { provide: LICENSE_REPOSITORY, useValue: mockLicenseRepository },
+        {
+          provide: LICENSE_REQUEST_REPOSITORY,
+          useValue: mockLicenseRequestRepository,
+        },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: StudentService, useValue: mockStudentService },
+        { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: MailService, useValue: mockMailService },
       ],
     }).compile();
 
@@ -88,6 +129,9 @@ describe('LicenseService', () => {
       expect(createCall.employeeId).toBe('employee-id-from-token');
       expect(createCall.studentId).toBe('student-id-123');
       expect(createCall.status).toBe(LicenseStatus.ACTIVE);
+      expect(createCall.qrCodeUrl).toMatch(
+        /^https:\/\/mock-license-api\.com\/qr\/.+/,
+      );
     });
 
     it('deve lançar BadGatewayException se API externa falhar', async () => {

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BrevoClient } from '@getbrevo/brevo';
+import { PhotoType } from '../image/types/photoType.enum';
 
 @Injectable()
 export class MailService {
@@ -63,6 +64,202 @@ export class MailService {
       this.logger.log(`Código de verificação enviado para ${to}`);
     } catch (error) {
       this.logger.error(`Falha ao enviar e-mail para ${to}`, error);
+      throw error;
+    }
+  }
+
+  async sendLicenseRejection(
+    to: string,
+    studentName: string,
+    reason: string,
+  ): Promise<void> {
+    const name = studentName ?? 'Estudante';
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Sua solicitação de carteirinha foi recusada',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email: to }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#991b1b">Solicitação recusada</h2>
+            <p>Olá, <strong>${name}</strong>.</p>
+            <p>Infelizmente sua solicitação de carteirinha de transporte foi <strong>recusada</strong> pelo seguinte motivo:</p>
+            <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;border-radius:4px;margin:16px 0">
+              <p style="color:#991b1b;font-weight:600;margin:0">${reason}</p>
+            </div>
+            <p>Para solicitar novamente, acesse o aplicativo e passe pelo processo de solicitação completo.</p>
+            <p style="color:#6b7280;font-size:13px;margin-top:16px">
+              Em caso de dúvidas, entre em contato com a secretaria municipal de transportes.
+            </p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de recusa enviado para ${to}`);
+    } catch (error) {
+      this.logger.error(`Falha ao enviar email de recusa para ${to}`, error);
+      throw error;
+    }
+  }
+
+  async sendDocumentUpdateRejected(
+    email: string,
+    name: string,
+    reason: string,
+  ): Promise<void> {
+    const studentName = name ?? 'Estudante';
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Sua solicitação de alteração de documentos foi recusada',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#991b1b">Solicitação de alteração recusada</h2>
+            <p>Olá, <strong>${studentName}</strong>.</p>
+            <p>Sua solicitação de <strong>alteração de documentos</strong> foi recusada pelo seguinte motivo:</p>
+            <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;border-radius:4px;margin:16px 0">
+              <p style="color:#991b1b;font-weight:600;margin:0">${reason}</p>
+            </div>
+            <p>Você pode reenviar uma nova solicitação com os documentos corrigidos.</p>
+            <p style="color:#6b7280;font-size:13px;margin-top:16px">
+              Em caso de dúvidas, entre em contato com a secretaria municipal de transportes.
+            </p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de recusa de alteração de documentos enviado para ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar email de recusa de alteração de documentos para ${email}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async sendDocumentUpdateApproved(
+    email: string,
+    name: string,
+    changedDocuments: PhotoType[],
+  ): Promise<void> {
+    const studentName = name ?? 'Estudante';
+    const labels: Record<PhotoType, string> = {
+      [PhotoType.ProfilePhoto]: 'Foto 3x4',
+      [PhotoType.EnrollmentProof]: 'Comprovante de matrícula',
+      [PhotoType.CourseSchedule]: 'Grade horária',
+      [PhotoType.LicenseImage]: 'Imagem da carteirinha',
+    };
+
+    const listItems = changedDocuments
+      .map((doc) => labels[doc] ?? doc)
+      .map((doc) => `<li style="margin:6px 0">${doc}</li>`)
+      .join('');
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Sua solicitação de alteração de documentos foi aprovada',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#1b4332">Solicitação aprovada</h2>
+            <p>Olá, <strong>${studentName}</strong>.</p>
+            <p>Sua solicitação de alteração de documentos foi <strong>aprovada</strong>.</p>
+            <p>Documentos atualizados:</p>
+            <ul style="padding-left:20px;margin:8px 0 16px">
+              ${listItems || '<li>Nenhum documento informado</li>'}
+            </ul>
+            <p>Sua carteirinha foi gerada novamente com os dados atualizados.</p>
+            <p style="color:#6b7280;font-size:13px;margin-top:16px">
+              Em caso de dúvidas, entre em contato com a secretaria municipal de transportes.
+            </p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de aprovação de alteração de documentos enviado para ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar email de aprovação de alteração de documentos para ${email}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async sendWaitlistConfirmation(
+    email: string,
+    name: string,
+    filaPosition: number,
+  ): Promise<void> {
+    const studentName = name ?? 'Estudante';
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Solicitação recebida em fila de espera',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#1d4ed8">Fila de espera confirmada</h2>
+            <p>Olá, <strong>${studentName}</strong>.</p>
+            <p>Sua solicitação foi recebida, mas no momento todas as vagas estão preenchidas.</p>
+            <div style="background:#eff6ff;border-left:4px solid #2563eb;padding:16px;border-radius:4px;margin:16px 0">
+              <p style="color:#1e3a8a;font-weight:600;margin:0">Posição atual na fila: ${filaPosition}</p>
+            </div>
+            <p>Assim que houver liberação de vaga, você será notificado.</p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de confirmacao de fila enviado para ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar email de confirmacao de fila para ${email}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async sendWaitlistPromotion(email: string, name: string): Promise<void> {
+    const studentName = name ?? 'Estudante';
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Sua solicitação saiu da fila de espera',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#166534">Vaga liberada para sua solicitação</h2>
+            <p>Olá, <strong>${studentName}</strong>.</p>
+            <p>Boa notícia! Sua solicitação foi promovida da fila de espera e voltou para análise.</p>
+            <p>Em breve ela será avaliada pela equipe responsável.</p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de promocao de fila enviado para ${email}`);
+    } catch (error) {
+      this.logger.error(
+        `Falha ao enviar email de promocao de fila para ${email}`,
+        error,
+      );
       throw error;
     }
   }

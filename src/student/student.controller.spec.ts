@@ -3,6 +3,7 @@ import { StudentController } from './student.controller';
 import { StudentService } from './student.service';
 import { STUDENT_REPOSITORY } from './interfaces/repository.interface';
 import { AuditLogService } from '../common/audit/audit-log.service';
+import { LicenseRequestService } from '../license-request/license-request.service';
 import { ImagesService } from '../image/image.service';
 
 const mockStudentRepository = {
@@ -19,10 +20,15 @@ const mockAuditLogService = {
   record: jest.fn(),
 };
 
+const mockLicenseRequestService = {
+  assertInitialRequestEligibility: jest.fn(),
+  createRequest: jest.fn(),
+  cancelAndReplaceWithUpdate: jest.fn(),
+  submitDocumentUpdateRequest: jest.fn(),
+};
+
 const mockImagesService = {
-  findByStudentId: jest.fn(),
-  create: jest.fn(),
-  update: jest.fn(),
+  // Add any methods if needed, but for now empty
 };
 
 describe('StudentController', () => {
@@ -35,6 +41,10 @@ describe('StudentController', () => {
         StudentService,
         { provide: STUDENT_REPOSITORY, useValue: mockStudentRepository },
         { provide: AuditLogService, useValue: mockAuditLogService },
+        {
+          provide: LicenseRequestService,
+          useValue: mockLicenseRequestService,
+        },
         { provide: ImagesService, useValue: mockImagesService },
       ],
     }).compile();
