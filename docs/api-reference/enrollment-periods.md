@@ -11,10 +11,10 @@ Cria novo periodo de inscricao.
 Body:
 
 {
-  "dataInicio": "2026-04-01T00:00:00.000Z",
-  "dataFim": "2026-12-31T23:59:59.000Z",
-  "qtdVagasTotais": 100,
-  "validadeCarteirinhaMeses": 6
+  "startDate": "2026-04-01T00:00:00.000Z",
+  "endDate": "2026-12-31T23:59:59.000Z",
+  "totalSlots": 100,
+  "licenseValidityMonths": 6
 }
 
 Comportamento importante:
@@ -48,15 +48,15 @@ Atualiza periodo.
 Body parcial permitido:
 
 {
-  "dataInicio": "2026-04-01T00:00:00.000Z",
-  "dataFim": "2026-12-31T23:59:59.000Z",
-  "qtdVagasTotais": 120,
-  "validadeCarteirinhaMeses": 7
+  "startDate": "2026-04-01T00:00:00.000Z",
+  "endDate": "2026-12-31T23:59:59.000Z",
+  "totalSlots": 120,
+  "licenseValidityMonths": 7
 }
 
 Comportamento importante:
 
-- alterar validadeCarteirinhaMeses ajusta expiracao das licencas ativas vinculadas ao periodo
+- alterar licenseValidityMonths ajusta expiracao das licencas ativas vinculadas ao periodo
 - licencas que ficarem vencidas apos ajuste sao desativadas
 
 Respostas: 200, 400, 404, 409
@@ -96,7 +96,7 @@ Preview de solicitacoes a promover da fila.
 Body:
 
 {
-  "quantidade": 3
+  "quantity": 3
 }
 
 Role: ADMIN

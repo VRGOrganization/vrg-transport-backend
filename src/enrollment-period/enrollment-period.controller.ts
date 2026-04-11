@@ -69,7 +69,7 @@ export class EnrollmentPeriodController {
     @Param('id', MongoObjectIdPipe) id: string,
     @Body() dto: ReleaseSlotsDto,
   ) {
-    return this.service.previewReleaseSlots(id, dto.quantidade);
+    return this.service.previewReleaseSlots(id, dto.quantity);
   }
 
   @Post('/:id/confirm-release')

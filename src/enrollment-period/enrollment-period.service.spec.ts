@@ -71,15 +71,15 @@ describe('EnrollmentPeriodService (TDD)', () => {
     const service = buildService();
 
     mockRepository.findActive.mockResolvedValue(null);
-    mockRepository.create.mockResolvedValue({ _id: 'period-1', ativo: true });
+    mockRepository.create.mockResolvedValue({ _id: 'period-1', active: true });
     mockLicenseService.deactivateExpiredLicenses.mockResolvedValue(0);
 
     const result = await service.create(
       {
-        dataInicio: '2026-01-01T00:00:00.000Z',
-        dataFim: '2026-06-01T00:00:00.000Z',
-        qtdVagasTotais: 100,
-        validadeCarteirinhaMeses: 6,
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDate: '2026-06-01T00:00:00.000Z',
+        totalSlots: 100,
+        licenseValidityMonths: 6,
       },
       'admin-1',
     );
@@ -88,10 +88,10 @@ describe('EnrollmentPeriodService (TDD)', () => {
     expect(mockLicenseService.deactivateExpiredLicenses).toHaveBeenCalled();
     expect(mockRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        ativo: true,
-        qtdVagasPreenchidas: 0,
-        qtdFilaEncerrada: 0,
-        criadoPorAdminId: 'admin-1',
+        active: true,
+        filledSlots: 0,
+        closedWaitlistCount: 0,
+        createdByAdminId: 'admin-1',
       }),
     );
   });
@@ -102,19 +102,19 @@ describe('EnrollmentPeriodService (TDD)', () => {
     mockLicenseService.deactivateExpiredLicenses.mockResolvedValue(1);
     mockRepository.findActive.mockResolvedValue({
       _id: 'period-expired',
-      ativo: true,
-      dataFim: new Date('2000-01-01T00:00:00.000Z'),
+      active: true,
+      endDate: new Date('2000-01-01T00:00:00.000Z'),
     });
     mockLicenseRequestRepository.cancelWaitlistedByEnrollmentPeriod.mockResolvedValue(3);
-    mockRepository.update.mockResolvedValue({ _id: 'period-expired', ativo: false });
-    mockRepository.create.mockResolvedValue({ _id: 'period-new', ativo: true });
+    mockRepository.update.mockResolvedValue({ _id: 'period-expired', active: false });
+    mockRepository.create.mockResolvedValue({ _id: 'period-new', active: true });
 
     await service.create(
       {
-        dataInicio: '2026-01-01T00:00:00.000Z',
-        dataFim: '2026-06-01T00:00:00.000Z',
-        qtdVagasTotais: 100,
-        validadeCarteirinhaMeses: 6,
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDate: '2026-06-01T00:00:00.000Z',
+        totalSlots: 100,
+        licenseValidityMonths: 6,
       },
       'admin-1',
     );
@@ -125,8 +125,8 @@ describe('EnrollmentPeriodService (TDD)', () => {
     expect(mockRepository.update).toHaveBeenCalledWith(
       'period-expired',
       expect.objectContaining({
-        ativo: false,
-        qtdFilaEncerrada: 3,
+        active: false,
+        closedWaitlistCount: 3,
       }),
     );
   });
@@ -139,10 +139,10 @@ describe('EnrollmentPeriodService (TDD)', () => {
     await expect(
       service.create(
         {
-          dataInicio: '2026-01-01T00:00:00.000Z',
-          dataFim: '2026-06-01T00:00:00.000Z',
-          qtdVagasTotais: 100,
-          validadeCarteirinhaMeses: 6,
+          startDate: '2026-01-01T00:00:00.000Z',
+          endDate: '2026-06-01T00:00:00.000Z',
+          totalSlots: 100,
+          licenseValidityMonths: 6,
         },
         'admin-1',
       ),
@@ -154,37 +154,37 @@ describe('EnrollmentPeriodService (TDD)', () => {
 
     mockRepository.findById.mockResolvedValue({
       _id: 'period-1',
-      qtdVagasPreenchidas: 40,
-      qtdVagasTotais: 50,
+      filledSlots: 40,
+      totalSlots: 50,
     });
 
     await expect(
       service.update('period-1', {
-        qtdVagasTotais: 39,
+        totalSlots: 39,
       }),
     ).rejects.toThrow(ConflictException);
   });
 
-  it('deve sincronizar validade das licencas quando validadeCarteirinhaMeses mudar', async () => {
+  it('deve sincronizar validade das licencas quando licenseValidityMonths mudar', async () => {
     const service = buildService();
 
     mockRepository.findById.mockResolvedValue({
       _id: 'period-1',
-      qtdVagasPreenchidas: 10,
-      qtdVagasTotais: 20,
-      dataInicio: new Date('2026-01-01T00:00:00.000Z'),
-      dataFim: new Date('2099-01-01T00:00:00.000Z'),
-      validadeCarteirinhaMeses: 6,
-      ativo: true,
+      filledSlots: 10,
+      totalSlots: 20,
+      startDate: new Date('2026-01-01T00:00:00.000Z'),
+      endDate: new Date('2099-01-01T00:00:00.000Z'),
+      licenseValidityMonths: 6,
+      active: true,
     });
     mockRepository.update.mockResolvedValue({
       _id: 'period-1',
-      validadeCarteirinhaMeses: 7,
-      dataFim: new Date('2099-01-01T00:00:00.000Z'),
-      ativo: true,
+      licenseValidityMonths: 7,
+      endDate: new Date('2099-01-01T00:00:00.000Z'),
+      active: true,
     });
 
-    await service.update('period-1', { validadeCarteirinhaMeses: 7 });
+    await service.update('period-1', { licenseValidityMonths: 7 });
 
     expect(
       mockLicenseService.syncValidityMonthsForEnrollmentPeriod,

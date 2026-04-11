@@ -6,46 +6,46 @@ export type EnrollmentPeriodDocument = EnrollmentPeriod & Document;
 @Schema({ timestamps: true, collection: 'enrollment_periods' })
 export class EnrollmentPeriod {
   @Prop({ type: Date, required: true })
-  dataInicio: Date;
+  startDate: Date;
 
   @Prop({ type: Date, required: true })
-  dataFim: Date;
+  endDate: Date;
 
   @Prop({ type: Number, required: true, min: 1 })
-  qtdVagasTotais: number;
+  totalSlots: number;
 
   @Prop({ type: Number, default: 0, min: 0 })
-  qtdVagasPreenchidas: number;
+  filledSlots: number;
 
   @Prop({ type: Number, default: 0, min: 0 })
   waitlistSequence: number;
 
   @Prop({ type: Number, default: 0, min: 0 })
-  qtdFilaEncerrada: number;
+  closedWaitlistCount: number;
 
   @Prop({ type: Date, default: null })
-  filaEncerradaEm: Date | null;
+  waitlistClosedAt: Date | null;
 
   @Prop({ type: Number, required: true, min: 1 })
-  validadeCarteirinhaMeses: number;
+  licenseValidityMonths: number;
 
   @Prop({ type: Boolean, default: true })
-  ativo: boolean;
+  active: boolean;
 
   @Prop({ type: String, required: true })
-  criadoPorAdminId: string;
+  createdByAdminId: string;
 
   @Prop({ type: String, default: null })
-  encerradoPorAdminId: string | null;
+  closedByAdminId: string | null;
 
   @Prop({ type: Date, default: null })
-  encerradoEm: Date | null;
+  closedAt: Date | null;
 }
 
 export const EnrollmentPeriodSchema =
   SchemaFactory.createForClass(EnrollmentPeriod);
 
 EnrollmentPeriodSchema.index(
-  { ativo: 1 },
-  { unique: true, partialFilterExpression: { ativo: true } },
+  { active: 1 },
+  { unique: true, partialFilterExpression: { active: true } },
 );

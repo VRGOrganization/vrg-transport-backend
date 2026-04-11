@@ -157,7 +157,7 @@ export class LicenseService {
   async create(
     dto: CreateLicenseDto,
     employeeId: string,
-    validadeCarteirinhaMeses = 6,
+    licenseValidityMonths = 6,
     enrollmentPeriodId: string | null = null,
   ): Promise<License> {
     await this.assertHasApprovedRequest(dto.id);
@@ -203,7 +203,7 @@ export class LicenseService {
       imageLicense: data.image,
       status: LicenseStatus.ACTIVE,
       existing: true,
-      expirationDate: addMonthsBR(nowInBR(), validadeCarteirinhaMeses),
+      expirationDate: addMonthsBR(nowInBR(), licenseValidityMonths),
       verificationCode,
       qrCodeUrl,
     });
@@ -402,7 +402,7 @@ export class LicenseService {
     studentId: string,
     dto: { institution: string; bus: string; photo?: string },
     employeeId: string,
-    validadeCarteirinhaMeses = 6,
+    licenseValidityMonths = 6,
   ): Promise<License> {
     const existing = await this.licenseRepository.findOneByStudentId(studentId);
     if (!existing) {
@@ -441,7 +441,7 @@ export class LicenseService {
       imageLicense: data.image,
       status: LicenseStatus.ACTIVE,
       existing: true,
-      expirationDate: addMonthsBR(nowInBR(), validadeCarteirinhaMeses),
+      expirationDate: addMonthsBR(nowInBR(), licenseValidityMonths),
       verificationCode,
       qrCodeUrl,
       rejectionReason: null,

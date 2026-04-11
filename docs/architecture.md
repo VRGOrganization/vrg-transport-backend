@@ -57,10 +57,10 @@ src/
 ## Modelo de dados relevante ao fluxo novo
 
 - enrollment_periods
-  - janela: dataInicio/dataFim
-  - capacidade: qtdVagasTotais/qtdVagasPreenchidas
-  - validade: validadeCarteirinhaMeses
-  - fila: waitlistSequence, qtdFilaEncerrada, filaEncerradaEm
+  - janela: startDate/endDate
+  - capacidade: totalSlots/filledSlots
+  - validade: licenseValidityMonths
+  - fila: waitlistSequence, closedWaitlistCount, waitlistClosedAt
 
 - license_requests
   - type: initial/update
@@ -128,7 +128,7 @@ No modulo Auth, alem dos globais:
 
 ### Validade e expiracao de carteirinhas
 
-1. Se validadeCarteirinhaMeses mudar, licencas ativas daquele periodo sao ajustadas por delta.
+1. Se licenseValidityMonths mudar, licencas ativas daquele periodo sao ajustadas por delta.
 2. Licencas expiradas sao desativadas em lote (status expired + existing false).
 
 ## Bootstrap e seguranca de entrada

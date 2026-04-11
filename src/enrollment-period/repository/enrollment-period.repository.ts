@@ -34,7 +34,7 @@ export class EnrollmentPeriodRepository
 
   async findActive(): Promise<EnrollmentPeriod | null> {
     return this.model
-      .findOne({ ativo: true })
+      .findOne({ active: true })
       .lean()
       .exec() as Promise<EnrollmentPeriod | null>;
   }
@@ -65,9 +65,9 @@ export class EnrollmentPeriodRepository
       .findOneAndUpdate(
         {
           _id: id,
-          $expr: { $lt: ['$qtdVagasPreenchidas', '$qtdVagasTotais'] },
+          $expr: { $lt: ['$filledSlots', '$totalSlots'] },
         },
-        { $inc: { qtdVagasPreenchidas: 1 } },
+        { $inc: { filledSlots: 1 } },
         { returnDocument: 'after' },
       )
       .lean()
@@ -77,8 +77,8 @@ export class EnrollmentPeriodRepository
   async decrementFilled(id: string): Promise<EnrollmentPeriod | null> {
     return this.model
       .findOneAndUpdate(
-        { _id: id, qtdVagasPreenchidas: { $gt: 0 } },
-        { $inc: { qtdVagasPreenchidas: -1 } },
+        { _id: id, filledSlots: { $gt: 0 } },
+        { $inc: { filledSlots: -1 } },
         { returnDocument: 'after' },
       )
       .lean()

@@ -175,15 +175,15 @@ describe('EnrollmentPeriod concurrency (e2e)', () => {
     const adminSessionId = await createSession('admin', '507f1f77bcf86cd799439051');
 
     const period = await enrollmentPeriodModel.create({
-      dataInicio: new Date(Date.now() - 60_000),
-      dataFim: new Date(Date.now() + 60_000),
-      qtdVagasTotais: 10,
-      qtdVagasPreenchidas: 0,
-      validadeCarteirinhaMeses: 6,
-      ativo: true,
-      criadoPorAdminId: '507f1f77bcf86cd799439051',
-      encerradoPorAdminId: null,
-      encerradoEm: null,
+      startDate: new Date(Date.now() - 60_000),
+      endDate: new Date(Date.now() + 60_000),
+      totalSlots: 10,
+      filledSlots: 0,
+      licenseValidityMonths: 6,
+      active: true,
+      createdByAdminId: '507f1f77bcf86cd799439051',
+      closedByAdminId: null,
+      closedAt: null,
     });
 
     const requestDoc = await licenseRequestModel.create({
@@ -205,15 +205,15 @@ describe('EnrollmentPeriod concurrency (e2e)', () => {
     const adminSessionId = await createSession('admin', '507f1f77bcf86cd799439052');
 
     const period = await enrollmentPeriodModel.create({
-      dataInicio: new Date(Date.now() - 60_000),
-      dataFim: new Date(Date.now() + 60_000),
-      qtdVagasTotais: 20,
-      qtdVagasPreenchidas: 0,
-      validadeCarteirinhaMeses: 6,
-      ativo: true,
-      criadoPorAdminId: '507f1f77bcf86cd799439052',
-      encerradoPorAdminId: null,
-      encerradoEm: null,
+      startDate: new Date(Date.now() - 60_000),
+      endDate: new Date(Date.now() + 60_000),
+      totalSlots: 20,
+      filledSlots: 0,
+      licenseValidityMonths: 6,
+      active: true,
+      createdByAdminId: '507f1f77bcf86cd799439052',
+      closedByAdminId: null,
+      closedAt: null,
     });
 
     const docs = await licenseRequestModel.create([
@@ -309,15 +309,15 @@ describe('EnrollmentPeriod concurrency (e2e)', () => {
     );
 
     const period = await enrollmentPeriodModel.create({
-      dataInicio: new Date(Date.now() - 60_000),
-      dataFim: new Date(Date.now() + 60_000),
-      qtdVagasTotais: 1,
-      qtdVagasPreenchidas: 0,
-      validadeCarteirinhaMeses: 6,
-      ativo: true,
-      criadoPorAdminId: '507f1f77bcf86cd799439053',
-      encerradoPorAdminId: null,
-      encerradoEm: null,
+      startDate: new Date(Date.now() - 60_000),
+      endDate: new Date(Date.now() + 60_000),
+      totalSlots: 1,
+      filledSlots: 0,
+      licenseValidityMonths: 6,
+      active: true,
+      createdByAdminId: '507f1f77bcf86cd799439053',
+      closedByAdminId: null,
+      closedAt: null,
     });
 
     const studentAId = '507f1f77bcf86cd799439081';
@@ -377,7 +377,7 @@ describe('EnrollmentPeriod concurrency (e2e)', () => {
       .findById(period._id)
       .lean()
       .exec();
-    expect(refreshedPeriod?.qtdVagasPreenchidas).toBe(1);
+    expect(refreshedPeriod?.filledSlots).toBe(1);
 
     const refreshedA = await licenseRequestModel
       .findById(pendingA._id)
@@ -414,15 +414,15 @@ describe('EnrollmentPeriod concurrency (e2e)', () => {
     );
 
     const period = await enrollmentPeriodModel.create({
-      dataInicio: new Date(Date.now() - 60_000),
-      dataFim: new Date(Date.now() + 60_000),
-      qtdVagasTotais: 1,
-      qtdVagasPreenchidas: 1,
-      validadeCarteirinhaMeses: 6,
-      ativo: true,
-      criadoPorAdminId: '507f1f77bcf86cd799439054',
-      encerradoPorAdminId: null,
-      encerradoEm: null,
+      startDate: new Date(Date.now() - 60_000),
+      endDate: new Date(Date.now() + 60_000),
+      totalSlots: 1,
+      filledSlots: 1,
+      licenseValidityMonths: 6,
+      active: true,
+      createdByAdminId: '507f1f77bcf86cd799439054',
+      closedByAdminId: null,
+      closedAt: null,
     });
 
     const studentAId = '507f1f77bcf86cd799439091';
@@ -465,7 +465,7 @@ describe('EnrollmentPeriod concurrency (e2e)', () => {
       .findById(period._id)
       .lean()
       .exec();
-    expect(refreshedPeriod?.qtdVagasPreenchidas).toBe(1);
+    expect(refreshedPeriod?.filledSlots).toBe(1);
 
     const refreshedA = await licenseRequestModel
       .findById(pendingA._id)

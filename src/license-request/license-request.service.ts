@@ -66,7 +66,7 @@ export class LicenseRequestService {
       );
     }
 
-    this.assertPeriodWindow(activePeriod.dataInicio, activePeriod.dataFim);
+    this.assertPeriodWindow(activePeriod.startDate, activePeriod.endDate);
   }
 
   async createRequest(studentId: string): Promise<LicenseRequest> {
@@ -92,7 +92,7 @@ export class LicenseRequestService {
       );
     }
 
-    this.assertPeriodWindow(activePeriod.dataInicio, activePeriod.dataFim);
+    this.assertPeriodWindow(activePeriod.startDate, activePeriod.endDate);
 
     const enrollmentPeriodId = (activePeriod as any)._id?.toString?.();
     if (!enrollmentPeriodId) {
@@ -100,7 +100,7 @@ export class LicenseRequestService {
     }
 
     const hasAvailableSlots =
-      activePeriod.qtdVagasPreenchidas < activePeriod.qtdVagasTotais;
+      activePeriod.filledSlots < activePeriod.totalSlots;
 
     if (!hasAvailableSlots) {
       const filaPosition =
@@ -311,7 +311,7 @@ export class LicenseRequestService {
       const period = await this.enrollmentPeriodService.findById(
         request.enrollmentPeriodId,
       );
-      validityMonths = period?.validadeCarteirinhaMeses ?? 6;
+      validityMonths = period?.licenseValidityMonths ?? 6;
 
       await this.enrollmentPeriodService.incrementFilled(
         request.enrollmentPeriodId,
@@ -478,16 +478,16 @@ export class LicenseRequestService {
     return requests[0] ?? null;
   }
 
-  private assertPeriodWindow(dataInicioRaw: Date, dataFimRaw: Date): void {
+  private assertPeriodWindow(startDateRaw: Date, endDateRaw: Date): void {
     const now = new Date();
-    const dataInicio = new Date(dataInicioRaw);
-    const dataFim = new Date(dataFimRaw);
+    const startDate = new Date(startDateRaw);
+    const endDate = new Date(endDateRaw);
 
-    if (now < dataInicio) {
+    if (now < startDate) {
       throw new BadRequestException('O período de inscrições ainda não começou.');
     }
 
-    if (now > dataFim) {
+    if (now > endDate) {
       throw new BadRequestException('O período de inscrições foi encerrado.');
     }
   }

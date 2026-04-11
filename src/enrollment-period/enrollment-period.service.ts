@@ -43,7 +43,7 @@ export class EnrollmentPeriodService {
 
     const active = await this.repository.findActive();
     if (active) {
-      if (this.isWindowExpired(active.dataFim)) {
+      if (this.isWindowExpired(active.endDate)) {
         await this.finishPeriodLifecycle(
           active,
           adminId,
@@ -54,24 +54,24 @@ export class EnrollmentPeriodService {
       }
     }
 
-    const dataInicio = new Date(dto.dataInicio);
-    const dataFim = new Date(dto.dataFim);
-    this.assertValidDateRange(dataInicio, dataFim);
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
+    this.assertValidDateRange(startDate, endDate);
 
     const created = await this.repository
       .create({
-        dataInicio,
-        dataFim,
-        qtdVagasTotais: dto.qtdVagasTotais,
-        qtdVagasPreenchidas: 0,
+        startDate,
+        endDate,
+        totalSlots: dto.totalSlots,
+        filledSlots: 0,
         waitlistSequence: 0,
-        qtdFilaEncerrada: 0,
-        filaEncerradaEm: null,
-        validadeCarteirinhaMeses: dto.validadeCarteirinhaMeses,
-        ativo: true,
-        criadoPorAdminId: adminId,
-        encerradoPorAdminId: null,
-        encerradoEm: null,
+        closedWaitlistCount: 0,
+        waitlistClosedAt: null,
+        licenseValidityMonths: dto.licenseValidityMonths,
+        active: true,
+        createdByAdminId: adminId,
+        closedByAdminId: null,
+        closedAt: null,
       })
       .catch((error) => {
         if (this.isDuplicateKeyError(error)) {
@@ -102,7 +102,7 @@ export class EnrollmentPeriodService {
       return null;
     }
 
-    if (this.isWindowExpired(active.dataFim)) {
+    if (this.isWindowExpired(active.endDate)) {
       await this.finishPeriodLifecycle(
         active,
         null,
@@ -137,32 +137,32 @@ export class EnrollmentPeriodService {
     }
 
     if (
-      dto.qtdVagasTotais !== undefined &&
-      dto.qtdVagasTotais < current.qtdVagasPreenchidas
+      dto.totalSlots !== undefined &&
+      dto.totalSlots < current.filledSlots
     ) {
       throw new ConflictException(
         'Nao e possivel reduzir o total de vagas abaixo das vagas preenchidas.',
       );
     }
 
-    const dataInicio =
-      dto.dataInicio !== undefined ? new Date(dto.dataInicio) : current.dataInicio;
-    const dataFim = dto.dataFim !== undefined ? new Date(dto.dataFim) : current.dataFim;
+    const startDate =
+      dto.startDate !== undefined ? new Date(dto.startDate) : current.startDate;
+    const endDate = dto.endDate !== undefined ? new Date(dto.endDate) : current.endDate;
 
-    this.assertValidDateRange(dataInicio, dataFim);
+    this.assertValidDateRange(startDate, endDate);
 
-    const previousValidity = current.validadeCarteirinhaMeses;
+    const previousValidity = current.licenseValidityMonths;
     const nextValidity =
-      dto.validadeCarteirinhaMeses ?? current.validadeCarteirinhaMeses;
+      dto.licenseValidityMonths ?? current.licenseValidityMonths;
 
     const updated = await this.repository.update(id, {
-      ...(dto.dataInicio !== undefined ? { dataInicio } : {}),
-      ...(dto.dataFim !== undefined ? { dataFim } : {}),
-      ...(dto.qtdVagasTotais !== undefined
-        ? { qtdVagasTotais: dto.qtdVagasTotais }
+      ...(dto.startDate !== undefined ? { startDate } : {}),
+      ...(dto.endDate !== undefined ? { endDate } : {}),
+      ...(dto.totalSlots !== undefined
+        ? { totalSlots: dto.totalSlots }
         : {}),
-      ...(dto.validadeCarteirinhaMeses !== undefined
-        ? { validadeCarteirinhaMeses: dto.validadeCarteirinhaMeses }
+      ...(dto.licenseValidityMonths !== undefined
+        ? { licenseValidityMonths: dto.licenseValidityMonths }
         : {}),
     });
 
@@ -179,7 +179,7 @@ export class EnrollmentPeriodService {
       await this.licenseService.deactivateExpiredLicenses();
     }
 
-    if (updated.ativo && this.isWindowExpired(updated.dataFim)) {
+    if (updated.active && this.isWindowExpired(updated.endDate)) {
       await this.finishPeriodLifecycle(
         updated,
         null,
@@ -220,7 +220,7 @@ export class EnrollmentPeriodService {
       throw new NotFoundException('Periodo de inscricao nao encontrado.');
     }
 
-    if (this.isWindowExpired(period.dataFim)) {
+    if (this.isWindowExpired(period.endDate)) {
       throw new BadRequestException(
         'Nao e possivel reabrir um periodo com janela encerrada. Crie um novo periodo.',
       );
@@ -233,9 +233,9 @@ export class EnrollmentPeriodService {
 
     const updated = await this.repository
       .update(id, {
-        ativo: true,
-        encerradoPorAdminId: null,
-        encerradoEm: null,
+        active: true,
+        closedByAdminId: null,
+        closedAt: null,
       })
       .catch((error) => {
         if (this.isDuplicateKeyError(error)) {
@@ -273,11 +273,11 @@ export class EnrollmentPeriodService {
 
   async previewReleaseSlots(
     periodId: string,
-    quantidade: number,
+    quantity: number,
   ): Promise<LicenseRequest[]> {
     await this.assertPeriodExists(periodId);
 
-    if (quantidade < 1) {
+    if (quantity < 1) {
       throw new BadRequestException('A quantidade deve ser maior que zero.');
     }
 
@@ -287,7 +287,7 @@ export class EnrollmentPeriodService {
 
     return [...waitlisted]
       .sort((a, b) => this.toTime(a.createdAt) - this.toTime(b.createdAt))
-      .slice(0, quantidade);
+      .slice(0, quantity);
   }
 
   async confirmReleaseSlots(
@@ -382,14 +382,14 @@ export class EnrollmentPeriodService {
     }
   }
 
-  private assertValidDateRange(dataInicio: Date, dataFim: Date): void {
-    if (Number.isNaN(dataInicio.getTime()) || Number.isNaN(dataFim.getTime())) {
+  private assertValidDateRange(startDate: Date, endDate: Date): void {
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       throw new BadRequestException('As datas informadas sao invalidas.');
     }
 
-    if (dataFim <= dataInicio) {
+    if (endDate <= startDate) {
       throw new BadRequestException(
-        'dataFim deve ser maior que dataInicio para o periodo de inscricao.',
+        'endDate deve ser maior que startDate para o periodo de inscricao.',
       );
     }
   }
@@ -412,9 +412,9 @@ export class EnrollmentPeriodService {
     );
   }
 
-  private isWindowExpired(dataFimRaw: Date): boolean {
+  private isWindowExpired(endDateRaw: Date): boolean {
     const now = new Date();
-    return now > new Date(dataFimRaw);
+    return now > new Date(endDateRaw);
   }
 
   private async finishPeriodLifecycle(
@@ -433,19 +433,19 @@ export class EnrollmentPeriodService {
         cancellationReason,
       );
 
-    const previousClosedCount = period.qtdFilaEncerrada ?? 0;
+    const previousClosedCount = period.closedWaitlistCount ?? 0;
     const totalClosedCount = previousClosedCount + cancelledWaitlistCount;
-    const filaEncerradaEm =
+    const waitlistClosedAt =
       totalClosedCount > 0
-        ? period.filaEncerradaEm ?? new Date()
+        ? period.waitlistClosedAt ?? new Date()
         : null;
 
     return this.repository.update(periodId, {
-      ativo: false,
-      encerradoPorAdminId: adminId,
-      encerradoEm: new Date(),
-      qtdFilaEncerrada: totalClosedCount,
-      filaEncerradaEm,
+      active: false,
+      closedByAdminId: adminId,
+      closedAt: new Date(),
+      closedWaitlistCount: totalClosedCount,
+      waitlistClosedAt,
     });
   }
 }

@@ -58,7 +58,7 @@ Comportamento:
 - initial
   - valida vaga com incremento atomico no periodo
   - cria licenca vinculada ao enrollmentPeriodId da solicitacao
-  - usa validadeCarteirinhaMeses do periodo
+  - usa licenseValidityMonths do periodo
   - em erro, faz rollback da vaga reservada
 
 - update

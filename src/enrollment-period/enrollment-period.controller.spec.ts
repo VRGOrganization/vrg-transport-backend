@@ -40,10 +40,10 @@ describe('EnrollmentPeriodController', () => {
 
     const req = { sessionPayload: { userId: 'admin-1' } } as any;
     const dto = {
-      dataInicio: '2026-01-01T00:00:00.000Z',
-      dataFim: '2026-02-01T00:00:00.000Z',
-      qtdVagasTotais: 10,
-      validadeCarteirinhaMeses: 6,
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-02-01T00:00:00.000Z',
+      totalSlots: 10,
+      licenseValidityMonths: 6,
     };
 
     await controller.create(dto as any, req);
@@ -62,7 +62,7 @@ describe('EnrollmentPeriodController', () => {
   });
 
   it('deve atualizar periodo', async () => {
-    const dto = { qtdVagasTotais: 20 };
+    const dto = { totalSlots: 20 };
     await controller.update('period-1', dto as any);
     expect(mockService.update).toHaveBeenCalledWith('period-1', dto);
   });
@@ -87,7 +87,7 @@ describe('EnrollmentPeriodController', () => {
   });
 
   it('deve fazer preview de release slots', async () => {
-    await controller.releaseSlotsPreview('period-1', { quantidade: 3 });
+    await controller.releaseSlotsPreview('period-1', { quantity: 3 });
     expect(mockService.previewReleaseSlots).toHaveBeenCalledWith('period-1', 3);
   });
 

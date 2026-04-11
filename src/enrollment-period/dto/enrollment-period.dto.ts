@@ -10,44 +10,44 @@ import {
 
 export class CreateEnrollmentPeriodDto {
   @IsDateString()
-  dataInicio: Date;
+  startDate: Date;
 
   @IsDateString()
-  dataFim: Date;
+  endDate: Date;
 
   @IsInt()
   @Min(1)
-  qtdVagasTotais: number;
+  totalSlots: number;
 
   @IsInt()
   @Min(1)
-  validadeCarteirinhaMeses: number;
+  licenseValidityMonths: number;
 }
 
 export class UpdateEnrollmentPeriodDto {
   @IsOptional()
   @IsDateString()
-  dataInicio?: Date;
+  startDate?: Date;
 
   @IsOptional()
   @IsDateString()
-  dataFim?: Date;
+  endDate?: Date;
 
   @IsOptional()
   @IsInt()
   @Min(1)
-  qtdVagasTotais?: number;
+  totalSlots?: number;
 
   @IsOptional()
   @IsInt()
   @Min(1)
-  validadeCarteirinhaMeses?: number;
+  licenseValidityMonths?: number;
 }
 
 export class ReleaseSlotsDto {
   @IsInt()
   @Min(1)
-  quantidade: number;
+  quantity: number;
 }
 
 export class ConfirmReleaseDto {

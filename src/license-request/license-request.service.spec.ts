@@ -127,10 +127,10 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       mockRepository.findByStudentId.mockResolvedValue([]);
       mockEnrollmentPeriodService.getActive.mockResolvedValue({
         _id: 'period-1',
-        dataInicio: new Date(now.getTime() - 60_000),
-        dataFim: new Date(now.getTime() + 60_000),
-        qtdVagasTotais: 10,
-        qtdVagasPreenchidas: 3,
+        startDate: new Date(now.getTime() - 60_000),
+        endDate: new Date(now.getTime() + 60_000),
+        totalSlots: 10,
+        filledSlots: 3,
       });
       mockRepository.create.mockResolvedValue(
         makeRequest({
@@ -155,10 +155,10 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       mockRepository.findByStudentId.mockResolvedValue([]);
       mockEnrollmentPeriodService.getActive.mockResolvedValue({
         _id: 'period-1',
-        dataInicio: new Date(now.getTime() - 60_000),
-        dataFim: new Date(now.getTime() + 60_000),
-        qtdVagasTotais: 1,
-        qtdVagasPreenchidas: 1,
+        startDate: new Date(now.getTime() - 60_000),
+        endDate: new Date(now.getTime() + 60_000),
+        totalSlots: 1,
+        filledSlots: 1,
       });
       mockEnrollmentPeriodService.reserveWaitlistPosition.mockResolvedValue(3);
       mockStudentService.findOneOrFail.mockResolvedValue({
@@ -202,7 +202,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       );
       mockEnrollmentPeriodService.findById.mockResolvedValue({
         _id: 'period-1',
-        validadeCarteirinhaMeses: 8,
+        licenseValidityMonths: 8,
       });
       mockLicenseService.create.mockResolvedValue({
         _id: { toString: () => 'license-1' },
