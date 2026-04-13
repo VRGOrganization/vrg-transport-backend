@@ -383,4 +383,8 @@ export class StudentService {
 
     return visitor.getResult();
   }
+
+  async findByBus(busIdentifier: string): Promise<Student[]> {
+    return this.studentRepository.findByBus(busIdentifier);
+  }
 }
