@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { UniversityService } from '../university/university.service';
 import { CreateCourseDto, UpdateCourseDto } from './dto/course.dto';
@@ -37,7 +38,7 @@ export class CourseService {
 
     const created = await this.repository.create({
       name: dto.name,
-      universityId: dto.universityId as any,
+      universityId: new Types.ObjectId(dto.universityId),
     });
 
     await this.auditLog.record({

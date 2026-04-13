@@ -18,7 +18,7 @@ export class CourseRepository implements ICourseRepository<Course> {
 
   async findAll(): Promise<Course[]> {
     return this.courseModel
-      .find({ active: true })
+      .find({ active: { $ne: false } })
       .populate('universityId', 'name acronym')
       .exec();
   }
@@ -39,7 +39,13 @@ export class CourseRepository implements ICourseRepository<Course> {
 
   async findByUniversity(universityId: string): Promise<Course[]> {
     return this.courseModel
-      .find({ universityId: new Types.ObjectId(universityId), active: true })
+      .find({
+        $or: [
+          { universityId: new Types.ObjectId(universityId) },
+          { universityId: universityId },
+        ],
+        active: { $ne: false },
+      })
       .exec();
   }
 
@@ -47,10 +53,15 @@ export class CourseRepository implements ICourseRepository<Course> {
     name: string,
     universityId: string,
   ): Promise<Course | null> {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return this.courseModel
       .findOne({
-        name: { $regex: new RegExp(`^${name}$`, 'i') },
-        universityId: new Types.ObjectId(universityId),
+        name: { $regex: new RegExp(`^${escaped}$`, 'i') },
+        $or: [
+          { universityId: new Types.ObjectId(universityId) },
+          { universityId: universityId },
+        ],
+        active: { $ne: false },
       })
       .exec();
   }

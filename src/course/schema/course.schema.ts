@@ -17,5 +17,12 @@ export class Course {
 
 export const CourseSchema = SchemaFactory.createForClass(Course);
 
-// Impede curso duplicado dentro da mesma faculdade
-CourseSchema.index({ name: 1, universityId: 1 }, { unique: true });
+// Impede curso duplicado (case-insensitive) dentro da mesma faculdade, apenas para cursos ativos
+CourseSchema.index(
+  { name: 1, universityId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { active: true },
+    collation: { locale: 'pt', strength: 2 },
+  },
+);
