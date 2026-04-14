@@ -153,3 +153,37 @@ export class ResendCodeDto {
   @Transform(({ value }) => value?.toLowerCase().trim())
   email: string;
 }
+
+export class ForgotPasswordDto {
+  @ApiProperty({
+    example: 'user@email.com',
+    description: 'E-mail do usuário',
+  })
+  @IsEmail({}, { message: 'E-mail inválido' })
+  @IsNotEmpty()
+  @Transform(({ value }) => value?.toLowerCase().trim())
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({
+    example: 'token_here',
+    description: 'Token de redefinição de senha',
+  })
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+
+  @ApiProperty({
+    example: 'NovaSenh@123',
+    description: 'Nova senha (mínimo 8 caracteres, com maiúscula, minúscula e número)',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8, { message: 'Senha deve ter no mínimo 8 caracteres' })
+  @MaxLength(64, { message: 'Senha deve ter no máximo 64 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
+    message: 'Senha deve conter maiúscula, minúscula e número',
+  })
+  password: string;
+}
