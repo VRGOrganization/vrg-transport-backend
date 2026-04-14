@@ -35,6 +35,7 @@ export class UniversityController {
 
   @Get()
   @ApiOperation({ summary: 'Listar faculdades ativas' })
+  @Roles(UserRole.ADMIN, UserRole.STUDENT)
   findAll() {
     return this.service.findAll();
   }

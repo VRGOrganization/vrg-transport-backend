@@ -49,6 +49,7 @@ export class CourseController {
   @Get('by-university/:universityId')
   @ApiOperation({ summary: 'Listar cursos ativos de uma faculdade' })
   @ApiParam({ name: 'universityId', description: 'MongoDB ObjectId da faculdade' })
+  @Roles(UserRole.ADMIN, UserRole.STUDENT)
   findByUniversity(@Param('universityId', MongoObjectIdPipe) universityId: string) {
     return this.service.findByUniversity(universityId);
   }
