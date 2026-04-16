@@ -20,11 +20,12 @@ import { UniversityService } from './university.service';
 
 @ApiTags('Universities')
 @Controller('university')
-@Roles(UserRole.ADMIN)
+// ← removido @Roles(UserRole.ADMIN) daqui
 export class UniversityController {
   constructor(private readonly service: UniversityService) {}
 
   @Post()
+  @Roles(UserRole.ADMIN)  // ← apenas ADMIN cria
   @ApiOperation({ summary: 'Cadastrar faculdade (admin)' })
   @ApiBody({ type: CreateUniversityDto })
   @ApiResponse({ status: 201, description: 'Faculdade criada.' })
@@ -34,18 +35,21 @@ export class UniversityController {
   }
 
   @Get()
+  // ← sem @Roles: qualquer usuário autenticado acessa (ADMIN, EMPLOYEE, STUDENT)
   @ApiOperation({ summary: 'Listar faculdades ativas' })
   findAll() {
     return this.service.findAll();
   }
 
   @Get('inactive')
+  @Roles(UserRole.ADMIN)  // ← apenas ADMIN vê inativas
   @ApiOperation({ summary: 'Listar faculdades inativas' })
   findAllInactive() {
     return this.service.findAllInactive();
   }
 
   @Get(':id')
+  // ← sem @Roles: qualquer autenticado pode buscar por ID se precisar
   @ApiOperation({ summary: 'Buscar faculdade por ID' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiResponse({ status: 404, description: 'Não encontrada.' })
@@ -54,6 +58,7 @@ export class UniversityController {
   }
 
   @Patch(':id')
+  @Roles(UserRole.ADMIN)  // ← apenas ADMIN edita
   @ApiOperation({ summary: 'Atualizar faculdade' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiBody({ type: UpdateUniversityDto })
@@ -66,6 +71,7 @@ export class UniversityController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.ADMIN)  
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Desativar faculdade (soft delete)' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
