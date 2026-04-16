@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
@@ -20,11 +21,11 @@ import { BusService } from './bus.service';
 
 @ApiTags('Buses')
 @Controller('bus')
-@Roles(UserRole.ADMIN)
 export class BusController {
   constructor(private readonly service: BusService) {}
 
   @Post()
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Cadastrar ônibus (admin)' })
   @ApiBody({ type: CreateBusDto })
   @ApiResponse({ status: 201, description: 'Ônibus criado.' })
@@ -34,18 +35,21 @@ export class BusController {
   }
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'Listar ônibus ativos' })
   findAll() {
     return this.service.findAll();
   }
 
   @Get('inactive')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Listar ônibus inativos' })
   findAllInactive() {
     return this.service.findAllInactive();
   }
 
   @Get(':id')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Buscar ônibus por ID' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   findOne(@Param('id', MongoObjectIdPipe) id: string) {
@@ -53,6 +57,7 @@ export class BusController {
   }
 
   @Patch(':id')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Atualizar ônibus' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiBody({ type: UpdateBusDto })
@@ -65,6 +70,7 @@ export class BusController {
   }
 
   @Patch(':id/link-university')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Vincular faculdade ao ônibus' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId do ônibus' })
   @ApiBody({ type: LinkUniversityDto })
@@ -77,6 +83,7 @@ export class BusController {
   }
 
   @Patch(':id/unlink-university')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Desvincular faculdade do ônibus' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId do ônibus' })
   @ApiBody({ type: LinkUniversityDto })
@@ -89,6 +96,7 @@ export class BusController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Desativar ônibus (soft delete)' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
