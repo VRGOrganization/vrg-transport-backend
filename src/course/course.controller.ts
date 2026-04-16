@@ -20,11 +20,12 @@ import { CourseService } from './course.service';
 
 @ApiTags('Courses')
 @Controller('course')
-@Roles(UserRole.ADMIN)
+
 export class CourseController {
   constructor(private readonly service: CourseService) {}
 
   @Post()
+  @Roles(UserRole.ADMIN) 
   @ApiOperation({ summary: 'Cadastrar curso em uma faculdade (admin)' })
   @ApiBody({ type: CreateCourseDto })
   @ApiResponse({ status: 201, description: 'Curso criado.' })
@@ -41,6 +42,7 @@ export class CourseController {
   }
 
   @Get('inactive')
+  @Roles(UserRole.ADMIN)  
   @ApiOperation({ summary: 'Listar todos os cursos inativos' })
   findAllInactive() {
     return this.service.findAllInactive();
@@ -61,6 +63,7 @@ export class CourseController {
   }
 
   @Patch(':id')
+  @Roles(UserRole.ADMIN)  
   @ApiOperation({ summary: 'Atualizar curso' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiBody({ type: UpdateCourseDto })
@@ -73,6 +76,7 @@ export class CourseController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.ADMIN)  
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Desativar curso (soft delete)' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
