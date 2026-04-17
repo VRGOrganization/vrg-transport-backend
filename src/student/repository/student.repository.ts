@@ -78,4 +78,11 @@ export class StudentRepository implements IStudentRepository<Student> {
       .exec();
     return !!result;
   }
+
+  async findByBus(busIdentifier: string): Promise<Student[]> {
+    return this.studentModel
+    .find({ bus : busIdentifier , active: true })
+    .select('name email shift institution degree bus')
+    .exec();
+  }
 }

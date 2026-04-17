@@ -23,6 +23,12 @@ import { RateLimitGuard } from './auth/guards/rate-limit.guard';
 import { CommonModule } from './common/common.module';
 import { validateSecurityConfig } from './common/config/security.validation';
 
+
+import { UniversityModule } from './university/university.module';
+import { CourseModule } from './course/course.module';
+import { BusModule } from './bus/bus.module';
+
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -54,6 +60,9 @@ import { validateSecurityConfig } from './common/config/security.validation';
     LicenseRequestModule,
     EnrollmentPeriodModule,
     CommonModule,
+    UniversityModule,
+    CourseModule,
+    BusModule,
   ],
   controllers: [AppController],
   providers: [
