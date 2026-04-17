@@ -35,6 +35,7 @@ import {
 import { AUTH_ERROR_MESSAGES } from './constants/auth.constants';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { StudentStatus } from '../student/schemas/student.schema';
+import { PasswordResetService } from './password-reset/password-reset.service';
 
 @Injectable()
 export class AuthService {
@@ -62,6 +63,7 @@ export class AuthService {
     private readonly mailService: MailService,
     private readonly auditLog: AuditLogService,
     private readonly sessionService: SessionService,
+    private readonly passwordResetService: PasswordResetService,
   ) {}
 
   private getDocumentId(document: unknown): string {
@@ -478,5 +480,15 @@ export class AuthService {
     const codeHash = `${salt}:${hashedCode}`;
     const expiresAt = new Date(Date.now() + this.CODE_EXPIRY_MINUTES * 60 * 1000);
     return { code, codeHash, expiresAt };
+  }
+
+  async requestPasswordReset(email: string, ipAddress: string): Promise<void> {
+    // Delega para o PasswordResetService
+    await this.passwordResetService.requestPasswordReset(email, ipAddress);
+  }
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    // Delega para o PasswordResetService
+    await this.passwordResetService.resetPassword(token, password);
   }
 }
