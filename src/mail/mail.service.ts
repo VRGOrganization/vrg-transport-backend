@@ -263,4 +263,43 @@ export class MailService {
       throw error;
     }
   }
+
+  async sendPasswordResetEmail(
+    to: string,
+    studentName: string,
+    resetLink: string,
+  ): Promise<void> {
+    const name = studentName ?? 'Estudante';
+
+    try {
+      await this.client.transactionalEmails.sendTransacEmail({
+        subject: 'Redefinir sua senha — São Fidélis Transporte',
+        sender: {
+          name: this.configService.get('MAIL_FROM_NAME', 'VRG Transport'),
+          email: this.configService.getOrThrow<string>('MAIL_FROM_ADDRESS'),
+        },
+        to: [{ email: to }],
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#1b4332">Redefinir sua senha</h2>
+            <p>Olá, <strong>${name}</strong>.</p>
+            <p>Recebemos uma solicitação para redefinir a senha da sua conta.</p>
+            <div style="text-align:center;margin:24px 0">
+              <a href="${resetLink}" style="display:inline-block;background:#1b4332;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600">
+                Redefinir Senha
+              </a>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin-top:16px">
+              Este link expira em <strong>1 hora</strong>.<br>
+              Se você não solicitou uma redefinição de senha, ignore este e-mail.
+            </p>
+          </div>
+        `,
+      });
+      this.logger.log(`Email de redefinição de senha enviado para ${to}`);
+    } catch (error) {
+      this.logger.error(`Falha ao enviar email de redefinição de senha para ${to}`, error);
+      throw error;
+    }
+  }
 }

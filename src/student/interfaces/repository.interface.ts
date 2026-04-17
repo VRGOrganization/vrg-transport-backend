@@ -13,4 +13,5 @@ export interface IStudentRepository<T> {
   findByCpfHash(cpfHash: string): Promise<T | null>;
   update(id: string, data: Partial<T>): Promise<T | null>;
   remove(id: string): Promise<boolean>;
+  findByBus(busIdentifier: string): Promise<T[]>;
 }

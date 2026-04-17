@@ -383,4 +383,22 @@ export class StudentService {
 
     return visitor.getResult();
   }
+
+  async findByBus(busIdentifier: string): Promise<Student[]> {
+    return this.studentRepository.findByBus(busIdentifier);
+  }
+
+  async updatePassword(id: string, hashedPassword: string): Promise<Student | null> {
+    const student = await this.studentRepository.update(id, { password: hashedPassword } as Partial<Student>);
+
+    if (student) {
+      await this.auditLog.record({
+        action: 'student.updatePassword',
+        outcome: 'success',
+        target: { studentId: id },
+      });
+    }
+
+    return student;
+  }
 }

@@ -7,6 +7,7 @@ import {
   Get,
   UseGuards,
   Req,
+  Logger,
 } from '@nestjs/common';
 import type { Request } from 'express';
 
@@ -18,6 +19,8 @@ import {
   RegisterStudentDto,
   VerifyEmailDto,
   ResendCodeDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
 } from './dto/auth.dto';
 
 import {
@@ -51,6 +54,8 @@ import type {
   description: 'Segredo compartilhado entre BFF e backend. Nunca enviar pelo browser.',
 })
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private readonly authService: AuthService) {}
 
   @Public()
@@ -147,6 +152,45 @@ export class AuthController {
     return this.authService.loginAdmin(dto, this.buildSessionContext(req));
   }
 
+  @Public()
+  @RateLimit({ points: 5, windowMs: 3600_000, keyPrefix: 'auth:forgot-password' })
+  @Post('student/forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset link' })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiResponse({ status: 200, description: 'Reset email sent (always generic message).' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+    @Req() req: Request,
+  ): Promise<{ message: string }> {
+    const ip = req.ip || 'unknown';
+
+    try {
+      await this.authService.requestPasswordReset(dto.email, ip);
+    } catch (error) {
+      this.logger.warn(
+        `Password reset request failed for ${this.maskEmail(dto.email)}: ${(error as Error).message}`,
+      );
+    }
+
+    return { message: 'Se o email estiver cadastrado, você receberá um link em breve.' };
+  }
+
+  @Public()
+  @RateLimit({ points: 10, windowMs: 3600_000, keyPrefix: 'auth:reset-password' })
+  @Post('student/reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password with token' })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({ status: 200, description: 'Password reset successfully.' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token.' })
+  @ApiResponse({ status: 429, description: 'Too many requests.' })
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{ message: string }> {
+    await this.authService.resetPassword(dto.token, dto.password);
+    return { message: 'Passwd reset successfully.' };
+  }
+
   @Get('me')
   @ApiOperation({ summary: 'Get authenticated user profile from session' })
   @ApiResponse({ status: 200, description: 'Session profile.' })
@@ -187,5 +231,12 @@ export class AuthController {
   private extractSessionId(req: Request): string | undefined {
     const value = req.headers['x-session-id'];
     return typeof value === 'string' && value.trim() ? value : undefined;
+  }
+
+  private maskEmail(email: string): string {
+    const [local, domain] = email.split('@');
+    if (!local || !domain) return 'invalid-email';
+    if (local.length <= 2) return `**@${domain}`;
+    return `${local[0]}***${local[local.length - 1]}@${domain}`;
   }
 }

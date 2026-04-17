@@ -324,4 +324,13 @@ export class StudentController {
   remove(@Param('id', MongoObjectIdPipe) id: string) {
     return this.studentService.remove(id);
   }
+
+ @Get('by-bus/:busIdentifier')
+ @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+ @ApiOperation({ summary: 'List students by bus identifier' })
+ @ApiParam({ name: 'busIdentifier', description: 'Bus identifier string (ex: "Ônibus 03")' })
+ @ApiResponse({ status: 200, description: 'Students assigned to bus.' })
+ findByBus(@Param('busIdentifier') busIdentifier: string) {
+   return this.studentService.findByBus(busIdentifier);
+ }
 }
