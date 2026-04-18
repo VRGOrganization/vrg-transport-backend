@@ -109,21 +109,63 @@ export class LicenseRequestService {
       ? (student as any).universityId
       : null;
 
-    let busIdForRequest: string | null = null;
-    if (universityIdForRequest) {
-      const bus = await this.busService.findByUniversityId(universityIdForRequest);
-      if (bus) {
-        busIdForRequest = (bus as any)._id ?? null;
-      }
+    if (!universityIdForRequest) {
+      throw new BadRequestException('Cadastre sua instituição antes de se inscrever.');
     }
 
-    const hasAvailableSlots = activePeriod.filledSlots < activePeriod.totalSlots;
+    // Find the bus that serves this university (the bus with lowest priorityOrder)
+    const bus = await this.busService.findByUniversityId(
+      typeof universityIdForRequest === 'string'
+        ? universityIdForRequest
+        : (universityIdForRequest as any)?.toString?.(),
+    );
 
-    if (!hasAvailableSlots) {
-      const filaPosition =
-        await this.enrollmentPeriodService.reserveWaitlistPosition(
-          enrollmentPeriodId,
-        );
+    if (!bus) {
+      throw new BadRequestException('Nenhum ônibus disponível para sua instituição.');
+    }
+
+    const busIdForRequest = typeof (bus as any)._id === 'string' ? (bus as any)._id : (bus as any)._id?.toString?.();
+
+    // If bus has no capacity defined, accept as PENDING
+    if ((bus as any).capacity == null) {
+      const request = await this.repository.create({
+        studentId,
+        type: 'initial',
+        status: LicenseRequestStatus.PENDING,
+        rejectionReason: null,
+        cancellationReason: null,
+        rejectedAt: null,
+        approvedByEmployeeId: null,
+        rejectedByEmployeeId: null,
+        licenseId: null,
+        pendingImages: [],
+        changedDocuments: [],
+        enrollmentPeriodId,
+        filaPosition: null,
+        busId: busIdForRequest
+          ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest)
+          : null,
+        universityId: typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest,
+      });
+
+      await this.auditLog.record({
+        action: 'license_request.create',
+        outcome: 'success',
+        target: { studentId, enrollmentPeriodId },
+        metadata: { busId: busIdForRequest, universityId: universityIdForRequest },
+      });
+
+      return { ...(request as any), waitlisted: false };
+    }
+
+    // If bus has capacity, check total filled slots
+    const totalFilled = ((bus as any).universitySlots || []).reduce(
+      (acc: number, s: any) => acc + (s.filledSlots || 0),
+      0,
+    );
+
+    if ((bus as any).capacity != null && totalFilled >= (bus as any).capacity) {
+      const filaPosition = await this.enrollmentPeriodService.reserveWaitlistPosition(enrollmentPeriodId);
 
       const request = await this.repository.create({
         studentId,
@@ -139,20 +181,16 @@ export class LicenseRequestService {
         changedDocuments: [],
         enrollmentPeriodId,
         filaPosition,
-        busId: busIdForRequest ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest) : null,
-        universityId: universityIdForRequest ? (typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest) : null,
+        busId: busIdForRequest
+          ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest)
+          : null,
+        universityId: typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest,
       });
 
       try {
-        await this.mailService.sendWaitlistConfirmation(
-          student.email,
-          student.name,
-          filaPosition,
-        );
+        await this.mailService.sendWaitlistConfirmation(student.email, student.name, filaPosition);
       } catch (error) {
-        this.logger.warn(
-          `Falha ao enviar email de confirmacao de fila para ${studentId}: ${(error as Error)?.message}`,
-        );
+        this.logger.warn(`Falha ao enviar email de confirmacao de fila para ${studentId}: ${(error as Error)?.message}`);
       }
 
       await this.auditLog.record({
@@ -162,13 +200,71 @@ export class LicenseRequestService {
         metadata: { filaPosition, busId: busIdForRequest, universityId: universityIdForRequest },
       });
 
-      return {
-        ...(request as any),
-        waitlisted: true,
-        filaPosition,
-      };
+      return { ...(request as any), waitlisted: true, filaPosition };
     }
 
+    // Find the student's slot in the bus
+    const studentSlot = ((bus as any).universitySlots || []).find((s: any) =>
+      (s.universityId && s.universityId.toString ? s.universityId.toString() : s.universityId) ===
+      (typeof universityIdForRequest === 'string' ? universityIdForRequest : (universityIdForRequest as any)?.toString?.()),
+    );
+
+    if (!studentSlot) {
+      throw new BadRequestException('Sua instituição não está vinculada a este ônibus.');
+    }
+
+    // Check if any higher-priority university has active demand for this bus
+    const higherPrioritySlots = ((bus as any).universitySlots || []).filter(
+      (s: any) => (s.priorityOrder || 0) < (studentSlot.priorityOrder || 0),
+    );
+
+    for (const slot of higherPrioritySlots) {
+      const uniIdStr = slot.universityId && slot.universityId.toString ? slot.universityId.toString() : slot.universityId;
+      const hasDemand = await this.repository.hasActiveDemandForBusAndUniversity(
+        busIdForRequest as string,
+        typeof uniIdStr === 'string' ? uniIdStr : uniIdStr?.toString?.(),
+      );
+      if (hasDemand) {
+        const filaPosition = await this.enrollmentPeriodService.reserveWaitlistPosition(enrollmentPeriodId);
+
+        const request = await this.repository.create({
+          studentId,
+          type: 'initial',
+          status: LicenseRequestStatus.WAITLISTED,
+          rejectionReason: null,
+          cancellationReason: null,
+          rejectedAt: null,
+          approvedByEmployeeId: null,
+          rejectedByEmployeeId: null,
+          licenseId: null,
+          pendingImages: [],
+          changedDocuments: [],
+          enrollmentPeriodId,
+          filaPosition,
+          busId: busIdForRequest
+            ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest)
+            : null,
+          universityId: typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest,
+        });
+
+        try {
+          await this.mailService.sendWaitlistConfirmation(student.email, student.name, filaPosition);
+        } catch (error) {
+          this.logger.warn(`Falha ao enviar email de confirmacao de fila para ${studentId}: ${(error as Error)?.message}`);
+        }
+
+        await this.auditLog.record({
+          action: 'license_request.waitlisted',
+          outcome: 'success',
+          target: { studentId, enrollmentPeriodId },
+          metadata: { filaPosition, busId: busIdForRequest, universityId: universityIdForRequest },
+        });
+
+        return { ...(request as any), waitlisted: true, filaPosition };
+      }
+    }
+
+    // Passed all checks -> create PENDING
     const request = await this.repository.create({
       studentId,
       type: 'initial',
@@ -183,8 +279,10 @@ export class LicenseRequestService {
       changedDocuments: [],
       enrollmentPeriodId,
       filaPosition: null,
-      busId: busIdForRequest ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest) : null,
-      universityId: universityIdForRequest ? (typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest) : null,
+      busId: busIdForRequest
+        ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest)
+        : null,
+      universityId: typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest,
     });
 
     await this.auditLog.record({
@@ -194,10 +292,7 @@ export class LicenseRequestService {
       metadata: { busId: busIdForRequest, universityId: universityIdForRequest },
     });
 
-    return {
-      ...(request as any),
-      waitlisted: false,
-    };
+    return { ...(request as any), waitlisted: false };
   }
 
   async submitDocumentUpdateRequest(

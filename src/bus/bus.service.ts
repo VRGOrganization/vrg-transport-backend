@@ -36,6 +36,16 @@ export class BusService {
     private readonly licenseService: LicenseService,
   ) {}
 
+  async resetAllFilledSlots(adminId?: string): Promise<void> {
+    await this.repository.resetAllFilledSlots();
+
+    await this.auditLog.record({
+      action: 'bus.reset_all_filled_slots',
+      outcome: 'success',
+      actor: adminId ? { id: adminId, role: 'admin' } : null,
+    }).catch(() => {});
+  }
+
   async create(dto: CreateBusDto, adminId: string): Promise<Bus> {
     const existing = await this.repository.findByIdentifier(dto.identifier);
     if (existing) {
@@ -64,6 +74,142 @@ export class BusService {
 
   async findAllActive(): Promise<Bus[]> {
     return this.repository.findAllActive();
+  }
+
+  async getQueueCounts(): Promise<any[]> {
+    const buses = await this.repository.findAllActive();
+
+    const activePeriod = await this.enrollmentPeriodService.getActive();
+    // If no active enrollment period, return counts with zeros
+    if (!activePeriod) {
+      return (buses || []).map((bus: any) => {
+        const filledSlotsTotal = (bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0);
+        return {
+          _id: (bus as any)._id?.toString?.(),
+          identifier: (bus as any).identifier,
+          capacity: (bus as any).capacity ?? null,
+          filledSlotsTotal,
+          availableSlots: (bus as any).capacity == null ? null : Math.max((bus as any).capacity - filledSlotsTotal, 0),
+          pendingCount: 0,
+          waitlistedCount: 0,
+          universitySlots: (bus.universitySlots || []).map((s: any) => ({
+            universityId: s.universityId?.toString?.(),
+            priorityOrder: s.priorityOrder,
+            filledSlots: s.filledSlots || 0,
+            pendingCount: 0,
+            waitlistedCount: 0,
+          })),
+        } as any;
+      });
+    }
+
+    const periodId = (activePeriod as any)._id?.toString?.();
+    if (!periodId) return [];
+
+    const allRequests = await this.licenseRequestRepository.findAll();
+    const requestsForPeriod = (allRequests || []).filter((r: any) => {
+      const rid = r.enrollmentPeriodId ? (typeof r.enrollmentPeriodId === 'string' ? r.enrollmentPeriodId : (r.enrollmentPeriodId as any).toString?.()) : null;
+      return rid === periodId;
+    });
+
+    const pending = requestsForPeriod.filter((r: any) => r.status === 'pending');
+    const waitlisted = requestsForPeriod.filter((r: any) => r.status === 'waitlisted');
+
+    const pendingByBus: Record<string, number> = {};
+    const waitlistedByBus: Record<string, number> = {};
+    const perUni: Record<string, Record<string, { pending: number; waitlisted: number }>> = {};
+
+    for (const r of pending) {
+      const b = r.busId ? (typeof r.busId === 'string' ? r.busId : (r.busId as any).toString?.()) : null;
+      const u = r.universityId ? (typeof r.universityId === 'string' ? r.universityId : (r.universityId as any).toString?.()) : null;
+      if (!b) continue;
+      pendingByBus[b] = (pendingByBus[b] || 0) + 1;
+      perUni[b] = perUni[b] || {};
+      perUni[b][u || ''] = perUni[b][u || ''] || { pending: 0, waitlisted: 0 };
+      perUni[b][u || ''].pending += 1;
+    }
+
+    for (const r of waitlisted) {
+      const b = r.busId ? (typeof r.busId === 'string' ? r.busId : (r.busId as any).toString?.()) : null;
+      const u = r.universityId ? (typeof r.universityId === 'string' ? r.universityId : (r.universityId as any).toString?.()) : null;
+      if (!b) continue;
+      waitlistedByBus[b] = (waitlistedByBus[b] || 0) + 1;
+      perUni[b] = perUni[b] || {};
+      perUni[b][u || ''] = perUni[b][u || ''] || { pending: 0, waitlisted: 0 };
+      perUni[b][u || ''].waitlisted += 1;
+    }
+
+    return (buses || []).map((bus: any) => {
+      const id = (bus as any)._id?.toString?.();
+      const filledSlotsTotal = (bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0);
+      const slots = (bus.universitySlots || []).map((s: any) => {
+        const uniId = s.universityId?.toString?.();
+        const counts = perUni[id] && perUni[id][uniId] ? perUni[id][uniId] : { pending: 0, waitlisted: 0 };
+        return {
+          universityId: uniId,
+          priorityOrder: s.priorityOrder,
+          filledSlots: s.filledSlots || 0,
+          pendingCount: counts.pending,
+          waitlistedCount: counts.waitlisted,
+        };
+      });
+
+      return {
+        _id: id,
+        identifier: (bus as any).identifier,
+        capacity: (bus as any).capacity ?? null,
+        filledSlotsTotal,
+        availableSlots: (bus as any).capacity == null ? null : Math.max((bus as any).capacity - filledSlotsTotal, 0),
+        pendingCount: pendingByBus[id] || 0,
+        waitlistedCount: waitlistedByBus[id] || 0,
+        universitySlots: slots,
+      } as any;
+    });
+  }
+
+  async getQueueSummary(busId: string): Promise<any> {
+    const bus = await this.findOneOrFail(busId);
+
+    const activePeriod = await this.enrollmentPeriodService.getActive();
+    if (!activePeriod) {
+      return {
+        _id: (bus as any)._id?.toString?.(),
+        identifier: (bus as any).identifier,
+        capacity: (bus as any).capacity ?? null,
+        filledSlotsTotal: (bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0),
+        availableSlots: (bus as any).capacity == null ? null : Math.max((bus as any).capacity - ((bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0)), 0),
+        pendingRequests: [],
+        waitlistedRequests: [],
+      };
+    }
+
+    const periodId = (activePeriod as any)._id?.toString?.();
+    const allRequests = await this.licenseRequestRepository.findAll();
+    const filtered = (allRequests || []).filter((r: any) => {
+      const rid = r.enrollmentPeriodId ? (typeof r.enrollmentPeriodId === 'string' ? r.enrollmentPeriodId : (r.enrollmentPeriodId as any).toString?.()) : null;
+      const bid = r.busId ? (typeof r.busId === 'string' ? r.busId : (r.busId as any).toString?.()) : null;
+      return rid === periodId && bid === busId;
+    });
+
+    const pendingRequests = filtered.filter((r: any) => r.status === 'pending')
+      .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const waitlistedRequests = filtered.filter((r: any) => r.status === 'waitlisted')
+      .sort((a: any, b: any) => {
+        const pa = a.filaPosition ?? 0;
+        const pb = b.filaPosition ?? 0;
+        if (pa && pb) return pa - pb;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+
+    return {
+      _id: (bus as any)._id?.toString?.(),
+      identifier: (bus as any).identifier,
+      capacity: (bus as any).capacity ?? null,
+      filledSlotsTotal: (bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0),
+      availableSlots: (bus as any).capacity == null ? null : Math.max((bus as any).capacity - ((bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0)), 0),
+      pendingRequests,
+      waitlistedRequests,
+    } as any;
   }
 
   async findAllInactive(): Promise<Bus[]> {

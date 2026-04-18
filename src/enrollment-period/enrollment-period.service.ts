@@ -13,6 +13,7 @@ import type { ILicenseRequestRepository } from '../license-request/interfaces/re
 import { type LicenseRequest } from '../license-request/schemas/license-request.schema';
 import { MailService } from '../mail/mail.service';
 import { StudentService } from '../student/student.service';
+import { BusService } from '../bus/bus.service';
 import { CreateEnrollmentPeriodDto, UpdateEnrollmentPeriodDto } from './dto/enrollment-period.dto';
 import {
   ENROLLMENT_PERIOD_REPOSITORY,
@@ -33,6 +34,7 @@ export class EnrollmentPeriodService {
     private readonly mailService: MailService,
     private readonly licenseService: LicenseService,
     private readonly auditLog: AuditLogService,
+    private readonly busService: BusService,
   ) {}
 
   async create(
@@ -440,12 +442,20 @@ export class EnrollmentPeriodService {
         ? period.waitlistClosedAt ?? new Date()
         : null;
 
-    return this.repository.update(periodId, {
+    const updated = await this.repository.update(periodId, {
       active: false,
       closedByAdminId: adminId,
       closedAt: new Date(),
       closedWaitlistCount: totalClosedCount,
       waitlistClosedAt,
     });
+
+    try {
+      await this.busService.resetAllFilledSlots(adminId ?? undefined);
+    } catch (err) {
+      this.logger.warn(`Falha ao resetar filledSlots dos onibus: ${(err as Error)?.message}`);
+    }
+
+    return updated;
   }
 }

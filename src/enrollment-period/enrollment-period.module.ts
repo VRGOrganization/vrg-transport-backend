@@ -5,6 +5,7 @@ import { LicenseModule } from '../license/license.module';
 import { LicenseRequestModule } from '../license-request/license-request.module';
 import { MailModule } from '../mail/mail.module';
 import { StudentModule } from '../student/student.module';
+import { BusModule } from '../bus/bus.module';
 import { EnrollmentPeriodController } from './enrollment-period.controller';
 import { EnrollmentPeriodService } from './enrollment-period.service';
 import { ENROLLMENT_PERIOD_REPOSITORY } from './interfaces/repository.interface';
@@ -22,6 +23,7 @@ import {
     forwardRef(() => LicenseModule),
     forwardRef(() => LicenseRequestModule),
     forwardRef(() => StudentModule),
+    forwardRef(() => BusModule),
     MailModule,
     AuditModule,
   ],

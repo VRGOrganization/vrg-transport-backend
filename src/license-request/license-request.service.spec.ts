@@ -23,6 +23,7 @@ const mockRepository = {
   findAll: jest.fn(),
   findAllByStatus: jest.fn(),
   findWaitlistedByEnrollmentPeriod: jest.fn(),
+  hasActiveDemandForBusAndUniversity: jest.fn(),
   update: jest.fn(),
 };
 
@@ -64,6 +65,7 @@ const mockEnrollmentPeriodService = {
 const mockBusService = {
   incrementUniversityFilledSlots: jest.fn(),
   decrementUniversityFilledSlots: jest.fn(),
+  findByUniversityId: jest.fn(),
 };
 
 const makeRequest = (
@@ -141,6 +143,9 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         totalSlots: 10,
         filledSlots: 3,
       });
+      mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
+      mockBusService.findByUniversityId.mockResolvedValue({ _id: '000000000000000000000001', identifier: 'A01', capacity: undefined, universitySlots: [{ universityId: '000000000000000000000002', priorityOrder: 1, filledSlots: 0 }] });
+      mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
       mockRepository.create.mockResolvedValue(
         makeRequest({
           status: LicenseRequestStatus.PENDING,
@@ -170,10 +175,9 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         filledSlots: 1,
       });
       mockEnrollmentPeriodService.reserveWaitlistPosition.mockResolvedValue(3);
-      mockStudentService.findOneOrFail.mockResolvedValue({
-        email: 'student@mail.com',
-        name: 'Aluno Teste',
-      });
+      mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
+      // bus with capacity 1 already full
+      mockBusService.findByUniversityId.mockResolvedValue({ _id: '000000000000000000000001', identifier: 'A01', capacity: 1, universitySlots: [{ universityId: '000000000000000000000002', priorityOrder: 1, filledSlots: 1 }] });
       mockRepository.create.mockResolvedValue(
         makeRequest({
           status: 'waitlisted' as any,
@@ -197,6 +201,114 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       );
       expect(result.waitlisted).toBe(true);
       expect(result.filaPosition).toBe(3);
+    });
+
+    it('deve criar PENDING quando ônibus não tem capacity definida', async () => {
+      const now = new Date();
+      mockRepository.findByStudentId.mockResolvedValue([]);
+      mockEnrollmentPeriodService.getActive.mockResolvedValue({
+        _id: 'period-1',
+        startDate: new Date(now.getTime() - 60_000),
+        endDate: new Date(now.getTime() + 60_000),
+        totalSlots: 10,
+        filledSlots: 0,
+      });
+      // student is from uni-2 (use valid ObjectId strings)
+      mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
+
+      mockBusService.findByUniversityId.mockResolvedValue({
+        _id: '000000000000000000000001',
+        identifier: 'A01',
+        capacity: undefined,
+        universitySlots: [
+          { universityId: '000000000000000000000002', priorityOrder: 1, filledSlots: 0 },
+        ],
+      });
+
+      mockRepository.create.mockResolvedValue(
+        makeRequest({ status: LicenseRequestStatus.PENDING, enrollmentPeriodId: 'period-1' as any } as any),
+      );
+
+      const result = (await service.createRequest('student-1')) as any;
+
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: LicenseRequestStatus.PENDING }),
+      );
+      expect(result.waitlisted).toBe(false);
+    });
+
+    it('deve criar WAITLISTED quando ônibus está cheio pela soma dos filledSlots >= capacity', async () => {
+      const now = new Date();
+      mockRepository.findByStudentId.mockResolvedValue([]);
+      mockEnrollmentPeriodService.getActive.mockResolvedValue({
+        _id: 'period-1',
+        startDate: new Date(now.getTime() - 60_000),
+        endDate: new Date(now.getTime() + 60_000),
+        totalSlots: 10,
+        filledSlots: 0,
+      });
+      mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
+
+      // bus capacity 2 but filledSlots sum is 2
+      mockBusService.findByUniversityId.mockResolvedValue({
+        _id: '000000000000000000000001',
+        identifier: 'A01',
+        capacity: 2,
+        universitySlots: [
+          { universityId: '000000000000000000000011', priorityOrder: 1, filledSlots: 1 },
+          { universityId: '000000000000000000000002', priorityOrder: 2, filledSlots: 1 },
+        ],
+      });
+
+      mockEnrollmentPeriodService.reserveWaitlistPosition.mockResolvedValue(4);
+      mockRepository.create.mockResolvedValue(
+        makeRequest({ status: 'waitlisted' as any, enrollmentPeriodId: 'period-1' as any, filaPosition: 4 as any } as any),
+      );
+
+      const result = (await service.createRequest('student-1')) as any;
+
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'waitlisted' }),
+      );
+      expect(mockMailService.sendWaitlistConfirmation).toHaveBeenCalled();
+      expect(result.waitlisted).toBe(true);
+    });
+
+    it('deve criar WAITLISTED quando houver demanda ativa de faculdade com prioridade superior', async () => {
+      const now = new Date();
+      mockRepository.findByStudentId.mockResolvedValue([]);
+      mockEnrollmentPeriodService.getActive.mockResolvedValue({
+        _id: 'period-1',
+        startDate: new Date(now.getTime() - 60_000),
+        endDate: new Date(now.getTime() + 60_000),
+        totalSlots: 10,
+        filledSlots: 0,
+      });
+      // student belongs to uni-2 which is priorityOrder 2
+      mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
+
+      mockBusService.findByUniversityId.mockResolvedValue({
+        _id: '000000000000000000000001',
+        identifier: 'A01',
+        capacity: 5,
+        universitySlots: [
+          { universityId: '000000000000000000000011', priorityOrder: 1, filledSlots: 0 }, // higher priority
+          { universityId: '000000000000000000000002', priorityOrder: 2, filledSlots: 0 }, // student's uni
+        ],
+      });
+
+      // Simulate that uni-1 has active demand on this bus
+      mockRepository.hasActiveDemandForBusAndUniversity.mockResolvedValue(true);
+      mockEnrollmentPeriodService.reserveWaitlistPosition.mockResolvedValue(7);
+      mockRepository.create.mockResolvedValue(
+        makeRequest({ status: 'waitlisted' as any, enrollmentPeriodId: 'period-1' as any, filaPosition: 7 as any } as any),
+      );
+
+      const result = (await service.createRequest('student-1')) as any;
+
+      expect(mockRepository.hasActiveDemandForBusAndUniversity).toHaveBeenCalledWith('000000000000000000000001', '000000000000000000000011');
+      expect(mockRepository.create).toHaveBeenCalledWith(expect.objectContaining({ status: 'waitlisted' }));
+      expect(result.waitlisted).toBe(true);
     });
   });
 

@@ -42,6 +42,13 @@ export class BusController {
     return this.service.findAll();
   }
 
+  @Get('with-queue-counts')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Resumo das filas por ônibus e universidade (admin)' })
+  getWithQueueCounts() {
+    return this.service.getQueueCounts();
+  }
+
   @Get('inactive')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Listar ônibus inativos' })
@@ -55,6 +62,14 @@ export class BusController {
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   findOne(@Param('id', MongoObjectIdPipe) id: string) {
     return this.service.findOneOrFail(id);
+  }
+
+  @Get(':id/queue-summary')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Resumo detalhado da fila do ônibus (pending + waitlisted) (admin)' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
+  getQueueSummary(@Param('id', MongoObjectIdPipe) id: string) {
+    return this.service.getQueueSummary(id);
   }
 
   @Patch(':id')

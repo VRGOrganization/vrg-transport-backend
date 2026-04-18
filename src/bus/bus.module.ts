@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CommonModule } from '../common/common.module';
+import { EnrollmentPeriodModule } from '../enrollment-period/enrollment-period.module';
 import { UniversityModule } from '../university/university.module';
 import { BUS_REPOSITORY } from './interface/repository.interface';
 import { BusRepository } from './repository/bus.repository';
@@ -12,6 +13,7 @@ import { BusService } from './bus.service';
   imports: [
     CommonModule,
     UniversityModule,
+    forwardRef(() => EnrollmentPeriodModule),
     MongooseModule.forFeature([{ name: Bus.name, schema: BusSchema }]),
   ],
   controllers: [BusController],
