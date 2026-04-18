@@ -330,7 +330,7 @@ export class LicenseRequestService {
     let busIncremented = false;
     let busIdForIncrement: string | null = null;
     let uniIdForIncrement: string | null = null;
-    let session: ClientSession | null = null;
+    let session: ClientSession | undefined = undefined;
     let usedSession = false;
     if (request.type === 'initial' && request.enrollmentPeriodId) {
       const period = await this.enrollmentPeriodService.findById(
@@ -346,10 +346,10 @@ export class LicenseRequestService {
         try {
           session = await mongoose.startSession();
         } catch (err) {
-          session = null;
+          session = undefined;
         }
       } else {
-        session = null;
+        session = undefined;
       }
 
       if (session) {
@@ -357,7 +357,7 @@ export class LicenseRequestService {
           usedSession = true;
           await session.withTransaction(async () => {
               // increment enrollment period within transaction
-              await this.enrollmentPeriodService.incrementFilled(request.enrollmentPeriodId, session);
+              await this.enrollmentPeriodService.incrementFilled(request.enrollmentPeriodId as string, session);
               reservedPeriodId = request.enrollmentPeriodId;
 
               // If this request has a bus/university snapshot, increment bus filledSlots now (inside transaction)
@@ -407,7 +407,7 @@ export class LicenseRequestService {
       } else {
         // Fallback non-transactional path (existing logic)
         await this.enrollmentPeriodService.incrementFilled(
-          request.enrollmentPeriodId,
+          request.enrollmentPeriodId as string,
         );
         reservedPeriodId = request.enrollmentPeriodId;
 
@@ -545,6 +545,23 @@ export class LicenseRequestService {
 
     // If used session, fetch the updated request to return
     const updatedRequest = await this.repository.findById(requestId);
+    // If this was an update request and we used a DB session, send notification after commit
+    if (request.type === 'update') {
+      try {
+        const student = await this.studentService.findOneOrFail(request.studentId);
+        await this.mailService
+          .sendDocumentUpdateApproved(
+            student.email,
+            student.name,
+            request.changedDocuments ?? [],
+          )
+          .catch(() => {});
+      } catch (err) {
+        this.logger.warn(
+          `Falha ao enviar email de aprovacao de update para ${request.studentId}: ${(err as Error)?.message}`,
+        );
+      }
+    }
     await this.auditLog.record({
       action: 'license_request.approve',
       outcome: 'success',
@@ -557,31 +574,6 @@ export class LicenseRequestService {
     });
 
     return updatedRequest!;
-
-    if (request.type === 'update') {
-      const student = await this.studentService.findOneOrFail(request.studentId);
-
-      await this.mailService
-        .sendDocumentUpdateApproved(
-          student.email,
-          student.name,
-          request.changedDocuments ?? [],
-        )
-        .catch(() => {});
-    }
-
-    await this.auditLog.record({
-      action: 'license_request.approve',
-      outcome: 'success',
-      actor: { id: employeeId, role: 'employee' },
-      target: { studentId: request.studentId, requestId },
-      metadata: {
-        enrollmentPeriodId: request.enrollmentPeriodId,
-        validityMonths,
-      },
-    });
-
-    return updated!;
   }
 
   async reject(

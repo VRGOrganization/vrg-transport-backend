@@ -155,7 +155,7 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
     return this.model
       .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after', session })
       .lean()
-      .session(session ?? undefined)
+      .session(session ?? null)
       .exec() as Promise<LicenseRequest | null>;
   }
 }

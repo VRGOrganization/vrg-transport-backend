@@ -13,6 +13,13 @@ import {
 } from './interface/repository.interface';
 import { Types } from 'mongoose';
 import { Bus } from './schema/bus.schema';
+import { LICENSE_REQUEST_REPOSITORY } from '../license-request/interfaces/repository.interface';
+import type { ILicenseRequestRepository } from '../license-request/interfaces/repository.interface';
+import { LicenseRequest } from '../license-request/schemas/license-request.schema';
+import { StudentService } from '../student/student.service';
+import { MailService } from '../mail/mail.service';
+import { EnrollmentPeriodService } from '../enrollment-period/enrollment-period.service';
+import { LicenseService } from '../license/license.service';
 
 @Injectable()
 export class BusService {
@@ -21,6 +28,12 @@ export class BusService {
     private readonly repository: IBusRepository<Bus>,
     private readonly universityService: UniversityService,
     private readonly auditLog: AuditLogService,
+    @Inject(LICENSE_REQUEST_REPOSITORY)
+    private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
+    private readonly studentService: StudentService,
+    private readonly mailService: MailService,
+    private readonly enrollmentPeriodService: EnrollmentPeriodService,
+    private readonly licenseService: LicenseService,
   ) {}
 
   async create(dto: CreateBusDto, adminId: string): Promise<Bus> {
@@ -245,5 +258,151 @@ export class BusService {
 
   async decrementUniversityFilledSlots(busId: string, universityId: string, session?: import('mongoose').ClientSession): Promise<void> {
     return this.repository.decrementUniversityFilledSlots(busId, universityId, session as any);
+  }
+
+  /**
+   * Libera (zera) as vagas preenchidas associadas a este ônibus.
+   * Retorna o total de vagas liberadas.
+   */
+  async releaseSlotsForBus(busId: string, adminId: string, promote = true): Promise<{ releasedSlots: number }> {
+    await this.findOneOrFail(busId);
+
+    const released = await this.repository.resetUniversityFilledSlots(busId);
+
+    await this.auditLog.record({
+      action: 'bus.release_slots',
+      outcome: 'success',
+      actor: { id: adminId, role: 'admin' },
+      target: { busId },
+      metadata: { releasedSlots: released },
+    });
+
+    // If no slots were released, nothing to promote
+    if (!released || released <= 0) {
+      return { releasedSlots: released };
+    }
+
+    // If caller disabled promotion, return early
+    if (!promote) {
+      return { releasedSlots: released };
+    }
+
+    // Try to promote waitlisted requests for the active enrollment period
+    const activePeriod = await this.enrollmentPeriodService.getActive();
+    if (!activePeriod) {
+      return { releasedSlots: released };
+    }
+
+    const periodId = (activePeriod as any)._id?.toString?.();
+    if (!periodId) return { releasedSlots: released };
+
+    // Fetch current waitlisted requests for the period
+    const waitlisted = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriod(
+      periodId,
+    );
+
+    // Load bus to read universitySlots priority
+    const bus = await this.findOneOrFail(busId);
+    const slots = (bus as any).universitySlots || [];
+    const sortedUniIds = [...slots]
+      .sort((a: any, b: any) => (a.priorityOrder || 0) - (b.priorityOrder || 0))
+      .map((s: any) => s.universityId?.toString?.());
+
+    const promotedIds: string[] = [];
+
+    // For each university in priority, pick waitlisted requests for this bus/university
+    for (const uniId of sortedUniIds) {
+      if (promotedIds.length >= released) break;
+      const candidates = (waitlisted || [])
+        .filter((r: any) => {
+          const rUni = r.universityId ? (typeof r.universityId === 'string' ? r.universityId : (r.universityId as any).toString?.()) : null;
+          if (rUni !== uniId) return false;
+          const rBus = r.busId ? (typeof r.busId === 'string' ? r.busId : (r.busId as any).toString?.()) : null;
+          return rBus === busId;
+        })
+        .sort((a: any, b: any) => {
+          const pa = a.filaPosition ?? 0;
+          const pb = b.filaPosition ?? 0;
+          if (pa && pb) return pa - pb;
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
+
+      for (const c of candidates) {
+        if (promotedIds.length >= released) break;
+        promotedIds.push((c as any)._id?.toString?.());
+      }
+    }
+
+    if (promotedIds.length === 0) {
+      return { releasedSlots: released };
+    }
+
+    const promoted: any[] = [];
+    const skipped: string[] = [];
+
+    for (const reqId of promotedIds) {
+      const promotedRequest = await this.licenseRequestRepository.promoteWaitlistedForPeriod(
+        reqId,
+        periodId,
+      );
+
+      if (!promotedRequest) {
+        skipped.push(reqId);
+        continue;
+      }
+
+      promoted.push(promotedRequest);
+    }
+
+    // Notify promoted students and emit events
+    for (const request of promoted) {
+      try {
+        const student = await this.studentService.findOneOrFail(request.studentId);
+        await this.mailService.sendWaitlistPromotion(student.email, student.name).catch(() => {});
+      } catch (err) {
+        this.auditLog.record({
+          action: 'bus.release_slots.notify_failed',
+          outcome: 'failure',
+          actor: { id: adminId, role: 'admin' },
+          target: { busId },
+          metadata: { requestId: (request as any)._id?.toString?.() },
+        }).catch(() => {});
+      }
+
+      this.licenseService.emitLicenseEvent(request.studentId, {
+        type: 'license.changed',
+        reason: 'waitlist_promoted',
+      });
+    }
+
+    // Recompute filaPosition for remaining waitlisted in the period
+    const remainingWaitlisted = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriod(
+      periodId,
+    );
+
+    const sortedRemaining = [...remainingWaitlisted].sort(
+      (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+
+    for (let index = 0; index < sortedRemaining.length; index += 1) {
+      const r = sortedRemaining[index];
+      await this.licenseRequestRepository.update((r as any)._id?.toString?.(), {
+        filaPosition: index + 1,
+      });
+    }
+
+    await this.auditLog.record({
+      action: 'bus.release_slots_promote',
+      outcome: 'success',
+      actor: { id: adminId, role: 'admin' },
+      target: { busId },
+      metadata: {
+        releasedSlots: released,
+        promotedRequestIds: promoted.map((p) => (p as any)._id?.toString?.()),
+        skippedRequestIds: skipped,
+      },
+    });
+
+    return { releasedSlots: released };
   }
 }

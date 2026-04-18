@@ -13,7 +13,6 @@ export class LicenseRepository implements ILicenseRepository<License> {
     private readonly licenseModel: Model<License>
   ) {}
 
-  async create(data: Partial<License>): Promise<License> {
   async create(data: Partial<License>, session?: import('mongoose').ClientSession): Promise<License> {
     const license = new this.licenseModel(data);
     return license.save({ session });

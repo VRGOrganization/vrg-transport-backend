@@ -8,9 +8,10 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -106,6 +107,21 @@ export class BusController {
     @Req() req: Request,
   ) {
     return this.service.unlinkUniversity(id, dto.universityId, req.sessionPayload!.userId);
+  }
+
+  @Patch(':id/release-slots')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Liberar vagas preenchidas do ônibus (zera filledSlots por universidade)' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId do ônibus' })
+  @ApiQuery({ name: 'promote', required: false, description: 'Se true (default) promove automaticamente waitlisted; enviar promote=false para apenas zerar filledSlots sem promover.' })
+  @HttpCode(HttpStatus.OK)
+  releaseSlots(
+    @Param('id', MongoObjectIdPipe) id: string,
+    @Query('promote') promote: string | undefined,
+    @Req() req: Request,
+  ) {
+    const doPromote = promote === undefined ? true : promote === 'true';
+    return this.service.releaseSlotsForBus(id, req.sessionPayload!.userId, doPromote);
   }
 
   @Delete(':id')

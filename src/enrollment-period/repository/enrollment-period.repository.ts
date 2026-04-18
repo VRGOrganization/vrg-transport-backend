@@ -60,19 +60,6 @@ export class EnrollmentPeriodRepository
       .exec() as Promise<EnrollmentPeriod | null>;
   }
 
-  async incrementFilledIfAvailable(id: string): Promise<EnrollmentPeriod | null> {
-    return this.model
-      .findOneAndUpdate(
-        {
-          _id: id,
-          $expr: { $lt: ['$filledSlots', '$totalSlots'] },
-        },
-        { $inc: { filledSlots: 1 } },
-        { returnDocument: 'after' },
-      )
-      .lean()
-      .exec() as Promise<EnrollmentPeriod | null>;
-  }
   async incrementFilledIfAvailable(id: string, session?: import('mongoose').ClientSession): Promise<EnrollmentPeriod | null> {
     return this.model
       .findOneAndUpdate(
@@ -84,7 +71,7 @@ export class EnrollmentPeriodRepository
         { returnDocument: 'after', session },
       )
       .lean()
-      .session(session ?? undefined)
+      .session(session ?? null)
       .exec() as Promise<EnrollmentPeriod | null>;
   }
 
@@ -96,7 +83,7 @@ export class EnrollmentPeriodRepository
         { returnDocument: 'after', session },
       )
       .lean()
-      .session(session ?? undefined)
+      .session(session ?? null)
       .exec() as Promise<EnrollmentPeriod | null>;
   }
 }

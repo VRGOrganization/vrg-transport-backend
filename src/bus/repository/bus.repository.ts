@@ -78,7 +78,7 @@ export class BusRepository implements IBusRepository<Bus> {
 
     if (!result || (result as any).modifiedCount === 0) {
       // If nothing was modified, try to set to zero to avoid negative values
-      const bus = await this.busModel.findById(busId).session(session ?? undefined).exec();
+      const bus = await this.busModel.findById(busId).session(session ?? null).exec();
       if (!bus) throw new Error('Ônibus não encontrado');
       const slot = (bus as any).universitySlots.find((s: any) => s.universityId?.toString() === universityId);
       if (!slot) throw new Error('Universidade não está nos slots do ônibus');
@@ -99,6 +99,28 @@ export class BusRepository implements IBusRepository<Bus> {
       }
       if (changed) await bus.save();
     }
+  }
+
+  async resetUniversityFilledSlots(busId: string, session?: ClientSession): Promise<number> {
+    const bus = await this.busModel.findById(busId).session(session ?? null).exec();
+    if (!bus) throw new Error('Ônibus não encontrado');
+
+    let released = 0;
+    let changed = false;
+    for (const slot of (bus as any).universitySlots || []) {
+      const amount = slot.filledSlots || 0;
+      if (amount > 0) {
+        released += amount;
+        slot.filledSlots = 0;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await bus.save({ session });
+    }
+
+    return released;
   }
 
   // Retorna informações básicas com contagens mínimas. Contagens de requests devem
