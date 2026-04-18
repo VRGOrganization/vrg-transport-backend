@@ -14,6 +14,7 @@ import { MailService } from '../../mail/mail.service';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { ConfigService } from '@nestjs/config';
 import { SessionService } from '../session/session.service';
+import { PasswordResetService } from '../password-reset/password-reset.service';
 import { UserRole } from '../../common/interfaces/user-roles.enum';
 import { StudentStatus } from '../../student/schemas/student.schema';
 
@@ -61,6 +62,11 @@ const mockSessionService = {
   revokeSession: jest.fn(),
 };
 
+const mockPasswordResetService = {
+  requestPasswordReset: jest.fn(),
+  resetPassword: jest.fn(),
+};
+
 const makeStudent = (overrides = {}) => ({
   _id: { toString: () => 'student-id-123' },
   name: 'Aluno Teste',
@@ -106,6 +112,7 @@ describe('AuthService (Fase 2 - Session First)', () => {
         { provide: AuditLogService, useValue: mockAuditLog },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: SessionService, useValue: mockSessionService },
+        { provide: PasswordResetService, useValue: mockPasswordResetService },
       ],
     }).compile();
 

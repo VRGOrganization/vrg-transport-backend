@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { BloodType, Shift } from '../../common/interfaces/student-attributes.enum';
 
 export type StudentDocument = HydratedDocument<Student>;
@@ -35,11 +35,18 @@ export class Student {
   @Prop({ type: String, required: false, trim: true, enum: Object.values(BloodType) })
   bloodType: BloodType;
 
+
+  // Referência à universidade (ObjectId). Preenchido na inscrição.
+  @Prop({ type: Types.ObjectId, ref: 'University', required: false })
+  universityId: Types.ObjectId;
+
+  // Nome da instituição para exibição/carteirinha.
   @Prop({ required: false, trim: true })
   institution: string;
 
-  @Prop({ required: false, trim: true })
-  bus: string;
+  // Ônibus secundário para alunos Integral (opcional).
+  @Prop({ type: Types.ObjectId, ref: 'Bus', default: null })
+  secondaryBusId: Types.ObjectId | null;
 
   @Prop({ required: false, type: String, default: null })
   photo: string | null;

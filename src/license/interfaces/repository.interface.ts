@@ -1,7 +1,9 @@
+import { ClientSession } from 'mongoose';
+
 export const LICENSE_REPOSITORY = 'LICENSE_REPOSITORY';
 
 export interface ILicenseRepository<T> {
-  create(data: Partial<T>): Promise<T>;
+  create(data: Partial<T>, session?: ClientSession): Promise<T>;
   findAll(): Promise<T[]>;
   findOne(id: string): Promise<T | null>;
   update(id: string, data: Partial<T>): Promise<T | null>;

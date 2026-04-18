@@ -14,8 +14,9 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
     private readonly model: Model<LicenseRequest>,
   ) {}
 
-  async create(data: Partial<LicenseRequest>): Promise<LicenseRequest> {
-    return this.model.create(data);
+  async create(data: Partial<LicenseRequest>, session?: import('mongoose').ClientSession): Promise<LicenseRequest> {
+    const doc = new this.model(data);
+    return doc.save({ session });
   }
 
   async findById(id: string): Promise<LicenseRequest | null> {
@@ -38,6 +39,35 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
   ): Promise<LicenseRequest | null> {
     return this.model
       .findOne({ studentId, status: LicenseRequestStatus.PENDING })
+      .lean()
+      .exec() as Promise<LicenseRequest | null>;
+  }
+
+  async hasActiveDemandForBusAndUniversity(
+    busId: string,
+    universityId: string,
+  ): Promise<boolean> {
+    const count = await this.model
+      .countDocuments({
+        busId,
+        universityId,
+        status: { $in: [LicenseRequestStatus.PENDING, LicenseRequestStatus.WAITLISTED] },
+      })
+      .exec();
+
+    return (count ?? 0) > 0;
+  }
+
+  async findPendingOrWaitlistedInitial(
+    studentId: string,
+  ): Promise<LicenseRequest | null> {
+    return this.model
+      .findOne({
+        studentId,
+        type: 'initial',
+        status: { $in: [LicenseRequestStatus.PENDING, LicenseRequestStatus.WAITLISTED] },
+      })
+      .sort({ createdAt: 1 })
       .lean()
       .exec() as Promise<LicenseRequest | null>;
   }
@@ -120,10 +150,12 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
   async update(
     id: string,
     data: Partial<LicenseRequest>,
+    session?: import('mongoose').ClientSession,
   ): Promise<LicenseRequest | null> {
     return this.model
-      .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after' })
+      .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after', session })
       .lean()
+      .session(session ?? undefined)
       .exec() as Promise<LicenseRequest | null>;
   }
 }

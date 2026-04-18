@@ -1,18 +1,38 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
+
 export type BusDocument = HydratedDocument<Bus>;
+
+@Schema({ _id: false })
+export class UniversitySlot {
+  @Prop({ type: Types.ObjectId, ref: 'University', required: true })
+  universityId: Types.ObjectId;
+
+  // 1 = maior prioridade. Único dentro do mesmo ônibus.
+  @Prop({ required: true, min: 1 })
+  priorityOrder: number;
+
+  // Vagas preenchidas por esta faculdade neste ônibus no período atual.
+  // Resetado ao fechar EnrollmentPeriod.
+  @Prop({ default: 0, min: 0 })
+  filledSlots: number;
+}
+
+export const UniversitySlotSchema = SchemaFactory.createForClass(UniversitySlot);
 
 @Schema({ timestamps: true, collection: 'buses' })
 export class Bus {
   @Prop({ required: true, trim: true, unique: true })
   identifier: string;
 
-  @Prop({ required: true, min: 1 })
-  capacity: number;
+  // OPCIONAL. Ausente = sem limite próprio.
+  @Prop({ required: false, min: 1 })
+  capacity?: number;
 
-  @Prop({ type: [{ type: Types.ObjectId, ref: 'University' }], default: [] })
-  universityIds: Types.ObjectId[];
+  // Substitui universityIds[]
+  @Prop({ type: [UniversitySlotSchema], default: [] })
+  universitySlots: UniversitySlot[];
 
   @Prop({ default: true })
   active: boolean;

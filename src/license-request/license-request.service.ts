@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import mongoose, { ClientSession } from 'mongoose';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { EnrollmentPeriodService } from '../enrollment-period/enrollment-period.service';
 import { LicenseService } from '../license/license.service';
@@ -20,6 +21,8 @@ import {
 import { ApproveLicenseRequestDto } from './dto/license-request.dto';
 import { PhotoType } from '../image/types/photoType.enum';
 import { ImagesService } from '../image/image.service';
+import { Types } from 'mongoose';
+import { BusService } from '../bus/bus.service';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -37,6 +40,7 @@ export class LicenseRequestService {
     @Inject(forwardRef(() => EnrollmentPeriodService))
     private readonly enrollmentPeriodService: EnrollmentPeriodService,
     private readonly studentService: StudentService,
+    private readonly busService: BusService,
     private readonly licenseService: LicenseService,
     private readonly imagesService: ImagesService,
     private readonly mailService: MailService,
@@ -99,8 +103,21 @@ export class LicenseRequestService {
       throw new BadRequestException('Período de inscrição inválido.');
     }
 
-    const hasAvailableSlots =
-      activePeriod.filledSlots < activePeriod.totalSlots;
+    // Resolve student and their university to snapshot into the request
+    const student = await this.studentService.findOneOrFail(studentId);
+    const universityIdForRequest = (student as any).universityId
+      ? (student as any).universityId
+      : null;
+
+    let busIdForRequest: string | null = null;
+    if (universityIdForRequest) {
+      const bus = await this.busService.findByUniversityId(universityIdForRequest);
+      if (bus) {
+        busIdForRequest = (bus as any)._id ?? null;
+      }
+    }
+
+    const hasAvailableSlots = activePeriod.filledSlots < activePeriod.totalSlots;
 
     if (!hasAvailableSlots) {
       const filaPosition =
@@ -122,10 +139,11 @@ export class LicenseRequestService {
         changedDocuments: [],
         enrollmentPeriodId,
         filaPosition,
+        busId: busIdForRequest ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest) : null,
+        universityId: universityIdForRequest ? (typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest) : null,
       });
 
       try {
-        const student = await this.studentService.findOneOrFail(studentId);
         await this.mailService.sendWaitlistConfirmation(
           student.email,
           student.name,
@@ -141,7 +159,7 @@ export class LicenseRequestService {
         action: 'license_request.waitlisted',
         outcome: 'success',
         target: { studentId, enrollmentPeriodId },
-        metadata: { filaPosition },
+        metadata: { filaPosition, busId: busIdForRequest, universityId: universityIdForRequest },
       });
 
       return {
@@ -165,12 +183,15 @@ export class LicenseRequestService {
       changedDocuments: [],
       enrollmentPeriodId,
       filaPosition: null,
+      busId: busIdForRequest ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest) : null,
+      universityId: universityIdForRequest ? (typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest) : null,
     });
 
     await this.auditLog.record({
       action: 'license_request.create',
       outcome: 'success',
       target: { studentId, enrollmentPeriodId },
+      metadata: { busId: busIdForRequest, universityId: universityIdForRequest },
     });
 
     return {
@@ -306,22 +327,111 @@ export class LicenseRequestService {
 
     let validityMonths = 6;
     let reservedPeriodId: string | null = null;
-
+    let busIncremented = false;
+    let busIdForIncrement: string | null = null;
+    let uniIdForIncrement: string | null = null;
+    let session: ClientSession | null = null;
+    let usedSession = false;
     if (request.type === 'initial' && request.enrollmentPeriodId) {
       const period = await this.enrollmentPeriodService.findById(
         request.enrollmentPeriodId,
       );
       validityMonths = period?.licenseValidityMonths ?? 6;
 
-      await this.enrollmentPeriodService.incrementFilled(
-        request.enrollmentPeriodId,
-      );
-      reservedPeriodId = request.enrollmentPeriodId;
+      // Try to start a mongoose session for transactional update. If unavailable, fall back to non-transactional path.
+      // Only start a session if mongoose is connected. In test environment mongoose
+      // may not be connected which would cause startSession to hang or behave
+      // unexpectedly. Fall back to non-transactional path when not connected.
+      if (mongoose?.connection?.readyState === 1) {
+        try {
+          session = await mongoose.startSession();
+        } catch (err) {
+          session = null;
+        }
+      } else {
+        session = null;
+      }
+
+      if (session) {
+        try {
+          usedSession = true;
+          await session.withTransaction(async () => {
+              // increment enrollment period within transaction
+              await this.enrollmentPeriodService.incrementFilled(request.enrollmentPeriodId, session);
+              reservedPeriodId = request.enrollmentPeriodId;
+
+              // If this request has a bus/university snapshot, increment bus filledSlots now (inside transaction)
+              if ((request as any).busId && (request as any).universityId) {
+                const rawBus = (request as any).busId;
+                const rawUni = (request as any).universityId;
+                busIdForIncrement = typeof rawBus === 'string' ? rawBus : rawBus?.toString?.();
+                uniIdForIncrement = typeof rawUni === 'string' ? rawUni : rawUni?.toString?.();
+                if (busIdForIncrement && uniIdForIncrement) {
+                  await this.busService.incrementUniversityFilledSlots(busIdForIncrement, uniIdForIncrement, session);
+                  busIncremented = true;
+                }
+              }
+
+              // create license (will use session in repository)
+              let licenseCreated: any;
+              if (request.type === 'update') {
+                // update license path handled below outside transaction creation path
+              } else {
+                licenseCreated = await this.licenseService.create(
+                  {
+                    id: request.studentId,
+                    institution: dto.institution,
+                    bus: dto.bus,
+                    photo: dto.photo,
+                  },
+                  employeeId,
+                  validityMonths,
+                  request.enrollmentPeriodId ?? null,
+                  true,
+                  session,
+                );
+              }
+
+            // Update request as approved within transaction
+            const licenseIdStr = (licenseCreated as any)?._id?.toString?.();
+            await this.repository.update(requestId, {
+              status: LicenseRequestStatus.APPROVED,
+              approvedByEmployeeId: employeeId,
+              licenseId: licenseIdStr ?? null,
+              pendingImages: [],
+            }, session);
+          });
+        } finally {
+          session.endSession();
+        }
+      } else {
+        // Fallback non-transactional path (existing logic)
+        await this.enrollmentPeriodService.incrementFilled(
+          request.enrollmentPeriodId,
+        );
+        reservedPeriodId = request.enrollmentPeriodId;
+
+        // If this request has a bus/university snapshot, increment bus filledSlots now (non-transactional path)
+        if ((request as any).busId && (request as any).universityId) {
+          const rawBus = (request as any).busId;
+          const rawUni = (request as any).universityId;
+          busIdForIncrement = typeof rawBus === 'string' ? rawBus : rawBus?.toString?.();
+          uniIdForIncrement = typeof rawUni === 'string' ? rawUni : rawUni?.toString?.();
+          if (busIdForIncrement && uniIdForIncrement) {
+            await this.busService.incrementUniversityFilledSlots(busIdForIncrement, uniIdForIncrement);
+            busIncremented = true;
+          }
+        }
+      }
     }
 
-    let license: { _id: { toString(): string } };
+    let license: { _id: { toString(): string } } | null = null;
     try {
-      if (request.type === 'update') {
+      if (usedSession) {
+        // When usedSession is true, license creation and request update were already handled inside the transaction above.
+        // We still need to retrieve the license id for audit logging; set license = null to indicate already processed.
+        license = null;
+      } else if (request.type === 'update') {
         const changedDocuments = request.changedDocuments ?? [];
         const images = await this.imagesService.findByStudentId(request.studentId);
         const pendingMap = Object.fromEntries(
@@ -380,20 +490,73 @@ export class LicenseRequestService {
         license = createdLicense as any;
       }
     } catch (error) {
-      if (reservedPeriodId) {
-        await this.enrollmentPeriodService.decrementFilled(reservedPeriodId);
+      if (!usedSession) {
+        if (reservedPeriodId) {
+          await this.enrollmentPeriodService.decrementFilled(reservedPeriodId);
+        }
+        if (busIncremented && busIdForIncrement && uniIdForIncrement) {
+          await this.busService.decrementUniversityFilledSlots(busIdForIncrement, uniIdForIncrement);
+        }
       }
       throw error;
     }
 
-    const licenseId = license._id.toString();
+    if (!usedSession) {
+      // If the bus snapshot exists, increment its filledSlots now (non-transactional path)
+      if (busIdForIncrement && uniIdForIncrement) {
+        await this.busService.incrementUniversityFilledSlots(busIdForIncrement, uniIdForIncrement);
+        busIncremented = true;
+      }
 
-    const updated = await this.repository.update(requestId, {
-      status: LicenseRequestStatus.APPROVED,
-      approvedByEmployeeId: employeeId,
-      licenseId,
-      pendingImages: [],
+      const licenseId = license!._id.toString();
+
+      const updated = await this.repository.update(requestId, {
+        status: LicenseRequestStatus.APPROVED,
+        approvedByEmployeeId: employeeId,
+        licenseId,
+        pendingImages: [],
+      });
+
+      if (request.type === 'update') {
+        const student = await this.studentService.findOneOrFail(request.studentId);
+
+        await this.mailService
+          .sendDocumentUpdateApproved(
+            student.email,
+            student.name,
+            request.changedDocuments ?? [],
+          )
+          .catch(() => {});
+      }
+
+      await this.auditLog.record({
+        action: 'license_request.approve',
+        outcome: 'success',
+        actor: { id: employeeId, role: 'employee' },
+        target: { studentId: request.studentId, requestId },
+        metadata: {
+          enrollmentPeriodId: request.enrollmentPeriodId,
+          validityMonths,
+        },
+      });
+
+      return updated!;
+    }
+
+    // If used session, fetch the updated request to return
+    const updatedRequest = await this.repository.findById(requestId);
+    await this.auditLog.record({
+      action: 'license_request.approve',
+      outcome: 'success',
+      actor: { id: employeeId, role: 'employee' },
+      target: { studentId: request.studentId, requestId },
+      metadata: {
+        enrollmentPeriodId: request.enrollmentPeriodId,
+        validityMonths,
+      },
     });
+
+    return updatedRequest!;
 
     if (request.type === 'update') {
       const student = await this.studentService.findOneOrFail(request.studentId);

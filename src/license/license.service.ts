@@ -160,6 +160,7 @@ export class LicenseService {
     licenseValidityMonths = 6,
     enrollmentPeriodId: string | null = null,
     skipApprovedRequestValidation = false,
+    session?: import('mongoose').ClientSession,
   ): Promise<License> {
     if (!skipApprovedRequestValidation) {
       await this.assertHasApprovedRequest(dto.id);
@@ -209,7 +210,7 @@ export class LicenseService {
       expirationDate: addMonthsBR(nowInBR(), licenseValidityMonths),
       verificationCode,
       qrCodeUrl,
-    });
+    }, session);
 
     this.emitLicenseEvent(studentId, {
       type: 'license.changed',

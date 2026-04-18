@@ -16,7 +16,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
-import { CreateBusDto, LinkUniversityDto, UpdateBusDto } from './dto/bus.dto';
+import { CreateBusDto, LinkUniversityDto, UpdateBusDto, UpdateUniversitySlotsDto } from './dto/bus.dto';
 import { BusService } from './bus.service';
 
 @ApiTags('Buses')
@@ -67,6 +67,19 @@ export class BusController {
     @Req() req: Request,
   ) {
     return this.service.update(id, dto, req.sessionPayload!.userId);
+  }
+
+  @Patch(':id/university-slots')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Atualizar faculdades e prioridades do ônibus' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
+  @ApiBody({ type: UpdateUniversitySlotsDto })
+  updateUniversitySlots(
+    @Param('id', MongoObjectIdPipe) id: string,
+    @Body() dto: UpdateUniversitySlotsDto,
+    @Req() req: Request,
+  ) {
+    return this.service.updateUniversitySlots(id, dto, req.sessionPayload!.userId);
   }
 
   @Patch(':id/link-university')

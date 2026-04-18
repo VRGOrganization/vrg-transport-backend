@@ -251,15 +251,15 @@ export class EnrollmentPeriodService {
     return updated;
   }
 
-  async incrementFilled(periodId: string): Promise<void> {
-    const updated = await this.repository.incrementFilledIfAvailable(periodId);
+  async incrementFilled(periodId: string, session?: import('mongoose').ClientSession): Promise<void> {
+    const updated = await this.repository.incrementFilledIfAvailable(periodId, session);
     if (!updated) {
       throw new ConflictException('Nao ha vagas disponiveis para aprovacao neste periodo.');
     }
   }
 
-  async decrementFilled(periodId: string): Promise<void> {
-    await this.repository.decrementFilled(periodId);
+  async decrementFilled(periodId: string, session?: import('mongoose').ClientSession): Promise<void> {
+    await this.repository.decrementFilled(periodId, session);
   }
 
   async reserveWaitlistPosition(periodId: string): Promise<number> {

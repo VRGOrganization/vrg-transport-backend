@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { EnrollmentPeriodService } from '../enrollment-period/enrollment-period.service';
 import { ImagesService } from '../image/image.service';
+import { BusService } from '../bus/bus.service';
 import { LICENSE_REQUEST_REPOSITORY } from './interfaces/repository.interface';
 import { LicenseRequestService } from './license-request.service';
 import {
@@ -56,7 +57,13 @@ const mockEnrollmentPeriodService = {
   getActive: jest.fn(),
   findById: jest.fn(),
   incrementFilled: jest.fn(),
+  decrementFilled: jest.fn(),
   reserveWaitlistPosition: jest.fn(),
+};
+
+const mockBusService = {
+  incrementUniversityFilledSlots: jest.fn(),
+  decrementUniversityFilledSlots: jest.fn(),
 };
 
 const makeRequest = (
@@ -89,6 +96,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
           provide: EnrollmentPeriodService,
           useValue: mockEnrollmentPeriodService,
         },
+        { provide: BusService, useValue: mockBusService },
         { provide: StudentService, useValue: mockStudentService },
         { provide: LicenseService, useValue: mockLicenseService },
         { provide: ImagesService, useValue: mockImagesService },
@@ -100,6 +108,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
     service = module.get<LicenseRequestService>(LicenseRequestService);
 
     jest.clearAllMocks();
+    mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: null });
   });
 
   describe('createRequest', () => {
@@ -227,6 +236,48 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         'period-1',
       );
     });
+
+      it('deve incrementar filledSlots do ônibus quando request inicial tem busId e universityId', async () => {
+        mockRepository.findById.mockResolvedValue(
+          makeRequest({
+            type: 'initial',
+            status: LicenseRequestStatus.PENDING,
+            enrollmentPeriodId: 'period-1' as any,
+            busId: 'bus-1' as any,
+            universityId: 'uni-1' as any,
+          } as any),
+        );
+        mockEnrollmentPeriodService.findById.mockResolvedValue({
+          _id: 'period-1',
+          licenseValidityMonths: 6,
+        });
+        mockLicenseService.create.mockResolvedValue({ _id: { toString: () => 'license-1' } });
+        mockRepository.update.mockResolvedValue(makeRequest({ status: LicenseRequestStatus.APPROVED }));
+
+        await service.approve('request-1', 'employee-1', { bus: 'A01', institution: 'IF' });
+
+        expect(mockEnrollmentPeriodService.incrementFilled).toHaveBeenCalledWith('period-1');
+        expect(mockBusService.incrementUniversityFilledSlots).toHaveBeenCalledWith('bus-1', 'uni-1');
+      });
+
+      it('deve reverter incremento do ônibus se a criação da licença falhar', async () => {
+        mockRepository.findById.mockResolvedValue(
+          makeRequest({
+            type: 'initial',
+            status: LicenseRequestStatus.PENDING,
+            enrollmentPeriodId: 'period-1' as any,
+            busId: 'bus-1' as any,
+            universityId: 'uni-1' as any,
+          } as any),
+        );
+        mockEnrollmentPeriodService.findById.mockResolvedValue({ _id: 'period-1', licenseValidityMonths: 6 });
+        mockLicenseService.create.mockRejectedValue(new Error('creation failed'));
+
+        await expect(service.approve('request-1', 'employee-1', { bus: 'A01', institution: 'IF' })).rejects.toThrow();
+
+        expect(mockEnrollmentPeriodService.decrementFilled).toHaveBeenCalledWith('period-1');
+        expect(mockBusService.decrementUniversityFilledSlots).toHaveBeenCalledWith('bus-1', 'uni-1');
+      });
 
     it('deve manter aprovacao mesmo se email de update falhar', async () => {
       mockRepository.findById.mockResolvedValue(

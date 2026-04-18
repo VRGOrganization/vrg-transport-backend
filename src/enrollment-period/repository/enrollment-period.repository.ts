@@ -73,15 +73,30 @@ export class EnrollmentPeriodRepository
       .lean()
       .exec() as Promise<EnrollmentPeriod | null>;
   }
+  async incrementFilledIfAvailable(id: string, session?: import('mongoose').ClientSession): Promise<EnrollmentPeriod | null> {
+    return this.model
+      .findOneAndUpdate(
+        {
+          _id: id,
+          $expr: { $lt: ['$filledSlots', '$totalSlots'] },
+        },
+        { $inc: { filledSlots: 1 } },
+        { returnDocument: 'after', session },
+      )
+      .lean()
+      .session(session ?? undefined)
+      .exec() as Promise<EnrollmentPeriod | null>;
+  }
 
-  async decrementFilled(id: string): Promise<EnrollmentPeriod | null> {
+  async decrementFilled(id: string, session?: import('mongoose').ClientSession): Promise<EnrollmentPeriod | null> {
     return this.model
       .findOneAndUpdate(
         { _id: id, filledSlots: { $gt: 0 } },
         { $inc: { filledSlots: -1 } },
-        { returnDocument: 'after' },
+        { returnDocument: 'after', session },
       )
       .lean()
+      .session(session ?? undefined)
       .exec() as Promise<EnrollmentPeriod | null>;
   }
 }

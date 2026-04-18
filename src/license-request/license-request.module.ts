@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuditModule } from 'src/common/audit/audit.module';
+import { BusModule } from 'src/bus/bus.module';
 import { EnrollmentPeriodModule } from 'src/enrollment-period/enrollment-period.module';
 import { LicenseModule } from 'src/license/license.module';
 import { MailModule } from 'src/mail/mail.module';
@@ -20,6 +21,8 @@ import {
     MongooseModule.forFeature([
       { name: LicenseRequest.name, schema: LicenseRequestSchema },
     ]),
+    // BusService used to resolve bus/university at request creation
+    BusModule,
     forwardRef(() => LicenseModule),
     forwardRef(() => EnrollmentPeriodModule),
     forwardRef(() => StudentModule),

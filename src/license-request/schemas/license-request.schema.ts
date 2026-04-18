@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 import { PhotoType } from '../../image/types/photoType.enum';
 
 export enum LicenseRequestStatus {
@@ -65,6 +65,14 @@ export class LicenseRequest {
 
   @Prop({ type: Number, default: null })
   filaPosition: number | null;
+
+  // Ônibus determinado na inscrição. Imutável após criação.
+  @Prop({ type: Types.ObjectId, ref: 'Bus', default: null })
+  busId: Types.ObjectId | null;
+
+  // Snapshot da universidade do aluno na inscrição.
+  @Prop({ type: Types.ObjectId, ref: 'University', default: null })
+  universityId: Types.ObjectId | null;
 
   createdAt?: Date;
 

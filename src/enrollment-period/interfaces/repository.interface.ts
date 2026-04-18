@@ -7,6 +7,6 @@ export interface IEnrollmentPeriodRepository<T> {
   findActive(): Promise<T | null>;
   update(id: string, data: Partial<T>): Promise<T | null>;
   incrementWaitlistSequence(id: string): Promise<T | null>;
-  incrementFilledIfAvailable(id: string): Promise<T | null>;
-  decrementFilled(id: string): Promise<T | null>;
+  incrementFilledIfAvailable(id: string, session?: import('mongoose').ClientSession): Promise<T | null>;
+  decrementFilled(id: string, session?: import('mongoose').ClientSession): Promise<T | null>;
 }
