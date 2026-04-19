@@ -92,6 +92,7 @@ export class BusService {
         return {
           _id: (bus as any)._id?.toString?.(),
           identifier: (bus as any).identifier,
+          shift: (bus as any).shift ?? null,
           capacity: (bus as any).capacity ?? null,
           filledSlotsTotal,
           availableSlots: (bus as any).capacity == null ? null : Math.max((bus as any).capacity - filledSlotsTotal, 0),
@@ -147,6 +148,7 @@ export class BusService {
       return {
         _id: id,
         identifier: (bus as any).identifier,
+        shift: (bus as any).shift ?? null,
         capacity: (bus as any).capacity ?? null,
         filledSlotsTotal,
         availableSlots: (bus as any).capacity == null ? null : Math.max((bus as any).capacity - filledSlotsTotal, 0),
@@ -165,6 +167,7 @@ export class BusService {
       return {
         _id: (bus as any)._id?.toString?.(),
         identifier: (bus as any).identifier,
+        shift: (bus as any).shift ?? null,
         capacity: (bus as any).capacity ?? null,
         filledSlotsTotal: (bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0),
         availableSlots: (bus as any).capacity == null ? null : Math.max((bus as any).capacity - ((bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0)), 0),
@@ -189,6 +192,7 @@ export class BusService {
     return {
       _id: (bus as any)._id?.toString?.(),
       identifier: (bus as any).identifier,
+      shift: (bus as any).shift ?? null,
       capacity: (bus as any).capacity ?? null,
       filledSlotsTotal: (bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0),
       availableSlots: (bus as any).capacity == null ? null : Math.max((bus as any).capacity - ((bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0)), 0),
