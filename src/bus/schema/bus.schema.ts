@@ -1,8 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { Shift } from '../../common/interfaces/student-attributes.enum';
 
 
 export type BusDocument = HydratedDocument<Bus>;
+
+export const BUS_PERIODS = [Shift.MORNING, Shift.AFTERNOON, Shift.NIGHT] as const;
+export type BusPeriod = (typeof BUS_PERIODS)[number];
 
 @Schema({ _id: false })
 export class UniversitySlot {
@@ -25,6 +29,10 @@ export const UniversitySlotSchema = SchemaFactory.createForClass(UniversitySlot)
 export class Bus {
   @Prop({ required: true, trim: true, unique: true })
   identifier: string;
+
+  // Período principal do ônibus. Usado para casar com o turno do aluno.
+  @Prop({ type: String, required: false, enum: BUS_PERIODS, default: null })
+  shift?: BusPeriod | null;
 
   // OPCIONAL. Ausente = sem limite próprio.
   @Prop({ required: false, min: 1 })

@@ -66,10 +66,7 @@ export class AuditLogService {
   ) {}
 
   async record(event: AuditEventPayload): Promise<void> {
-    const payload = {
-      ...(redact(event) as Record<string, unknown>),
-      timestamp: new Date().toISOString(),
-    };
+    const payload = redact(event) as Record<string, unknown>;
 
     // 🔒 Persistência real (principal)
     await this.auditEventModel.create(payload);

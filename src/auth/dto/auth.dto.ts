@@ -8,6 +8,12 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_POLICY_DESCRIPTION,
+  PASSWORD_POLICY_REGEX,
+} from '../../common/validators/password-policy';
 
 export class StudentLoginDto {
   @ApiProperty({
@@ -90,15 +96,18 @@ export class RegisterStudentDto {
   email: string;
 
   @ApiProperty({
-    example: 'Senha123',
-    description: 'Senha forte (mín. 8 caracteres, maiúscula, minúscula e número)',
+    example: 'Senha123!',
+    description: PASSWORD_POLICY_DESCRIPTION,
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(8, { message: 'Senha deve ter no mínimo 8 caracteres' })
-  @MaxLength(64)
-  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
-    message: 'Senha deve conter letras maiúsculas, minúsculas e números',
+  @MinLength(PASSWORD_MIN_LENGTH, {
+    message: `Senha deve ter no mínimo ${PASSWORD_MIN_LENGTH} caracteres`,
+  })
+  @MaxLength(PASSWORD_MAX_LENGTH)
+  @Matches(PASSWORD_POLICY_REGEX, {
+    message:
+      'Senha deve conter letras maiúsculas, minúsculas, números e caractere especial',
   })
   password: string;
 
@@ -176,14 +185,19 @@ export class ResetPasswordDto {
 
   @ApiProperty({
     example: 'NovaSenh@123',
-    description: 'Nova senha (mínimo 8 caracteres, com maiúscula, minúscula e número)',
+    description: PASSWORD_POLICY_DESCRIPTION,
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(8, { message: 'Senha deve ter no mínimo 8 caracteres' })
-  @MaxLength(64, { message: 'Senha deve ter no máximo 64 caracteres' })
-  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
-    message: 'Senha deve conter maiúscula, minúscula e número',
+  @MinLength(PASSWORD_MIN_LENGTH, {
+    message: `Senha deve ter no mínimo ${PASSWORD_MIN_LENGTH} caracteres`,
+  })
+  @MaxLength(PASSWORD_MAX_LENGTH, {
+    message: `Senha deve ter no máximo ${PASSWORD_MAX_LENGTH} caracteres`,
+  })
+  @Matches(PASSWORD_POLICY_REGEX, {
+    message:
+      'Senha deve conter letras maiúsculas, minúsculas, números e caractere especial',
   })
   password: string;
 }

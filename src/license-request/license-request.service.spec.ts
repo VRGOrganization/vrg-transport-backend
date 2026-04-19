@@ -9,6 +9,7 @@ import { LicenseRequestService } from './license-request.service';
 import {
   LicenseRequestStatus,
   type LicenseRequest,
+  LicenseRequestType,
 } from './schemas/license-request.schema';
 import { LicenseService } from '../license/license.service';
 import { MailService } from '../mail/mail.service';
@@ -68,6 +69,15 @@ const mockBusService = {
   incrementUniversityFilledSlots: jest.fn(),
   decrementUniversityFilledSlots: jest.fn(),
   findByUniversityId: jest.fn(),
+  findAllByUniversityId: jest.fn(),
+  findByUniversityIdAndShift: jest.fn(),
+  findOneOrFail: jest.fn(),
+};
+
+const setBusRouting = (bus: any, allBuses?: any[]) => {
+  mockBusService.findAllByUniversityId.mockResolvedValue(allBuses ?? [bus]);
+  mockBusService.findByUniversityIdAndShift.mockResolvedValue(bus);
+  mockBusService.findOneOrFail.mockResolvedValue(bus);
 };
 
 const makeRequest = (
@@ -75,7 +85,7 @@ const makeRequest = (
 ): LicenseRequest =>
   ({
     studentId: 'student-1',
-    type: 'initial',
+    type: LicenseRequestType.INITIAL,
     status: LicenseRequestStatus.PENDING,
     rejectionReason: null,
     cancellationReason: null,
@@ -146,7 +156,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         filledSlots: 3,
       });
       mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
-      mockBusService.findByUniversityId.mockResolvedValue({ _id: '000000000000000000000001', identifier: 'A01', capacity: undefined, universitySlots: [{ universityId: '000000000000000000000002', priorityOrder: 1, filledSlots: 0 }] });
+      setBusRouting({ _id: '000000000000000000000001', identifier: 'A01', capacity: undefined, universitySlots: [{ universityId: '000000000000000000000002', priorityOrder: 1, filledSlots: 0 }] });
       mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
       mockRepository.create.mockResolvedValue(
         makeRequest({
@@ -180,7 +190,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       mockRepository.countWaitlistedByEnrollmentPeriodAndBus.mockResolvedValue(2);
       mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
       // bus with capacity 1 already full
-      mockBusService.findByUniversityId.mockResolvedValue({ _id: '000000000000000000000001', identifier: 'A01', capacity: 1, universitySlots: [{ universityId: '000000000000000000000002', priorityOrder: 1, filledSlots: 1 }] });
+      setBusRouting({ _id: '000000000000000000000001', identifier: 'A01', capacity: 1, universitySlots: [{ universityId: '000000000000000000000002', priorityOrder: 1, filledSlots: 1 }] });
       mockRepository.create.mockResolvedValue(
         makeRequest({
           status: 'waitlisted' as any,
@@ -219,7 +229,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       // student is from uni-2 (use valid ObjectId strings)
       mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
 
-      mockBusService.findByUniversityId.mockResolvedValue({
+      setBusRouting({
         _id: '000000000000000000000001',
         identifier: 'A01',
         capacity: undefined,
@@ -253,7 +263,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
 
       // bus capacity 2 but filledSlots sum is 2
-      mockBusService.findByUniversityId.mockResolvedValue({
+      setBusRouting({
         _id: '000000000000000000000001',
         identifier: 'A01',
         capacity: 2,
@@ -291,7 +301,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       // student belongs to uni-2 which is priorityOrder 2
       mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
 
-      mockBusService.findByUniversityId.mockResolvedValue({
+      setBusRouting({
         _id: '000000000000000000000001',
         identifier: 'A01',
         capacity: 5,
@@ -321,10 +331,10 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
     it('deve incrementar vagas preenchidas apos aprovar request com periodo vinculado', async () => {
       mockRepository.findById.mockResolvedValue(
         makeRequest({
-          type: 'initial',
-          status: LicenseRequestStatus.PENDING,
-          enrollmentPeriodId: 'period-1' as any,
-        } as any),
+            type: LicenseRequestType.INITIAL,
+            status: LicenseRequestStatus.PENDING,
+            enrollmentPeriodId: 'period-1' as any,
+          } as any),
       );
       mockEnrollmentPeriodService.findById.mockResolvedValue({
         _id: 'period-1',
@@ -348,6 +358,11 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         8,
         'period-1',
         true,
+        undefined,
+        expect.objectContaining({
+          cardNote: null,
+          accessBusIdentifiers: [],
+        }),
       );
       expect(mockEnrollmentPeriodService.incrementFilled).toHaveBeenCalledWith(
         'period-1',
@@ -357,7 +372,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       it('deve incrementar filledSlots do ônibus quando request inicial tem busId e universityId', async () => {
         mockRepository.findById.mockResolvedValue(
           makeRequest({
-            type: 'initial',
+            type: LicenseRequestType.INITIAL,
             status: LicenseRequestStatus.PENDING,
             enrollmentPeriodId: 'period-1' as any,
             busId: 'bus-1' as any,
@@ -380,7 +395,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       it('deve reverter incremento do ônibus se a criação da licença falhar', async () => {
         mockRepository.findById.mockResolvedValue(
           makeRequest({
-            type: 'initial',
+            type: LicenseRequestType.INITIAL,
             status: LicenseRequestStatus.PENDING,
             enrollmentPeriodId: 'period-1' as any,
             busId: 'bus-1' as any,
@@ -399,7 +414,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
     it('deve manter aprovacao mesmo se email de update falhar', async () => {
       mockRepository.findById.mockResolvedValue(
         makeRequest({
-          type: 'update',
+          type: LicenseRequestType.UPDATE,
           status: LicenseRequestStatus.PENDING,
           changedDocuments: [PhotoType.ProfilePhoto],
           pendingImages: [
@@ -420,7 +435,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         _id: { toString: () => 'license-2' },
       });
       mockRepository.update.mockResolvedValue(
-        makeRequest({ status: LicenseRequestStatus.APPROVED, type: 'update' }),
+        makeRequest({ status: LicenseRequestStatus.APPROVED, type: LicenseRequestType.UPDATE }),
       );
       mockStudentService.findOneOrFail.mockResolvedValue({
         email: 'student@mail.com',

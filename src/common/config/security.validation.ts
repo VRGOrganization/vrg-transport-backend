@@ -49,6 +49,13 @@ export function validateSecurityConfig(config: Record<string, unknown>) {
   const sessionTtlStaffDays =
     optionalPositiveInt('SESSION_TTL_STAFF_DAYS') ?? legacySessionTtlDays;
 
+  const frontendUrl = (config['FRONTEND_URL'] as string | undefined)?.trim();
+  const bffStudentUrl = (config['BFF_STUDENT_URL'] as string | undefined)?.trim();
+
+  if (!frontendUrl && !bffStudentUrl) {
+    throw new Error('Missing required config value for key: FRONTEND_URL or BFF_STUDENT_URL');
+  }
+
   if (!sessionTtlStudentDays || !sessionTtlStaffDays) {
     throw new Error(
       'Missing required config values for session TTL (use SESSION_TTL_STUDENT_DAYS and SESSION_TTL_STAFF_DAYS, or legacy SESSION_TTL_DAYS)',

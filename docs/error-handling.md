@@ -1,63 +1,44 @@
-# Tratamento de Erros
+﻿# Tratamento de erros
 
-## Padrao de resposta
+## Formato geral
 
-As excecoes passam pelo HttpExceptionFilter global.
+O filtro global retorna respostas no formato:
 
-Formato padrao:
-
+```json
 {
   "statusCode": 400,
   "message": "...",
-  "timestamp": "2026-04-10T15:00:00.000Z",
+  "timestamp": "2026-04-19T14:00:00.000Z",
   "path": "/api/v1/..."
 }
+```
 
-Observacoes:
+## Códigos mais comuns
 
-- path aparece fora de producao
-- mensagens 5xx sao sanitizadas para o cliente
-
-## Codigos usados com mais frequencia
-
-| Codigo | Quando aparece |
+| Código | Quando aparece |
 |---|---|
-| 400 | DTO invalido, regra de negocio invalida, janela fora do periodo |
-| 401 | Sessao invalida/expirada, credenciais invalidas, secret invalido |
-| 403 | Role sem permissao |
-| 404 | Recurso nao encontrado |
-| 409 | Conflito de unicidade ou concorrencia de operacao |
-| 429 | Rate limit excedido |
-| 500 | Erro interno nao tratado |
-| 502 | Falha no servico externo de emissao |
-| 504 | Timeout no servico externo de emissao |
+| 400 | DTO inválido, regra de negócio inválida, ID inválido, janela fora do período |
+| 401 | sessão inválida/expirada, credenciais inválidas, secret inválido |
+| 403 | role sem permissão |
+| 404 | recurso não encontrado |
+| 409 | conflito de unicidade ou concorrência |
+| 429 | rate limit excedido |
+| 500 | erro interno não tratado |
+| 502 | falha no serviço externo |
+| 504 | timeout no serviço externo |
 
-## Casos importantes do fluxo de inscricao
+## Casos recorrentes no fluxo atual
 
-- 400
-  - tentativa de solicitacao inicial fora da janela
-  - tentativa de reabrir periodo com janela encerrada
-  - payload de confirm-release com IDs duplicados
+- tentativa de inscrição inicial fora da janela do período
+- tentativa de aprovar request em estado inválido
+- tentativa de criar ônibus, curso, faculdade ou funcionário duplicado
+- uso de `inactive` em rota sem path explícito
+- corrida entre aprovação e promoção de fila
 
-- 409
-  - create/reopen de periodo com conflito de ativo (inclusive E11000)
-  - aprovacao de request sem vaga disponivel em corrida
-  - confirm-release em que nada foi promovido por corrida
+## Como o front deve reagir
 
-## Exemplos
-
-Sem permissao:
-
-{
-  "statusCode": 403,
-  "message": "Voce nao tem permissao para acessar este recurso",
-  "timestamp": "..."
-}
-
-Conflito de periodo ativo:
-
-{
-  "statusCode": 409,
-  "message": "Ja existe um periodo de inscricao ativo.",
-  "timestamp": "..."
-}
+- `400`: mostre validação/regra
+- `401`: peça login novamente
+- `403`: acesso negado por papel
+- `409`: recarregue estado e tente novamente
+- `502/504`: mostre indisponibilidade do emissor externo

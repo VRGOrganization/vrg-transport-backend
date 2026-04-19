@@ -5,6 +5,7 @@ import { STUDENT_REPOSITORY } from '../interfaces/repository.interface';
 import { StudentStatus } from '../schemas/student.schema';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { ImagesService } from '../../image/image.service';
+import { BusService } from '../../bus/bus.service';
 
 const mockStudentRepository = {
   create: jest.fn(),
@@ -12,6 +13,7 @@ const mockStudentRepository = {
   findById: jest.fn(),
   findByEmail: jest.fn(),
   findByEmailWithSensitiveFields: jest.fn(),
+  findByBus: jest.fn(),
   update: jest.fn(),
   remove: jest.fn(),
 };
@@ -24,6 +26,11 @@ const mockImagesService = {
   findByStudentId: jest.fn(),
   create: jest.fn(),
   updateByStudentId: jest.fn(),
+};
+
+const mockBusService = {
+  findOneOrFail: jest.fn(),
+  findByIdentifier: jest.fn(),
 };
 
 const makeStudent = (overrides = {}) => ({
@@ -45,6 +52,7 @@ describe('StudentService', () => {
         { provide: STUDENT_REPOSITORY, useValue: mockStudentRepository },
         { provide: AuditLogService, useValue: mockAuditLogService },
         { provide: ImagesService, useValue: mockImagesService },
+        { provide: BusService, useValue: mockBusService },
       ],
     }).compile();
 
@@ -135,6 +143,22 @@ describe('StudentService', () => {
 
       const result = await service.findAll();
       expect(result).toHaveLength(2);
+    });
+  });
+
+  describe('findByBusId', () => {
+    it('deve resolver o bus e buscar alunos pela secondaryBusId', async () => {
+      mockBusService.findOneOrFail.mockResolvedValue({
+        _id: { toString: () => 'bus-id-123' },
+        identifier: 'BUS-42',
+      });
+      mockStudentRepository.findByBus.mockResolvedValue([makeStudent()]);
+
+      const result = await service.findByBusId('bus-id-123');
+
+      expect(mockBusService.findOneOrFail).toHaveBeenCalledWith('bus-id-123');
+      expect(mockStudentRepository.findByBus).toHaveBeenCalledWith('bus-id-123');
+      expect(result).toHaveLength(1);
     });
   });
 });

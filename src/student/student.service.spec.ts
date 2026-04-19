@@ -3,6 +3,7 @@ import { StudentService } from './student.service';
 import { STUDENT_REPOSITORY } from './interfaces/repository.interface';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { ImagesService } from '../image/image.service';
+import { BusService } from '../bus/bus.service';
  
 const mockStudentRepository = {
   create: jest.fn(),
@@ -23,6 +24,10 @@ const mockImagesService = {
   create: jest.fn(),
   update: jest.fn(),
 };
+
+const mockBusService = {
+  findOneOrFail: jest.fn(),
+};
  
 describe('StudentService', () => {
   let service: StudentService;
@@ -34,6 +39,7 @@ describe('StudentService', () => {
         { provide: STUDENT_REPOSITORY, useValue: mockStudentRepository },
         { provide: AuditLogService, useValue: mockAuditLogService },
         { provide: ImagesService, useValue: mockImagesService },
+        { provide: BusService, useValue: mockBusService },
       ],
     }).compile();
  

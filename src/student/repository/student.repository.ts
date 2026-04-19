@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { Student, StudentDocument } from '../schemas/student.schema';
 import { IStudentRepository } from '../interfaces/repository.interface';
 
@@ -11,13 +11,17 @@ export class StudentRepository implements IStudentRepository<Student> {
     private readonly studentModel: Model<StudentDocument>,
   ) {}
 
-  async create(data: Partial<Student>): Promise<Student> {
+  async create(data: Partial<Student>, session?: ClientSession): Promise<Student> {
     const student = new this.studentModel(data);
-    return student.save();
+    return student.save({ session });
   }
 
   async findAll(): Promise<Student[]> {
     return this.studentModel.find({ active: true }).exec();
+  }
+
+  async findAllInactive(): Promise<Student[]> {
+    return this.studentModel.find({ active: false }).exec();
   }
 
   async findAllPaginated(
@@ -66,23 +70,28 @@ export class StudentRepository implements IStudentRepository<Student> {
     return this.studentModel.findOne({ cpfHash }).select('+cpfHash').exec();
   }
 
-  async update(id: string, data: Partial<Student>): Promise<Student | null> {
-  return this.studentModel
-    .findByIdAndUpdate(id, { $set: data }, { new: true })
-    .exec();
-}
+  async update(id: string, data: Partial<Student>, session?: ClientSession): Promise<Student | null> {
+    return this.studentModel
+      .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after', session })
+      .exec();
+  }
 
   async remove(id: string): Promise<boolean> {
     const result = await this.studentModel
-      .findByIdAndUpdate(id, { $set: { active: false } }, { new: true })
+      .findByIdAndUpdate(id, { $set: { active: false } }, { returnDocument: 'after' })
       .exec();
     return !!result;
   }
 
-  async findByBus(busIdentifier: string): Promise<Student[]> {
+  async findByBus(busId: string): Promise<Student[]> {
+    if (!Types.ObjectId.isValid(busId)) {
+      return [];
+    }
+
     return this.studentModel
-    .find({ bus : busIdentifier , active: true })
-    .select('name email shift institution degree bus')
-    .exec();
+      .find({ secondaryBusId: new Types.ObjectId(busId), active: true })
+      .select('name email shift institution degree secondaryBusId')
+      .exec();
   }
 }
+

@@ -49,7 +49,7 @@ export class PasswordResetTokenRepository {
   }
 
   async markAsUsed(id: Types.ObjectId): Promise<PasswordResetToken | null> {
-    return this.model.findByIdAndUpdate(id, { usedAt: new Date() }, { new: true }).exec();
+    return this.model.findByIdAndUpdate(id, { usedAt: new Date() }, { returnDocument: 'after' }).exec();
   }
 
   async deleteExpired(): Promise<number> {

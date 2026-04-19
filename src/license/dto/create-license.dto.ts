@@ -8,16 +8,9 @@ import {
   Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-export const REJECTION_REASONS = [
-  'Foto inadequada ou ilegível',
-  'Comprovante de matrícula inválido',
-  'Grade horária não corresponde aos documentos',
-  'Documentos ilegíveis ou corrompidos',
-  'Informações inconsistentes',
-] as const;
-
-export type RejectionReason = typeof REJECTION_REASONS[number];
+import { OmitType, PartialType } from '@nestjs/swagger';
+import { REJECTION_REASONS } from '../../common/constants/rejection-reasons.constant';
+import type { RejectionReason } from '../../common/constants/rejection-reasons.constant';
 
 export class CreateLicenseDto {
   @ApiProperty({
@@ -69,5 +62,9 @@ export class RejectLicenseDto {
   @IsString()
   @IsNotEmpty()
   @IsIn([...REJECTION_REASONS], { message: 'Motivo de recusa inválido' })
-  reason: RejectionReason;
+  reason!: RejectionReason;
 }
+
+export class UpdateLicenseDto extends PartialType(
+  OmitType(CreateLicenseDto, ['id'] as const),
+) {}

@@ -156,7 +156,7 @@ export class AuthController {
   @RateLimit({ points: 5, windowMs: 3600_000, keyPrefix: 'auth:forgot-password' })
   @Post('student/forgot-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request password reset link' })
+  @ApiOperation({ summary: 'Solicitar link de redefinição de senha' })
   @ApiBody({ type: ForgotPasswordDto })
   @ApiResponse({ status: 200, description: 'Reset email sent (always generic message).' })
   @ApiResponse({ status: 429, description: 'Too many requests.' })
@@ -192,7 +192,7 @@ export class AuthController {
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'Get authenticated user profile from session' })
+  @ApiOperation({ summary: 'Obter perfil autenticado da sessão' })
   @ApiResponse({ status: 200, description: 'Session profile.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   getMe(@Req() req: Request) {

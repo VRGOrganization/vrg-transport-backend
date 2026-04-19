@@ -47,14 +47,15 @@ export class EmployeeRepository implements IEmployeeRepository<Employee> {
 
   async update(id: string, data: Partial<Employee>): Promise<Employee | null> {
   return this.employeeModel
-    .findByIdAndUpdate(id, { $set: data }, { new: true })
+    .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after' })
     .exec();
   }
 
   async deactivate(id: string): Promise<boolean> {
     const result = await this.employeeModel
-      .findByIdAndUpdate(id, { $set: { active: false } }, { new: true })
+      .findByIdAndUpdate(id, { $set: { active: false } }, { returnDocument: 'after' })
       .exec();
     return !!result;
   }
 }
+

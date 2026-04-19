@@ -39,7 +39,7 @@ export class License {
   @Prop({ required: true })
   expirationDate: Date;
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true, sparse: true })
   verificationCode: string;
 
   @Prop({ type: String, default: null })

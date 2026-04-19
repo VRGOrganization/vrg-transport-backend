@@ -68,14 +68,14 @@ export class CourseRepository implements ICourseRepository<Course> {
 
   async update(id: string, data: Partial<Course>): Promise<Course | null> {
     return this.courseModel
-      .findByIdAndUpdate(id, { $set: data }, { new: true })
+      .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after' })
       .populate('universityId', 'name acronym')
       .exec();
   }
 
   async deactivate(id: string): Promise<boolean> {
     const result = await this.courseModel
-      .findByIdAndUpdate(id, { $set: { active: false } }, { new: true })
+      .findByIdAndUpdate(id, { $set: { active: false } }, { returnDocument: 'after' })
       .exec();
     return !!result;
   }

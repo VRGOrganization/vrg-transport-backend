@@ -1,127 +1,54 @@
-# API Reference - Auth
+﻿# API Reference - Auth
 
-Base: /api/v1/auth
+Base: `/api/v1/auth`
 
-Todos endpoints do controller de auth exigem x-service-secret.
+Todos os endpoints do controller exigem `x-service-secret`.
 
 ## Headers
 
-- x-service-secret: obrigatorio
-- x-session-id: obrigatorio em rotas autenticadas
+- `x-service-secret`: obrigatório
+- `x-session-id`: usado pelo backend para identificar a sessão
 
-## POST /auth/student/register
+## `POST /auth/student/register`
 
 Cria estudante pendente e envia OTP.
 
-Rate limit: 20 req / 60s
+## `POST /auth/student/verify`
 
-Body:
+Valida OTP e cria sessão.
 
-{
-  "name": "Maria Silva",
-  "email": "maria@escola.edu.br",
-  "password": "Senha123",
-  "telephone": "21999998888",
-  "cpf": "12345678909"
-}
+## `POST /auth/student/resend-code`
 
-Respostas: 201, 400, 409, 429
+Reenvia o código de verificação.
 
-## POST /auth/student/verify
+## `POST /auth/student/login`
 
-Valida OTP e cria sessao.
+Login do estudante por e-mail e senha.
 
-Rate limit: 5 req / 60s
+## `POST /auth/employee/login`
 
-Body:
+Login do funcionário por matrícula e senha.
 
-{
-  "email": "maria@escola.edu.br",
-  "code": "123456"
-}
+## `POST /auth/admin/login`
 
-Respostas: 200, 400, 401, 429
+Login do admin por username e senha.
 
-## POST /auth/student/resend-code
+## `GET /auth/me`
 
-Reenvia OTP com resposta generica anti-enumeracao.
+Retorna a sessão autenticada.
 
-Rate limit: 3 req / 60s
-
-Body:
-
-{
-  "email": "maria@escola.edu.br"
-}
-
-Respostas: 200, 429
-
-## POST /auth/student/login
-
-Rate limit: 5 req / 60s
-
-Body:
-
-{
-  "email": "maria@escola.edu.br",
-  "password": "Senha123"
-}
-
-Respostas: 200, 401, 429
-
-## POST /auth/employee/login
-
-Rate limit: 5 req / 60s
-
-Body:
-
-{
-  "registrationId": "EMP001",
-  "password": "Senha123"
-}
-
-Respostas: 200, 401, 429
-
-## POST /auth/admin/login
-
-Rate limit: 3 req / 60s
-
-Body:
-
-{
-  "username": "admin",
-  "password": "Admin123"
-}
-
-Respostas: 200, 401, 429
-
-## GET /auth/me
-
-Retorna dados basicos da sessao:
-
-{
-  "userId": "...",
-  "userType": "student"
-}
-
-Respostas: 200, 401
-
-## POST /auth/logout
+## `POST /auth/logout`
 
 Logout idempotente.
 
-- Publico do ponto de vista de sessao
-- x-service-secret continua obrigatorio
-- x-session-id opcional
+## `POST /auth/student/forgot-password`
 
-Retorno:
+Solicita redefinição de senha.
 
-{
-  "ok": true
-}
+## `POST /auth/student/reset-password`
 
-## GET /auth/admin/dashboard
+Redefine a senha com token.
 
-Somente ADMIN.
+## `GET /auth/admin/dashboard`
 
-Respostas: 200, 403
+Dashboard restrito a `ADMIN`.

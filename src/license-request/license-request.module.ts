@@ -1,12 +1,13 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AuditModule } from 'src/common/audit/audit.module';
-import { BusModule } from 'src/bus/bus.module';
-import { EnrollmentPeriodModule } from 'src/enrollment-period/enrollment-period.module';
-import { LicenseModule } from 'src/license/license.module';
-import { MailModule } from 'src/mail/mail.module';
-import { StudentModule } from 'src/student/student.module';
-import { ImagesModule } from 'src/image/image.module';
+import { AuditModule } from '../common/audit/audit.module';
+import { BusModule } from '../bus/bus.module';
+import { EnrollmentPeriodModule } from '../enrollment-period/enrollment-period.module';
+import { LicenseModule } from '../license/license.module';
+import { MailModule } from '../mail/mail.module';
+import { StudentModule } from '../student/student.module';
+import { StudentService } from '../student/student.service';
+import { ImagesModule } from '../image/image.module';
 import { LICENSE_REQUEST_REPOSITORY } from './interfaces/repository.interface';
 import { LicenseRequestController } from './license-request.controller';
 import { LicenseRequestService } from './license-request.service';
@@ -22,7 +23,7 @@ import {
       { name: LicenseRequest.name, schema: LicenseRequestSchema },
     ]),
     // BusService used to resolve bus/university at request creation
-    BusModule,
+    forwardRef(() => BusModule),
     forwardRef(() => LicenseModule),
     forwardRef(() => EnrollmentPeriodModule),
     forwardRef(() => StudentModule),

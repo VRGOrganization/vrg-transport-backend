@@ -1,101 +1,101 @@
 # API Reference - Images
 
-Base: /api/v1/image
+Base: `/api/v1/image`
 
-## PhotoType
+## `PhotoType`
 
 Valores aceitos:
 
-- ProfilePhoto
-- EnrollmentProof
-- CourseSchedule
-- LicenseImage
+- `ProfilePhoto`
+- `EnrollmentProof`
+- `CourseSchedule`
+- `LicenseImage`
 
 ## POST /image
 
-Cria imagem para estudante.
+Cria uma imagem para o estudante.
 
-Roles: EMPLOYEE, ADMIN
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## GET /image
 
-Lista paginada de imagens ativas.
+Lista as imagens ativas com pagina??o.
 
-Roles: EMPLOYEE, ADMIN
+Roles: `EMPLOYEE`, `ADMIN`
 
 Query:
 
-- page (default 1)
-- limit (default 20, max 100)
+- `page` (default `1`)
+- `limit` (default `20`, max `100`)
 
 ## POST /image/me
 
-Estudante cria imagem propria.
+Permite que o estudante envie a pr?pria imagem.
 
-Role: STUDENT
+Role: `STUDENT`
 
 ## GET /image/me
 
-Lista imagens do estudante autenticado.
+Lista as imagens do estudante autenticado.
 
-Role: STUDENT
+Role: `STUDENT`
 
 ## GET /image/me/profile
 
-Retorna foto de perfil do estudante autenticado.
+Retorna a foto de perfil do estudante autenticado.
 
-Role: STUDENT
+Role: `STUDENT`
 
 ## GET /image/student/me
 
-Alias para listar imagens do proprio estudante.
+Alias para listar as imagens do pr?prio estudante.
 
-Role: STUDENT
+Role: `STUDENT`
 
 ## GET /image/history/student/:studentId
 
-Historico de imagens arquivadas do estudante.
+Retorna o hist?rico de imagens arquivadas de um estudante.
 
-Roles: EMPLOYEE, ADMIN
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## GET /image/student/:studentId
 
-Lista imagens ativas de um estudante.
+Lista as imagens ativas de um estudante.
 
-Roles: EMPLOYEE, ADMIN
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## GET /image/:id/file
 
-Retorna payload completo do arquivo da imagem para o dono.
+Retorna o payload completo do arquivo de uma imagem para o dono.
 
-Role: STUDENT
+Role: `STUDENT`
 
 ## GET /image/:id
 
-Busca imagem por id.
+Busca uma imagem por ID.
 
-Roles: EMPLOYEE, ADMIN
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## PATCH /image/student/:studentId/profile
 
-Atualiza foto de perfil por studentId.
+Atualiza a foto de perfil de um estudante pelo `studentId`
 
-Roles: EMPLOYEE, ADMIN
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## PATCH /image/:id
 
-Atualiza imagem por id.
+Atualiza uma imagem por ID.
 
-Roles: EMPLOYEE, ADMIN
+Roles: `EMPLOYEE`, `ADMIN`
 
 ## DELETE /image/student/:studentId
 
-Desativa imagens de um estudante.
+Desativa as imagens de um estudante.
 
-Role: ADMIN
+Role: `ADMIN`
 
 ## DELETE /image/:id
 
-Desativa imagem por id.
+Desativa uma imagem por ID.
 
-Role: ADMIN
+Role: `ADMIN`

@@ -56,9 +56,16 @@
   - [ ] Atualizar numero da linha.
   - [ ] Adicionar/remover destinos da rota.
   - [ ] Inativar rota (soft delete).
+  - [ ] Adicionar periodo aos onibus(Manhã, Tarde, Noite)
 - [ ] Validar regra: rota deve ter pelo menos 1 destino ativo.
 - [ ] Atualizar fluxo de aprovacao para selecionar rota cadastrada (linha + destino), evitando texto livre.
 - [ ] Registrar auditoria para create/update/deactivate de rotas e destinos.
+
+
+## Criar Licence-Request
+- [x] Associar entidades faculdade ao pedido
+- [x] Ao selecionar o direcionamento do onibus vinculado ao pedido, levar em consideracao o turno do aluno com o turno do onibus. Ex. Onibus 06 atende ao iff a noite, onibus 02 atende ao iff de manha, aluno faz pedido de inscricao para iff estudando a noite, o request dele deve ser irecionado as vagas do onibus do 06 que corresponde a faculdade e ao turno
+
 
 ## Criterios de Pronto (Catalogos de Negocio)
 
@@ -67,3 +74,30 @@
 - [ ] Fluxos de aprovacao usam dados de catalogo validados.
 - [ ] Cobertura de testes unitarios e e2e dos novos modulos.
 - [ ] Documentacao de API e roteiro manual atualizados.
+
+## Auditoria: Lista priorizada de 25 tarefas
+
+- [x] 1. Remover ModuleRef em LicenseService
+- [x] 2. Remover ModuleRef em StudentController
+- [x] 3. Corrigir double increment em approve
+- [x] 4. Mover orquestração para LicenseRequestService
+- [x] 5. Alterar update de licença para update
+- [x] 6. Adicionar audit log em remove de licença
+- [x] 7. Aceitar/rejeitar WAITLISTED corretamente
+- [x] 8. Mover deactivateExpiredLicenses para Cron
+- [x] 9. Querys no repo para queue counts
+- [x] 10. Unificar assertInitialRequestEligibility
+- [x] 11. Remover OTP debug em auth.service
+- [x] 12. Adicionar enum LicenseRequest.type
+- [x] 13. Centralizar REJECTION_REASONS constante
+- [x] 14. Corrigir date.utils timezone handling
+- [x] 15. Usar enum em LicenseRepository.remove
+- [x] 16. Remover campo timestamp em AuditEvent
+- [x] 17. Validar FRONTEND_URL no bootstrap
+- [x] 18. Reordenar guards em app.module
+- [x] 19. Não exportar token do repositório
+- [x] 20. Corrigir StudentRepository.findByBus
+- [x] 21. Criar método findWaitlisted
+- [x] 22. Substituir N+1 por bulkWrite
+- [x] 24. Centralizar validador de senhas
+- [x] 25. Criar UpdateLicenseDto

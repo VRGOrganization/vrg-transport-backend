@@ -10,6 +10,11 @@ export enum LicenseRequestStatus {
   WAITLISTED = 'waitlisted',
 }
 
+export enum LicenseRequestType {
+  INITIAL = 'initial',
+  UPDATE = 'update',
+}
+
 export type LicenseRequestDocument = LicenseRequest & Document;
 
 @Schema({ timestamps: true, collection: 'license_requests' })
@@ -19,11 +24,11 @@ export class LicenseRequest {
 
   @Prop({
     type: String,
-    enum: ['initial', 'update'],
-    default: 'initial',
+    enum: Object.values(LicenseRequestType),
+    default: LicenseRequestType.INITIAL,
     required: true,
   })
-  type: string;
+  type: LicenseRequestType;
 
   @Prop({
     required: true,
@@ -74,6 +79,14 @@ export class LicenseRequest {
   @Prop({ type: Types.ObjectId, ref: 'University', default: null })
   universityId: Types.ObjectId | null;
 
+  // Anota??o para a carteirinha.
+  @Prop({ type: String, default: null })
+  cardNote: string | null;
+
+  // Snapshot dos ?nibus da faculdade para impress?o da carteirinha.
+  @Prop({ type: [String], default: [] })
+  accessBusIdentifiers: string[];
+
   createdAt?: Date;
 
   updatedAt?: Date;
@@ -83,6 +96,15 @@ export const LicenseRequestSchema =
   SchemaFactory.createForClass(LicenseRequest);
 
 LicenseRequestSchema.index({ studentId: 1 });
+LicenseRequestSchema.index(
+  { studentId: 1, type: 1, status: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: [LicenseRequestStatus.PENDING, LicenseRequestStatus.WAITLISTED] },
+    },
+  },
+);
 LicenseRequestSchema.index({ status: 1 });
 LicenseRequestSchema.index({ enrollmentPeriodId: 1, status: 1, createdAt: 1 });
 // Index para buscas/contagem por período + ônibus + status (eficiente para filas por ônibus)

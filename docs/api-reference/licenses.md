@@ -1,96 +1,71 @@
-# API Reference - Licenses
+﻿# API Reference - Licenses
 
-Base: /api/v1/license
+Base: `/api/v1/license`
 
-## POST /license/events/token
+## `POST /license/events/token`
 
-Emite ticket efemero para SSE.
+Emite ticket efêmero para SSE.
 
-Role: STUDENT
+Role: `STUDENT`
 
-Resposta:
+## `GET /license/events?ticket=...`
 
-{
-  "ticket": "uuid",
-  "expiresInMs": 60000
-}
+Canal SSE protegido por ticket de uso único.
 
-## GET /license/events?ticket=...
+Eventos principais:
 
-Canal SSE publico protegido por ticket de uso unico.
+- `connected`
+- `heartbeat`
+- `license.changed`
 
-Eventos:
+## `GET /license/verify/:code`
 
-- connected
-- heartbeat
-- license.changed (created, updated, removed, rejected, waitlist_promoted)
+Verificação pública por código.
 
-## GET /license/verify/:code
+## `POST /license/create`
 
-Verificacao publica por codigo.
+Cria carteirinha manualmente.
 
-Resposta tipica:
+Role: `ADMIN`
 
-{
-  "exists": true,
-  "valid": true,
-  "status": "active"
-}
+Pré-condição: o estudante precisa ter uma solicitação aprovada.
 
-## POST /license/create
+## `GET /license/health`
 
-Emite carteirinha manualmente.
+Healthcheck do serviço externo de emissão.
 
-Role: ADMIN
+## `GET /license/all`
 
-Pre-condicao: estudante com solicitacao approved.
+Lista licenças existentes.
 
-Respostas: 201, 400, 404, 502, 504
+## `GET /license/searchByStudent/:studentId`
 
-## GET /license/health
+Busca carteirinha por estudante.
 
-Healthcheck do emissor externo.
+## `GET /license/me`
 
-Roles: EMPLOYEE, ADMIN
+Busca a carteirinha do estudante autenticado.
 
-## GET /license/all
+## `GET /license/:id`
 
-Lista licencas existentes.
+Busca licença por ID.
 
-Roles: EMPLOYEE, ADMIN
+## `PATCH /license/update/:id`
 
-## GET /license/searchByStudent/:studentId
+Atualiza carteirinha existente.
 
-Busca licenca por estudante.
+- `id` vai na rota
+- o corpo é parcial
 
-Roles: EMPLOYEE, ADMIN
+## `PATCH /license/reject/:id`
 
-## GET /license/me
+Marca a carteirinha como rejeitada.
 
-Busca licenca do estudante autenticado.
+## `DELETE /license/delete/:id`
 
-Role: STUDENT
+Desativa carteirinha por ID.
 
-## GET /license/:id
+## Observações
 
-Busca licenca por id.
-
-Roles: EMPLOYEE, ADMIN
-
-## PATCH /license/update/:id
-
-Atualiza licenca (gera nova e desativa anterior).
-
-Roles: EMPLOYEE, ADMIN
-
-## PATCH /license/reject/:id
-
-Marca licenca como rejected e envia notificacao.
-
-Roles: EMPLOYEE, ADMIN
-
-## DELETE /license/delete/:id
-
-Desativa licenca por id (soft delete funcional).
-
-Role: ADMIN
+- a emissão leva o contexto da request quando ele existe
+- para aluno integral, `cardNote` e `accessBusIdentifiers` precisam continuar disponíveis na geração

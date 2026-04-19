@@ -3,7 +3,10 @@ import {
   Injectable,
   Inject,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
+import type { ClientSession } from 'mongoose';
+import { BusService } from '../bus/bus.service';
 import {
   DayPeriodDto,
   SubmitLicenseRequestFormDto,
@@ -33,6 +36,8 @@ export class StudentService {
     private readonly studentRepository: IStudentRepository<Student>,
     private readonly auditLog: AuditLogService,
     private readonly imagesService: ImagesService,
+    @Inject(forwardRef(() => BusService))
+    private readonly busService: BusService,
   ) {}
 
   async create(data: Partial<Student>): Promise<Student> {
@@ -41,6 +46,10 @@ export class StudentService {
 
   async findAll(): Promise<Student[]> {
     return this.studentRepository.findAll();
+  }
+
+  async findAllInactive(): Promise<Student[]> {
+    return this.studentRepository.findAllInactive();
   }
 
   async findAllPaginated(
@@ -68,13 +77,14 @@ export class StudentService {
 
   async findOneOrFail(id: string): Promise<Student> {
     const student = await this.studentRepository.findById(id);
-    if (!student) throw new NotFoundException(`Student ${id} não encontrado`);
+    if (!student) throw new NotFoundException(`Estudante ${id} não encontrado`);
     return student;
   }
 
   async update(
     id: string,
     dto: UpdateStudentDto | Partial<Student>,
+    session?: ClientSession,
   ): Promise<Student> {
     const allowedFields = { ...dto } as Record<string, unknown>;
     // Remove campos que não devem ser atualizados diretamente
@@ -91,11 +101,12 @@ export class StudentService {
     const student = await this.studentRepository.update(
       id,
       allowedFields as Partial<Student>,
+      session,
     );
-    if (!student) throw new NotFoundException(`Student ${id} não encontrado`);
+    if (!student) throw new NotFoundException(`Estudante ${id} não encontrado`);
 
     await this.auditLog.record({
-      action: 'update_student',
+      action: 'student.update',
       outcome: 'success',
       target: { studentId: id },
       metadata: { fields: Object.keys(allowedFields) },
@@ -114,7 +125,7 @@ export class StudentService {
       schedule: selections,
       ...(inferredShift ? { shift: inferredShift } : {}),
     });
-    if (!student) throw new NotFoundException(`Student ${id} não encontrado`);
+    if (!student) throw new NotFoundException(`Estudante ${id} não encontrado`);
 
     await this.auditLog.record({
       action: 'update_student_schedule',
@@ -137,6 +148,7 @@ export class StudentService {
       EnrollmentProof?: UploadedImageFile[];
       CourseSchedule?: UploadedImageFile[];
     },
+    session?: ClientSession,
   ): Promise<Student> {
     const inferredShift = this.inferShiftFromSchedule(dto.schedule);
 
@@ -148,14 +160,14 @@ export class StudentService {
       schedule: dto.schedule,
     };
 
-    const student = await this.update(id, profileDto);
+    const student = await this.update(id, profileDto, session);
 
     const profileFile = files.ProfilePhoto?.[0];
     const enrollmentFile = files.EnrollmentProof?.[0];
     const scheduleFile = files.CourseSchedule?.[0];
 
     if (profileFile) {
-      await this.createOrUpdateImage(id, PhotoType.ProfilePhoto, profileFile);
+      await this.createOrUpdateImage(id, PhotoType.ProfilePhoto, profileFile, session);
     }
 
     if (enrollmentFile) {
@@ -163,6 +175,7 @@ export class StudentService {
         id,
         PhotoType.EnrollmentProof,
         enrollmentFile,
+        session,
       );
     }
 
@@ -171,6 +184,7 @@ export class StudentService {
         id,
         PhotoType.CourseSchedule,
         scheduleFile,
+        session,
       );
     }
 
@@ -243,6 +257,7 @@ export class StudentService {
     studentId: string,
     photoType: PhotoType,
     file: UploadedImageFile,
+    session?: ClientSession,
   ): Promise<void> {
     const dataUrl = await this.toDocumentDataUrl(file, photoType);
     const allImages = await this.imagesService.findByStudentId(studentId);
@@ -260,7 +275,7 @@ export class StudentService {
         createDto.documentImage = dataUrl;
       }
 
-      await this.imagesService.create(createDto);
+      await this.imagesService.create(createDto, session);
       return;
     }
 
@@ -272,7 +287,7 @@ export class StudentService {
       ...(photoType === PhotoType.ProfilePhoto
         ? { photo3x4: dataUrl }
         : { documentImage: dataUrl }),
-    });
+    }, session);
   }
 
   private async toDocumentDataUrl(
@@ -363,7 +378,7 @@ export class StudentService {
 
   async remove(id: string): Promise<{ message: string }> {
     const result = await this.studentRepository.remove(id);
-    if (!result) throw new NotFoundException(`Student ${id} não encontrado`);
+    if (!result) throw new NotFoundException(`Estudante ${id} não encontrado`);
 
     await this.auditLog.record({
       action: 'student.remove',
@@ -371,7 +386,7 @@ export class StudentService {
       target: { studentId: id },
     });
 
-    return { message: 'Student removido com sucesso' };
+    return { message: 'Estudante removido com sucesso' };
   }
   async getDashboardStats(): Promise<StudentDashboardStats> {
     const students = await this.studentRepository.findAll(); // já filtra active: true
@@ -385,7 +400,20 @@ export class StudentService {
   }
 
   async findByBus(busIdentifier: string): Promise<Student[]> {
-    return this.studentRepository.findByBus(busIdentifier);
+    const bus = await this.busService.findByIdentifier(busIdentifier);
+    if (!bus) return [];
+
+    const busId = (bus as any)._id?.toString?.();
+    if (!busId) return [];
+
+    return this.studentRepository.findByBus(busId);
+  }
+
+  async findByBusId(busId: string): Promise<Student[]> {
+    const bus = await this.busService.findOneOrFail(busId);
+    const resolvedBusId = (bus as any)._id?.toString?.();
+    if (!resolvedBusId) return [];
+    return this.studentRepository.findByBus(resolvedBusId);
   }
 
   async updatePassword(id: string, hashedPassword: string): Promise<Student | null> {

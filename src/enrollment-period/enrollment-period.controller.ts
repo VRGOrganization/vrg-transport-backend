@@ -59,8 +59,7 @@ export class EnrollmentPeriodController {
   @Get('/:id/waitlist')
   @Roles(UserRole.ADMIN)
   getWaitlist(@Param('id', MongoObjectIdPipe) id: string) {
-    // Valor alto para listar toda a fila de forma ordenada.
-    return this.service.previewReleaseSlots(id, Number.MAX_SAFE_INTEGER);
+    return this.service.findWaitlisted(id);
   }
 
   @Post('/:id/release-slots')
@@ -79,6 +78,6 @@ export class EnrollmentPeriodController {
     @Body() dto: ConfirmReleaseDto,
   ) {
     await this.service.confirmReleaseSlots(id, dto.requestIds);
-    return { message: 'Promocao da fila realizada com sucesso.' };
+    return { message: 'Promoção da fila realizada com sucesso.' };
   }
 }

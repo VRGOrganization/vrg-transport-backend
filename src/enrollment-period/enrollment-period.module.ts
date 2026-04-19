@@ -35,6 +35,6 @@ import {
       useClass: EnrollmentPeriodRepository,
     },
   ],
-  exports: [EnrollmentPeriodService, ENROLLMENT_PERIOD_REPOSITORY],
+  exports: [EnrollmentPeriodService],
 })
 export class EnrollmentPeriodModule {}

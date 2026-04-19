@@ -13,6 +13,8 @@ describe('BusService (queue counts)', () => {
 
   const mockLicenseRequestRepository: any = {
     findAll: jest.fn(),
+    findByEnrollmentPeriodAndBusGrouped: jest.fn(),
+    findByEnrollmentPeriodAndBus: jest.fn(),
   };
 
   const mockStudentService = {};
@@ -72,7 +74,25 @@ describe('BusService (queue counts)', () => {
       { _id: 'r5', status: 'pending', busId: 'bus-1', universityId: 'uni-1', enrollmentPeriodId: 'period-2' },
     ];
 
-    mockLicenseRequestRepository.findAll.mockResolvedValue(requests);
+    mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
+      {
+        _id: 'bus-1',
+        pending: 2,
+        waitlisted: 1,
+        perUniversity: [
+          { universityId: 'uni-1', pending: 1, waitlisted: 0 },
+          { universityId: 'uni-2', pending: 1, waitlisted: 1 },
+        ],
+      },
+      {
+        _id: 'bus-2',
+        pending: 1,
+        waitlisted: 0,
+        perUniversity: [
+          { universityId: 'uni-3', pending: 1, waitlisted: 0 },
+        ],
+      },
+    ]);
 
     const result = await service.getQueueCounts();
 
@@ -109,7 +129,7 @@ describe('BusService (queue counts)', () => {
       { _id: 'r2', status: 'waitlisted', busId: 'bus-1', universityId: 'uni-1', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-02') },
     ];
 
-    mockLicenseRequestRepository.findAll.mockResolvedValue(requests);
+    mockLicenseRequestRepository.findByEnrollmentPeriodAndBus.mockResolvedValue(requests);
 
     const summary = await service.getQueueSummary('bus-1');
 

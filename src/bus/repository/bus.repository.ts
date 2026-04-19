@@ -37,7 +37,7 @@ export class BusRepository implements IBusRepository<Bus> {
 
 
   async update(id: string, data: Partial<Bus>): Promise<Bus | null> {
-    return this.busModel.findByIdAndUpdate(id, { $set: data }, { new: true }).exec();
+    return this.busModel.findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after' }).exec();
   }
 
 
@@ -155,7 +155,7 @@ export class BusRepository implements IBusRepository<Bus> {
 
   async deactivate(id: string): Promise<boolean> {
     const result = await this.busModel
-      .findByIdAndUpdate(id, { $set: { active: false } }, { new: true })
+      .findByIdAndUpdate(id, { $set: { active: false } }, { returnDocument: 'after' })
       .exec();
     return !!result;
   }

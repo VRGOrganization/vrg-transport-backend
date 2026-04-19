@@ -1,8 +1,10 @@
-import { IsInt, IsMongoId, IsNotEmpty, IsString, MaxLength, Min, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsMongoId, IsNotEmpty, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { PartialType } from '@nestjs/mapped-types';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { Shift } from '../../common/interfaces/student-attributes.enum';
+import { BUS_PERIODS } from '../schema/bus.schema';
 
 export class CreateBusDto {
   @ApiProperty({ example: 'Ônibus 03', description: 'Identificador único do ônibus' })
@@ -17,6 +19,16 @@ export class CreateBusDto {
   @IsInt()
   @Min(1)
   capacity?: number;
+
+  @ApiPropertyOptional({
+    enum: BUS_PERIODS,
+    enumName: 'BusPeriod',
+    example: Shift.MORNING,
+    description: 'Período principal do ônibus',
+  })
+  @IsOptional()
+  @IsIn(BUS_PERIODS, { message: 'Período do ônibus inválido' })
+  shift?: (typeof BUS_PERIODS)[number];
 }
 
 export class UpdateBusDto extends PartialType(CreateBusDto) {}

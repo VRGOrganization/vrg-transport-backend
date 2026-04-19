@@ -1,78 +1,70 @@
-# Autenticacao
+﻿# Autenticação
 
 ## Modelo atual
 
-A API usa sessao server-side e dois headers principais:
+A API usa sessão server-side. O BFF normalmente grava o `sessionId` em cookie próprio depois de receber a resposta do backend.
 
-- x-session-id: identifica sessao ativa
-- x-service-secret: segredo compartilhado para rotas de auth
+Headers principais:
 
-No AuthController, todos endpoints exigem x-service-secret.
+- `x-service-secret`: obrigatório nas rotas do controller de auth
+- `x-session-id`: usado para identificar a sessão em rotas autenticadas
 
-## Fluxo de estudante com OTP
+## Fluxos
 
-1. POST /api/v1/auth/student/register
-   - body: name, email, password, telephone, cpf
-   - cria conta pendente e envia OTP
+### Estudante com OTP
 
-2. POST /api/v1/auth/student/verify
-   - body: email, code
-   - ativa conta e cria sessao
+1. `POST /api/v1/auth/student/register`
+2. `POST /api/v1/auth/student/verify`
+3. `POST /api/v1/auth/student/resend-code`
 
-3. POST /api/v1/auth/student/resend-code
-   - body: email
-   - resposta generica anti-enumeracao
+### Login por papel
 
-## Logins por perfil
+- `POST /api/v1/auth/student/login`
+- `POST /api/v1/auth/employee/login`
+- `POST /api/v1/auth/admin/login`
 
-| Endpoint | Credencial |
-|---|---|
-| POST /auth/student/login | email + password |
-| POST /auth/employee/login | registrationId + password |
-| POST /auth/admin/login | username + password |
+### Senha do estudante
 
-Resposta de login/verify:
+- `POST /api/v1/auth/student/forgot-password`
+- `POST /api/v1/auth/student/reset-password`
 
+## Resposta de sessão
+
+Rotas de login/verify retornam algo no formato:
+
+```json
 {
-  "ok": true,
   "sessionId": "...",
   "user": {
     "id": "...",
-    "role": "student|employee|admin",
-    "identifier": "...",
+    "role": "student",
     "name": "..."
   }
 }
-
-## Sessao e expiracao
-
-TTL por env:
-
-- SESSION_TTL_STUDENT_DAYS para estudante
-- SESSION_TTL_STAFF_DAYS para employee/admin
-- fallback legado: SESSION_TTL_DAYS
+```
 
 ## Logout
 
-POST /auth/logout:
+- `POST /api/v1/auth/logout`
+- idempotente
+- continua exigindo `x-service-secret`
+- `x-session-id` é opcional
 
-- publico em relacao a sessao
-- continua exigindo x-service-secret
-- x-session-id opcional
-- resposta idempotente: { "ok": true }
-
-## Rate limit no modulo Auth
+## Rate limit
 
 | Endpoint | Limite |
 |---|---|
-| POST /auth/student/register | 20 req / 60s |
-| POST /auth/student/verify | 5 req / 60s |
-| POST /auth/student/resend-code | 3 req / 60s |
-| POST /auth/student/login | 5 req / 60s |
-| POST /auth/employee/login | 5 req / 60s |
-| POST /auth/admin/login | 3 req / 60s |
+| `POST /auth/student/register` | 20 req / 60s |
+| `POST /auth/student/verify` | 5 req / 60s |
+| `POST /auth/student/resend-code` | 3 req / 60s |
+| `POST /auth/student/login` | 5 req / 60s |
+| `POST /auth/employee/login` | 5 req / 60s |
+| `POST /auth/admin/login` | 3 req / 60s |
+| `POST /auth/student/forgot-password` | 5 req / 60s |
+| `POST /auth/student/reset-password` | 10 req / 60s |
 
-## Recomendacao de consumo
+## Regras de integração
 
-Nao exponha x-service-secret no browser.
-Use BFF/server-side para intermediar chamadas de auth.
+- `x-service-secret` não deve sair do servidor/BFF
+- OTP não deve aparecer em log de produção
+- a política de senha é a mesma para cadastro e reset

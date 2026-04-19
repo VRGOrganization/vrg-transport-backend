@@ -30,8 +30,8 @@ export class ImagesController {
   @ApiOperation({ summary: 'Create image', description: 'Creates a new image.' })
   @ApiParam({ name: 'id', description: 'Image ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
   @ApiResponse({ status: 200, description: 'Image created successfully.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente.' })
   @ApiResponse({ status: 404, description: 'Image not found.' })
   create(@Body() dto: CreateImageDto) {
     return this.imagesService.create(dto);
@@ -39,10 +39,10 @@ export class ImagesController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'List all images', description: 'Returns all registered images.' })
+  @ApiOperation({ summary: 'Listar imagens', description: 'Retorna todas as imagens cadastradas.' })
   @ApiResponse({ status: 200, description: 'List of images.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente.' })
   findAll(
     @Query('page') pageRaw?: string,
     @Query('limit') limitRaw?: string,
@@ -55,7 +55,7 @@ export class ImagesController {
   @Post('me')
   @Roles(UserRole.STUDENT)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Upload own image', description: 'Student uploads their own image (profile photo or document).' })
+  @ApiOperation({ summary: 'Enviar minha imagem', description: 'O estudante envia sua pr?pria imagem (foto de perfil ou documento).' })
   @ApiResponse({ status: 201, description: 'Image created successfully.' })
   @ApiResponse({ status: 409, description: 'Image of this type already exists.' })
   createMyImage(
@@ -70,20 +70,20 @@ export class ImagesController {
 
   @Get('me')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'My images', description: 'Returns all images for the authenticated student.' })
-  @ApiResponse({ status: 200, description: 'Images for the authenticated student.' })
-  @ApiResponse({ status: 401, description: 'Not authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
+  @ApiOperation({ summary: 'Minhas imagens', description: 'Retorna todas as imagens do estudante autenticado.' })
+  @ApiResponse({ status: 200, description: 'Imagens do estudante autenticado.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente (requer papel STUDENT).' })
   findMyImages(@Req() req: Request) {
     return this.imagesService.findByStudentId(req.sessionPayload!.userId);
   }
 
   @Get('me/profile')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'My profile photo', description: 'Returns the profile photo of the authenticated student.' })
-  @ApiResponse({ status: 200, description: 'Profile photo of the authenticated student.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
+  @ApiOperation({ summary: 'Minha foto de perfil', description: 'Retorna a foto de perfil do estudante autenticado.' })
+  @ApiResponse({ status: 200, description: 'Foto de perfil do estudante autenticado.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente (requer papel STUDENT).' })
   @ApiResponse({ status: 404, description: 'Profile photo not found.' })
   findMyProfilePhoto(@Req() req: Request) {
     return this.imagesService.findProfilePhoto(req.sessionPayload!.userId);
@@ -91,10 +91,10 @@ export class ImagesController {
 
   @Get('student/me')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'My images (student alias)', description: 'Returns all images for the authenticated student.' })
-  @ApiResponse({ status: 200, description: 'Images for the authenticated student.' })
-  @ApiResponse({ status: 401, description: 'Not authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions (requires STUDENT role).' })
+  @ApiOperation({ summary: 'Minhas imagens (atalho do estudante)', description: 'Retorna todas as imagens do estudante autenticado.' })
+  @ApiResponse({ status: 200, description: 'Imagens do estudante autenticado.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente (requer papel STUDENT).' })
   findMyImagesByStudentAlias(@Req() req: Request) {
     return this.imagesService
       .findByStudentId(req.sessionPayload!.userId)
@@ -111,11 +111,11 @@ export class ImagesController {
 
   @Get('history/student/:studentId')
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'Image history by student', description: 'Returns archived previous image versions for a student sorted by most recent replacement.' })
+  @ApiOperation({ summary: 'Hist?rico de imagens por estudante', description: 'Retorna vers?es anteriores arquivadas de imagens de um estudante, ordenadas pela substitui??o mais recente.' })
   @ApiParam({ name: 'studentId', description: 'Student ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
   @ApiResponse({ status: 200, description: 'Image history for the student.' })
-  @ApiResponse({ status: 401, description: 'Not authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente.' })
   findImageHistoryByStudentId(
     @Param('studentId', MongoObjectIdPipe) studentId: string,
   ) {
@@ -124,11 +124,11 @@ export class ImagesController {
 
   @Get('student/:studentId')
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'Images by student', description: 'Returns all images for a specific student. Requires ADMIN or EMPLOYEE role.' })
+  @ApiOperation({ summary: 'Imagens por estudante', description: 'Retorna todas as imagens de um estudante espec?fico. Requer papel ADMIN ou EMPLOYEE.' })
   @ApiParam({ name: 'studentId', description: 'Student ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
   @ApiResponse({ status: 200, description: 'Images for the student.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente.' })
   @ApiResponse({ status: 404, description: 'Student not found.' })
   findByStudentId(@Param('studentId', MongoObjectIdPipe) studentId: string) {
     return this.imagesService.findByStudentId(studentId);
@@ -136,11 +136,11 @@ export class ImagesController {
 
   @Get(':id/file')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Get my image file by id', description: 'Returns full base64 payload for one image document of the authenticated student.' })
+  @ApiOperation({ summary: 'Buscar meu arquivo de imagem por ID', description: 'Retorna o payload completo em base64 de um documento de imagem do estudante autenticado.' })
   @ApiParam({ name: 'id', description: 'Image ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
   @ApiResponse({ status: 200, description: 'Image file payload.' })
-  @ApiResponse({ status: 401, description: 'Not authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions or image does not belong to authenticated student.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente ou a imagem n?o pertence ao estudante autenticado.' })
   @ApiResponse({ status: 404, description: 'Image not found.' })
   async findMyImageFileById(
     @Param('id', MongoObjectIdPipe) id: string,
@@ -157,11 +157,11 @@ export class ImagesController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'Find image by ID', description: 'Returns the data of a specific image.' })
+  @ApiOperation({ summary: 'Buscar imagem por ID', description: 'Retorna os dados de uma imagem espec?fica.' })
   @ApiParam({ name: 'id', description: 'Image ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
   @ApiResponse({ status: 200, description: 'Image data.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente.' })
   @ApiResponse({ status: 404, description: 'Image not found.' })
   findOne(@Param('id', MongoObjectIdPipe) id: string) {
     return this.imagesService.findOne(id);
@@ -169,13 +169,13 @@ export class ImagesController {
 
   @Patch('student/:studentId/profile')
   @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
-  @ApiOperation({ summary: 'Update student profile photo', description: 'Updates the profile photo of a specific student by ID. Requires EMPLOYEE or ADMIN role.' })
+  @ApiOperation({ summary: 'Atualizar foto de perfil do estudante', description: 'Atualiza a foto de perfil de um estudante espec?fico por ID. Requer papel EMPLOYEE ou ADMIN.' })
   @ApiParam({ name: 'studentId', description: 'Student ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
   @ApiBody({ type: UpdateImageDto })
   @ApiResponse({ status: 200, description: 'Profile photo updated successfully.' })
   @ApiResponse({ status: 400, description: 'Invalid data.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente.' })
   @ApiResponse({ status: 404, description: 'Student or image not found.' })
   updateByStudentId(
     @Param('studentId', MongoObjectIdPipe) studentId: string,
@@ -186,13 +186,13 @@ export class ImagesController {
 
   @Patch(':id')
   @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
-  @ApiOperation({ summary: 'Update image by ID', description: 'Updates the data of a specific image. Requires EMPLOYEE or ADMIN role.' })
+  @ApiOperation({ summary: 'Atualizar imagem por ID', description: 'Updates the data of a specific image. Requires EMPLOYEE or ADMIN role.' })
   @ApiParam({ name: 'id', description: 'Image ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
   @ApiBody({ type: UpdateImageDto })
   @ApiResponse({ status: 200, description: 'Image updated successfully.' })
   @ApiResponse({ status: 400, description: 'Invalid data.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente.' })
   @ApiResponse({ status: 404, description: 'Image not found.' })
   update(@Param('id', MongoObjectIdPipe) id: string, @Body() dto: UpdateImageDto) {
     return this.imagesService.update(id, dto);
@@ -204,8 +204,8 @@ export class ImagesController {
   @ApiOperation({ summary: 'Remove images of a student', description: 'Removes all images of a specific student. Exclusive for ADMIN.' })
   @ApiParam({ name: 'studentId', description: 'Student ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
   @ApiResponse({ status: 200, description: 'Images of the student removed successfully.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions (requires ADMIN role).' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente (requer papel ADMIN).' })
   @ApiResponse({ status: 404, description: 'Student not found.' })
   removeByStudentId(@Param('studentId', MongoObjectIdPipe) studentId: string) {
     return this.imagesService.removeByStudentId(studentId);
@@ -217,8 +217,8 @@ export class ImagesController {
   @ApiOperation({ summary: 'Remove image by ID', description: 'Removes an image by its ID. Exclusive for ADMIN.' })
   @ApiParam({ name: 'id', description: 'Image ID (MongoDB ObjectId)', example: '6650a1f2c3d4e5f6a7b8c9d0' })
   @ApiResponse({ status: 200, description: 'Image removed successfully.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions (requires ADMIN role).' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permiss?o insuficiente (requer papel ADMIN).' })
   @ApiResponse({ status: 404, description: 'Image not found.' })
   remove(@Param('id', MongoObjectIdPipe) id: string) {
     return this.imagesService.remove(id);

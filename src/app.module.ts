@@ -27,6 +27,7 @@ import { validateSecurityConfig } from './common/config/security.validation';
 import { UniversityModule } from './university/university.module';
 import { CourseModule } from './course/course.module';
 import { BusModule } from './bus/bus.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 
 @Module({
@@ -59,6 +60,7 @@ import { BusModule } from './bus/bus.module';
     SessionModule,
     LicenseRequestModule,
     EnrollmentPeriodModule,
+    SchedulerModule,
     CommonModule,
     UniversityModule,
     CourseModule,
@@ -68,10 +70,10 @@ import { BusModule } from './bus/bus.module';
   providers: [
     AppService,
     // Guards globais
-    // Ordem importa: SessionAuthGuard precisa rodar antes do RolesGuard.
+    // Ordem importa: RateLimitGuard deve rodar primeiro; SessionAuthGuard antes do RolesGuard.
+    { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: SessionAuthGuard },
     // RolesGuard verifica o role apenas nas rotas com @Roles().
-    { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })

@@ -222,7 +222,6 @@ describe('LicenseService', () => {
 
   describe('update', () => {
     const dto = {
-      id: 'student-id-123',
       name: 'João',
       degree: 'CC',
       institution: 'UFMG',
@@ -233,10 +232,10 @@ describe('LicenseService', () => {
       photo: 'base64',
     };
 
-    it('deve criar nova licença e remover a antiga', async () => {
+    it('deve atualizar a licença existente sem exigir id no body', async () => {
       mockFetchSuccess();
-      mockLicenseRepository.create.mockResolvedValue(makeLicense());
-      mockLicenseRepository.remove.mockResolvedValue(true);
+      mockLicenseRepository.findOne.mockResolvedValue(makeLicense());
+      mockLicenseRepository.update.mockResolvedValue(makeLicense());
 
       const result = await service.update(
         'old-license-id',
@@ -244,23 +243,40 @@ describe('LicenseService', () => {
         'employee-id-123',
       );
 
-      expect(mockLicenseRepository.create).toHaveBeenCalledTimes(1);
-      expect(mockLicenseRepository.remove).toHaveBeenCalledWith('old-license-id');
+      expect(mockLicenseRepository.update).toHaveBeenCalledTimes(1);
+      expect(mockLicenseRepository.update).toHaveBeenCalledWith(
+        'old-license-id',
+        expect.objectContaining({
+          studentId: 'student-id-123',
+          employeeId: 'employee-id-123',
+          status: LicenseStatus.ACTIVE,
+        }),
+      );
       expect(result).toBeDefined();
     });
 
-    it('não deve remover a antiga se criar a nova falhar', async () => {
+    it('deve lançar NotFoundException se a licença não existir', async () => {
+      mockLicenseRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.update('old-license-id', dto as any, 'employee-id-123'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('não deve atualizar se a API externa falhar', async () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
         status: 503,
         statusText: 'Service Unavailable',
       });
 
+      mockLicenseRepository.findOne.mockResolvedValue(makeLicense());
+
       await expect(
         service.update('old-license-id', dto as any, 'employee-id-123'),
       ).rejects.toThrow(BadGatewayException);
 
-      expect(mockLicenseRepository.remove).not.toHaveBeenCalled();
+      expect(mockLicenseRepository.update).not.toHaveBeenCalled();
     });
   });
 

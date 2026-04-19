@@ -1,112 +1,81 @@
-# API Reference - Students
+﻿# API Reference - Students
 
-Base: /api/v1/student
+Base: `/api/v1/student`
 
-## GET /student
+## `GET /student`
 
-Lista paginada de estudantes.
+Lista estudantes ativos com paginação.
 
-Roles: EMPLOYEE, ADMIN
+Roles: `ADMIN`, `EMPLOYEE`
 
-Query:
+## `GET /student/inactive`
 
-- page (default 1)
-- limit (default 20, max 100)
+Lista estudantes inativos.
 
-## POST /student/schedule
+Roles: `ADMIN`, `EMPLOYEE`
 
-Atualiza grade horaria do estudante autenticado.
+## `POST /student/schedule`
 
-Role: STUDENT
+Atualiza a grade horária do estudante autenticado.
 
-Body:
+Role: `STUDENT`
 
-{
-  "selections": [
-    { "day": "SEG", "period": "Manha" },
-    { "day": "TER", "period": "Noite" }
-  ]
-}
+## `POST /student/me/license-submit`
 
-## POST /student/me/license-submit
+Fluxo principal de inscrição inicial.
 
-Submit inicial (perfil + horario + documentos) em multipart.
+Role: `STUDENT`
 
-Role: STUDENT
+Multipart esperado:
 
-Campos:
-
-- institution
-- degree
-- shift
-- bloodType
-- schedule (obrigatorio, JSON string)
-- ProfilePhoto (arquivo)
-- EnrollmentProof (arquivo)
-- CourseSchedule (arquivo)
+- `institution`
+- `degree`
+- `shift`
+- `bloodType`
+- `schedule` (JSON string)
+- `ProfilePhoto`
+- `EnrollmentProof`
+- `CourseSchedule`
 
 Comportamento:
 
-- valida elegibilidade inicial antes de gravar side effects
-- cria solicitacao initial:
-  - pending se houver vaga
-  - waitlisted se nao houver vaga
+- atualiza perfil e imagens
+- cria request initial em fluxo centralizado no service
+- direciona ônibus por faculdade + turno
+- para `Integral`, prioriza ônibus da `Manhã`
 
-## POST /student/me/document-update-request
+## `POST /student/me/document-update-request`
 
-Solicita update de documentos apos aprovacao inicial.
+Solicita atualização de documentos após a aprovação inicial.
 
-Role: STUDENT
+## `PATCH /student/me/photo`
 
-Campos:
+Atualiza foto de perfil.
 
-- changedDocuments (JSON string)
-- arquivos correspondentes
+## `DELETE /student/me/photo`
 
-## PATCH /student/me/photo
+Remove foto de perfil.
 
-Atualiza foto de perfil do estudante autenticado.
+## `GET /student/me`
 
-Role: STUDENT
+Retorna o perfil do estudante autenticado.
 
-## DELETE /student/me/photo
+## `GET /student/stats/dashboard`
 
-Remove foto de perfil do estudante autenticado.
+Estatísticas agregadas para operação.
 
-Role: STUDENT
+## `GET /student/:id`
 
-## GET /student/me
+Busca estudante por ID.
 
-Retorna perfil do estudante autenticado.
+## `PATCH /student/me`
 
-Role: STUDENT
+Atualiza o próprio perfil.
 
-## GET /student/stats/dashboard
+## `PATCH /student/:id`
 
-Estatisticas agregadas para operacao.
+Atualiza estudante por ID.
 
-Roles: EMPLOYEE, ADMIN
+## `DELETE /student/:id`
 
-## GET /student/:id
-
-Busca estudante por id.
-
-Roles: EMPLOYEE, ADMIN
-
-## PATCH /student/me
-
-Atualiza proprio perfil.
-
-Role: STUDENT
-
-## PATCH /student/:id
-
-Atualiza estudante por id.
-
-Roles: EMPLOYEE, ADMIN
-
-## DELETE /student/:id
-
-Remove estudante por id.
-
-Role: ADMIN
+Remove estudante por ID.

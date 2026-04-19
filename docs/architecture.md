@@ -1,141 +1,86 @@
-# Arquitetura
+﻿# Arquitetura
 
-## Estrutura de alto nivel
+## Visão geral
 
-src/
-  main.ts
-  app.module.ts
-  auth/
-  student/
-  employee/
-  admin/
-  image/
-  license/
-  license-request/
-  enrollment-period/
-  mail/
-  common/
+A API é modular e segue um padrão simples:
 
-## Modulos e responsabilidades
+- controller fino
+- regra no service
+- persistência por repositório
+- DTO com validação
+- sessão server-side
+- auditoria para ações críticas
 
-- AppModule
-  - Config global e conexoes Mongo
-  - Registro dos modulos de dominio
-  - Guards globais de sessao, rate limit e role
+## Módulos principais
 
-- AuthModule
-  - Registro/login por perfil
-  - OTP e verificacao de conta
-  - Sessao server-side
-  - ServiceSecretGuard no controller de auth
+- `AuthModule` - registro, OTP, login, logout e reset de senha
+- `StudentModule` - perfil, grade, foto e envio de solicitação
+- `LicenseRequestModule` - fluxo de inscrição, aprovação e rejeição
+- `LicenseModule` - emissão, SSE, consulta e verificação da carteirinha
+- `EnrollmentPeriodModule` - períodos, fila e promoção
+- `BusModule` - ônibus, vínculo de faculdade, prioridade e `shift`
+- `UniversityModule` - faculdades
+- `CourseModule` - cursos
+- `EmployeeModule` - funcionários
+- `ImageModule` - documentos e foto
+- `Common` - guards, filtros, pipes, auditoria e utilitários
 
-- StudentModule
-  - Perfil, horario e envio inicial de documentos
-  - Endpoint unico de submit inicial
-  - Pedido de alteracao de documentos
+## Modelo de dados que importa para o front
 
-- EnrollmentPeriodModule
-  - Criacao e administracao de periodos de inscricao
-  - Preview e confirmacao de liberacao de fila
-  - Encerramento da fila no fim do ciclo do periodo
+### Student
 
-- LicenseRequestModule
-  - Solicitacoes initial e update
-  - Estados pending/approved/rejected/cancelled/waitlisted
-  - Aprovacao com controle atomico de vagas
+- `shift`: `Manhã`, `Tarde`, `Noite`, `Integral`
+- `universityId`: faculdade vinculada
+- `secondaryBusId`: apoio para consultas
 
-- LicenseModule
-  - Emissao e atualizacao de carteirinhas
-  - SSE por ticket efemero
-  - Verificacao publica por codigo
-  - Desativacao de licencas expiradas
+### Bus
 
-- ImageModule
-  - Armazenamento de foto e documentos
-  - Historico de versoes para updates
+- `identifier`
+- `shift`
+- `capacity`
+- `universitySlots`
 
-## Modelo de dados relevante ao fluxo novo
+### LicenseRequest
 
-- enrollment_periods
-  - janela: startDate/endDate
-  - capacidade: totalSlots/filledSlots
-  - validade: licenseValidityMonths
-  - fila: waitlistSequence, closedWaitlistCount, waitlistClosedAt
+- `type`: `initial` ou `update`
+- `status`: `pending`, `approved`, `rejected`, `cancelled`, `waitlisted`
+- `busId` e `universityId`
+- `cardNote`
+- `accessBusIdentifiers`
+- `filaPosition`
 
-- license_requests
-  - type: initial/update
-  - status: pending/approved/rejected/cancelled/waitlisted
-  - vinculo de ciclo: enrollmentPeriodId
-  - fila: filaPosition
+### License
 
-- licenses
-  - status: active/inactive/expired/rejected
-  - existing: soft delete funcional
-  - expirationDate
-  - vinculo ao periodo: enrollmentPeriodId
+- `status`: `active`, `inactive`, `expired`, `rejected`
+- `verificationCode`
+- `enrollmentPeriodId`
 
-## Conexoes de banco
+## Fluxos importantes
 
-| Conexao | Variavel | Uso |
-|---|---|---|
-| Principal | MONGODB_URI | estudantes, funcionarios, admins, periodos, solicitacoes, licencas |
-| Imagens (connection images) | MONGODB_URI_IMAGE | imagens e historico de imagens |
+### Inscrição inicial
 
-## Pipeline de requisicao
+1. O estudante envia multipart em `POST /student/me/license-submit`.
+2. O backend atualiza perfil e imagens.
+3. A request é direcionada por faculdade + turno.
+4. Aluno `Integral` vai para o ônibus da `Manhã` quando possível.
+5. A request recebe nota e snapshot para a carteirinha.
 
-Guards globais:
+### Aprovação
 
-1. SessionAuthGuard
-2. RateLimitGuard
-3. RolesGuard
+1. O funcionário aprova a request.
+2. O backend atualiza a vaga do período e do ônibus quando necessário.
+3. A carteirinha é gerada pelo serviço externo.
+4. A emissão usa o contexto gravado na request.
 
-No modulo Auth, alem dos globais:
+### Waitlist
 
-- ServiceSecretGuard
-- rate limit por endpoint com decorator RateLimit
+1. Sem capacidade, a request entra em `waitlisted`.
+2. A posição é calculada por ônibus.
+3. A fila é reindexada quando vagas são liberadas.
 
-## Fluxos criticos
+## Integração entre front e API
 
-### Fluxo de solicitacao inicial
-
-1. Student envia POST /student/me/license-submit com multipart.
-2. Controller valida elegibilidade antes de side effects.
-3. Service cria request initial:
-   - pending quando ha vaga
-   - waitlisted quando nao ha vaga
-4. Em waitlist, filaPosition e gerada de forma atomica no periodo.
-
-### Fluxo de liberacao de fila
-
-1. Admin faz preview de slots do periodo.
-2. Admin confirma requestIds.
-3. Promocao waitlisted -> pending e atomica por request.
-4. Fila remanescente e reindexada.
-
-### Fluxo de aprovacao
-
-1. Employee/Admin aprova request pending.
-2. Para initial com periodo vinculado:
-   - incrementa vagas preenchidas de forma atomica
-   - emite licenca vinculada ao periodo
-3. Em erro de emissao, faz rollback de vaga preenchida.
-
-### Ciclo de vida do periodo
-
-1. Periodo ativo com janela vencida e finalizado ao ser consultado/criar novo.
-2. Fila waitlisted do periodo e cancelada em lote no encerramento.
-3. Historico do tamanho da fila encerrada permanece no periodo.
-
-### Validade e expiracao de carteirinhas
-
-1. Se licenseValidityMonths mudar, licencas ativas daquele periodo sao ajustadas por delta.
-2. Licencas expiradas sao desativadas em lote (status expired + existing false).
-
-## Bootstrap e seguranca de entrada
-
-- Prefixo global /api/v1
-- ValidationPipe global (whitelist, forbidNonWhitelisted, transform)
-- HttpExceptionFilter global
-- Body limit 2MB
-- helmet + CSP + HSTS
-- CORS por ALLOWED_ORIGINS
+- o front não deve inferir a regra de ônibus
+- o front pode exibir `bus.shift` e `cardNote`
+- `cardNote` e `accessBusIdentifiers` são a ponte entre inscrição e carteirinha
+- `inactive` possui rota própria para não colidir com `:id`

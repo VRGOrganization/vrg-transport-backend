@@ -13,6 +13,7 @@ describe('EnrollmentPeriodController', () => {
     close: jest.fn(),
     reopen: jest.fn(),
     previewReleaseSlots: jest.fn(),
+    findWaitlisted: jest.fn(),
     confirmReleaseSlots: jest.fn(),
   };
 
@@ -80,10 +81,7 @@ describe('EnrollmentPeriodController', () => {
 
   it('deve listar waitlist do periodo', async () => {
     await controller.getWaitlist('period-1');
-    expect(mockService.previewReleaseSlots).toHaveBeenCalledWith(
-      'period-1',
-      Number.MAX_SAFE_INTEGER,
-    );
+    expect(mockService.findWaitlisted).toHaveBeenCalledWith('period-1');
   });
 
   it('deve fazer preview de release slots', async () => {
@@ -100,6 +98,6 @@ describe('EnrollmentPeriodController', () => {
       'r1',
       'r2',
     ]);
-    expect(response).toEqual({ message: 'Promocao da fila realizada com sucesso.' });
+    expect(response).toEqual({ message: 'Promoção da fila realizada com sucesso.' });
   });
 });

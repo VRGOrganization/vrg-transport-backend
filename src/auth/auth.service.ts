@@ -36,6 +36,7 @@ import { AUTH_ERROR_MESSAGES } from './constants/auth.constants';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { StudentStatus } from '../student/schemas/student.schema';
 import { PasswordResetService } from './password-reset/password-reset.service';
+import { INSTITUTIONAL_DOMAINS } from './constants/institutional-domains.constant';
 
 @Injectable()
 export class AuthService {
@@ -45,15 +46,6 @@ export class AuthService {
   private readonly CODE_EXPIRY_MINUTES = 15;
   private readonly MAX_VERIFY_ATTEMPTS = 5;
   private readonly RESEND_COOLDOWN_MS = 60_000;
-
-  private readonly INSTITUTIONAL_DOMAINS = [
-    'edu.br',
-    'ac.br',
-    'usp.br',
-    'unicamp.br',
-    'ufrj.br',
-    'unifesp.br',
-  ];
 
   constructor(
     private readonly studentService: StudentService,
@@ -128,7 +120,9 @@ export class AuthService {
     const isInstitutional = this.isInstitutionalEmail(dto.email);
     const { code, codeHash, expiresAt } = await this.generateVerificationCode();
 
-    this.logger.debug(`[DEV ONLY] Verification code for ${dto.email}: ${code}`);
+    if (process.env.NODE_ENV === 'development') {
+      process.stdout.write(`[DEV OTP] ${dto.email}: ${code}\n`);
+    }
 
     await this.studentService.create({
       name: dto.name,
@@ -464,7 +458,7 @@ export class AuthService {
   private isInstitutionalEmail(email: string): boolean {
     const domain = email.split('@')[1]?.toLowerCase();
     if (!domain) return false;
-    return this.INSTITUTIONAL_DOMAINS.some(
+    return INSTITUTIONAL_DOMAINS.some(
       (inst) => domain === inst || domain.endsWith('.' + inst),
     );
   }

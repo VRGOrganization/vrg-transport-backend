@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import {
   LicenseRequest,
   LicenseRequestStatus,
+  LicenseRequestType,
 } from '../schemas/license-request.schema';
 import { ILicenseRequestRepository } from '../interfaces/repository.interface';
 
@@ -64,7 +65,7 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
     return this.model
       .findOne({
         studentId,
-        type: 'initial',
+        type: LicenseRequestType.INITIAL,
         status: { $in: [LicenseRequestStatus.PENDING, LicenseRequestStatus.WAITLISTED] },
       })
       .sort({ createdAt: 1 })
@@ -165,6 +166,78 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
     return this.model.find().sort({ createdAt: -1 }).lean().exec() as Promise<
       LicenseRequest[]
     >;
+  }
+
+  async findByEnrollmentPeriodId(enrollmentPeriodId: string): Promise<LicenseRequest[]> {
+    // enrollmentPeriodId is stored as string in the schema, keep it as-is
+    return this.model
+      .find({ enrollmentPeriodId })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec() as Promise<LicenseRequest[]>;
+  }
+
+  async findByEnrollmentPeriodAndBus(enrollmentPeriodId: string, busId: string): Promise<LicenseRequest[]> {
+    // enrollmentPeriodId is a string in the schema; busId is an ObjectId
+    const busMatch = typeof busId === 'string' ? new Types.ObjectId(busId) : busId;
+    return this.model
+      .find({ enrollmentPeriodId, busId: busMatch })
+      .lean()
+      .exec() as Promise<LicenseRequest[]>;
+  }
+
+  async reorderWaitlistedPositions(requestIds: string[]): Promise<number> {
+    if (!requestIds.length) {
+      return 0;
+    }
+
+    const bulkOps = requestIds.map((id, index) => ({
+      updateOne: {
+        filter: { _id: new Types.ObjectId(id) },
+        update: { $set: { filaPosition: index + 1 } },
+      },
+    }));
+
+    const result = await this.model.bulkWrite(bulkOps);
+    return result.modifiedCount ?? requestIds.length;
+  }
+
+  async findByEnrollmentPeriodAndBusGrouped(enrollmentPeriodId: string): Promise<any[]> {
+    // enrollmentPeriodId is stored as string in the schema, match by the string value
+    const pipeline = [
+      { $match: { enrollmentPeriodId } },
+      {
+        $group: {
+          _id: { busId: '$busId', universityId: '$universityId' },
+          pending: { $sum: { $cond: [{ $eq: ['$status', LicenseRequestStatus.PENDING] }, 1, 0] } },
+          waitlisted: { $sum: { $cond: [{ $eq: ['$status', LicenseRequestStatus.WAITLISTED] }, 1, 0] } },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id.busId',
+          perUniversity: {
+            $push: {
+              universityId: '$_id.universityId',
+              pending: '$pending',
+              waitlisted: '$waitlisted',
+            },
+          },
+          pending: { $sum: '$pending' },
+          waitlisted: { $sum: '$waitlisted' },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          pending: 1,
+          waitlisted: 1,
+          perUniversity: 1,
+        },
+      },
+    ];
+
+    return this.model.aggregate(pipeline).exec();
   }
 
   async findAllByStatus(

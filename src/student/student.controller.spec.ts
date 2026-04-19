@@ -5,6 +5,7 @@ import { STUDENT_REPOSITORY } from './interfaces/repository.interface';
 import { AuditLogService } from '../common/audit/audit-log.service';
 import { LicenseRequestService } from '../license-request/license-request.service';
 import { ImagesService } from '../image/image.service';
+import { BusService } from '../bus/bus.service';
 
 const mockStudentRepository = {
   create: jest.fn(),
@@ -31,6 +32,10 @@ const mockImagesService = {
   // Add any methods if needed, but for now empty
 };
 
+const mockBusService = {
+  findOneOrFail: jest.fn(),
+};
+
 describe('StudentController', () => {
   let controller: StudentController;
 
@@ -41,6 +46,7 @@ describe('StudentController', () => {
         StudentService,
         { provide: STUDENT_REPOSITORY, useValue: mockStudentRepository },
         { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: BusService, useValue: mockBusService },
         {
           provide: LicenseRequestService,
           useValue: mockLicenseRequestService,

@@ -1,59 +1,51 @@
-# Seguranca
+﻿# Segurança
 
 ## Camadas ativas
 
-1. Config fail-fast
-	- validateSecurityConfig interrompe bootstrap se env critica estiver ausente.
+1. **Fail-fast de configuração**
+   - o bootstrap falha se variáveis críticas não existirem.
 
-2. Hardening HTTP
-	- helmet com CSP, HSTS e headers de protecao.
-	- Permissions-Policy definido no bootstrap.
+2. **Hardening HTTP**
+   - `helmet`, CSP, HSTS e headers de proteção.
 
-3. CORS restrito
-	- ALLOWED_ORIGINS obrigatorio, sem wildcard.
-	- headers permitidos: Content-Type, x-session-id, x-service-secret.
+3. **CORS restrito**
+   - controlado por `ALLOWED_ORIGINS`.
 
-4. Limite de payload
-	- body parser com limite de 2MB.
+4. **Limite de payload**
+   - body parser com limite ajustado ao uso do projeto.
 
-5. Validacao global
-	- ValidationPipe com whitelist, forbidNonWhitelisted e transform.
+5. **Validação global**
+   - `ValidationPipe` com `whitelist`, `transform` e bloqueio de campos extras.
 
-6. Sessao server-side
-	- SessionAuthGuard global valida x-session-id.
+6. **Sessão server-side**
+   - o backend não depende de JWT para rotas autenticadas.
 
-7. Controle de acesso por role
-	- RolesGuard global + decorators por endpoint.
+7. **Controle de acesso por role**
+   - `RolesGuard` + decorators por endpoint.
 
-8. Segredo de servico no Auth
-	- ServiceSecretGuard no AuthController com comparacao timing-safe.
+8. **Segredo de serviço no Auth**
+   - o controller de auth é protegido por `ServiceSecretGuard`.
 
-9. Rate limiting
-	- RateLimitGuard por endpoint.
-	- chave por usuario autenticado ou IP em rotas publicas.
+9. **Rate limit**
+   - o rate limit roda antes da autenticação para contar rotas públicas também.
 
-10. Credenciais e OTP
-	 - senha com bcrypt.
-	 - OTP com expiração e controle de tentativas.
+10. **Dados sensíveis**
+   - CPF é persistido como hash.
+   - OTP e tokens têm expiração.
 
-11. Dados sensiveis
-	 - CPF persistido como hash (cpfHash).
-	 - stack 5xx nao e retornada ao cliente.
+11. **Auditoria**
+   - ações críticas registram ator, alvo e outcome.
 
-12. Auditoria
-	 - eventos criticos registrados por AuditLogService.
+## Pontos funcionais importantes
 
-## Pontos de seguranca funcionais do fluxo novo
+- `GET /license/verify/:code` é público, mas só valida o código.
+- `POST /license/events/token` exige estudante autenticado e gera ticket de uso único.
+- `POST /student/me/license-submit` valida elegibilidade antes de persistir a solicitação.
+- fila, promoção e aprovação foram pensadas para evitar dupla execução em corrida.
 
-- Fila com atualizacao atomica de posicao.
-- Promocao de waitlist atomica para evitar dupla promocao.
-- Validacao de elegibilidade inicial antes de side effects no submit.
-- Conflito de unicidade de periodo ativo tratado com resposta de conflito.
+## Recomendações operacionais
 
-## Recomendacoes de operacao
-
-- Use NODE_ENV=production em producao.
-- Restrinja ALLOWED_ORIGINS aos domínios reais.
-- Rotacione SERVICE_SECRET, OTP_PEPPER e CPF_HMAC_SECRET.
-- Monitore picos de 401, 403, 409 e 429.
-- Centralize logs de auditoria e erros.
+- usar `NODE_ENV=production` em produção
+- manter `ALLOWED_ORIGINS` restrito
+- rotacionar `SERVICE_SECRET`, `OTP_PEPPER` e `CPF_HMAC_SECRET`
+- monitorar 401, 403, 409 e 429

@@ -1,82 +1,90 @@
-# API Reference - License Requests
+﻿# API Reference - License Requests
 
-Base: /api/v1/license-request
+Base: `/api/v1/license-request`
 
 ## Conceitos
 
-- type
-  - initial: primeira solicitacao
-  - update: alteracao de documentos
+### `type`
 
-- status
-  - pending
-  - approved
-  - rejected
-  - cancelled
-  - waitlisted
+- `initial`: primeira solicitação
+- `update`: atualização de documentos
 
-## GET /license-request/all
+### `status`
 
-Lista todas as solicitacoes.
+- `pending`
+- `approved`
+- `rejected`
+- `cancelled`
+- `waitlisted`
 
-Roles: EMPLOYEE, ADMIN
+### Campos úteis da request
 
-## GET /license-request/pending
+- `busId`
+- `universityId`
+- `cardNote`
+- `accessBusIdentifiers`
+- `filaPosition`
 
-Lista solicitacoes pendentes.
+## `GET /license-request/all`
 
-Roles: EMPLOYEE, ADMIN
+Lista todas as solicitações.
 
-## GET /license-request/me
+Roles: `EMPLOYEE`, `ADMIN`
 
-Retorna solicitacao mais recente do estudante autenticado.
+## `GET /license-request/pending`
 
-Role: STUDENT
+Lista solicitações pendentes.
 
-## GET /license-request/student/:studentId
+Roles: `EMPLOYEE`, `ADMIN`
 
-Lista solicitacoes de um estudante.
+## `GET /license-request/me`
 
-Roles: EMPLOYEE, ADMIN
+Retorna a solicitação mais recente do estudante autenticado.
 
-## PATCH /license-request/approve/:id
+Role: `STUDENT`
 
-Aprova solicitacao pendente.
+## `GET /license-request/student/:studentId`
 
-Roles: EMPLOYEE, ADMIN
+Lista solicitações de um estudante.
+
+Roles: `EMPLOYEE`, `ADMIN`
+
+## `PATCH /license-request/approve/:id`
+
+Aprova uma solicitação.
+
+Roles: `EMPLOYEE`, `ADMIN`
 
 Body:
 
+```json
 {
-  "bus": "205",
-  "institution": "Universidade Federal Fluminense",
+  "bus": "Onibus 02",
+  "institution": "Instituto Federal do Exemplo",
   "photo": "data:image/jpeg;base64,..."
 }
+```
 
-Comportamento:
+### Comportamento atual
 
-- initial
-  - valida vaga com incremento atomico no periodo
-  - cria licenca vinculada ao enrollmentPeriodId da solicitacao
-  - usa licenseValidityMonths do periodo
-  - em erro, faz rollback da vaga reservada
+- para `initial`, o backend cria a carteirinha e atualiza a request para `approved`
+- para `update`, o backend arquiva imagens antigas e regenera a carteirinha existente
+- `cardNote` e `accessBusIdentifiers` seguem para a emissão da carteirinha
 
-- update
-  - regenera licenca existente
-  - arquiva imagens antigas e aplica pendencias
+## `PATCH /license-request/reject/:id`
 
-Respostas: 200, 400, 404, 409
-
-## PATCH /license-request/reject/:id
-
-Rejeita solicitacao pendente.
-
-Roles: EMPLOYEE, ADMIN
+Rejeita uma solicitação.
 
 Body:
 
+```json
 {
-  "reason": "Documentos ilegiveis ou corrompidos"
+  "reason": "Documentos ilegíveis ou corrompidos"
 }
+```
 
-Respostas: 200, 400, 404
+## Regras de negócio
+
+- o front não escolhe o ônibus na inscrição inicial
+- o backend resolve o ônibus por faculdade + turno
+- aluno `Integral` vai para ônibus da `Manhã` quando houver correspondência

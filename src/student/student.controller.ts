@@ -53,7 +53,7 @@ export class StudentController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'List all students' })
+  @ApiOperation({ summary: 'Listar estudantes' })
   @ApiResponse({ status: 200, description: 'List of students.' })
   findAll(
     @Query('page') pageRaw?: string,
@@ -64,9 +64,17 @@ export class StudentController {
     return this.studentService.findAllPaginated(page, limit);
   }
 
+  @Get('inactive')
+  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  @ApiOperation({ summary: 'Listar estudantes inativos' })
+  @ApiResponse({ status: 200, description: 'Lista de estudantes inativos.' })
+  findAllInactive() {
+    return this.studentService.findAllInactive();
+  }
+
   @Post('schedule')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Submit class schedule' })
+  @ApiOperation({ summary: 'Enviar grade hor?ria' })
   @ApiBody({ type: SubmitScheduleDto })
   @ApiResponse({ status: 200, description: 'Schedule saved.' })
   submitSchedule(
@@ -89,7 +97,7 @@ export class StudentController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Submit student profile, schedule and images in one request',
+    summary: 'Enviar perfil, grade e imagens em uma ?nica requisi??o',
   })
   @ApiBody({
     schema: {
@@ -121,19 +129,11 @@ export class StudentController {
       CourseSchedule?: UploadedImageFile[];
     },
   ) {
-    await this.licenseRequestService.assertInitialRequestEligibility(
-      req.sessionPayload!.userId,
-    );
-
-    const result = await this.studentService.submitLicenseRequest(
+    return this.licenseRequestService.submitAndCreateRequest(
       req.sessionPayload!.userId,
       dto,
       files ?? {},
     );
-
-    await this.licenseRequestService.createRequest(req.sessionPayload!.userId);
-
-    return result;
   }
 
   @Post('me/document-update-request')
@@ -149,7 +149,7 @@ export class StudentController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Submit document update request with selected changed documents',
+    summary: 'Enviar solicita??o de atualiza??o de documentos selecionados',
   })
   @ApiBody({
     schema: {
@@ -166,7 +166,7 @@ export class StudentController {
       },
     },
   })
-  @ApiResponse({ status: 201, description: 'Update request submitted successfully.' })
+  @ApiResponse({ status: 201, description: 'Solicita??o de atualiza??o enviada com sucesso.' })
   async submitDocumentUpdateRequest(
     @Req() req: Request,
     @Body('changedDocuments') changedDocumentsRaw: string,
@@ -192,7 +192,7 @@ export class StudentController {
     }),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Upload profile photo' })
+  @ApiOperation({ summary: 'Enviar foto de perfil' })
   @ApiBody({
     schema: {
       type: 'object',
@@ -200,7 +200,7 @@ export class StudentController {
       properties: { photo: { type: 'string', format: 'binary' } },
     },
   })
-  @ApiResponse({ status: 200, description: 'Photo updated.' })
+  @ApiResponse({ status: 200, description: 'Foto atualizada.' })
   updateProfilePhoto(
     @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file: UploadedImageFile,
@@ -211,16 +211,16 @@ export class StudentController {
 
   @Delete('me/photo')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Remove profile photo' })
-  @ApiResponse({ status: 200, description: 'Photo removed.' })
+  @ApiOperation({ summary: 'Remover foto de perfil' })
+  @ApiResponse({ status: 200, description: 'Foto removida.' })
   removeProfilePhoto(@CurrentUser() user: AuthenticatedUser) {
     return this.studentService.removeProfilePhoto(user.id);
   }
 
   @Get('me')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Get own profile' })
-  @ApiResponse({ status: 200, description: 'Student profile.' })
+  @ApiOperation({ summary: 'Obter meu perfil' })
+  @ApiResponse({ status: 200, description: 'Perfil do estudante.' })
   async getProfile(@Req() req: Request) {
     const studentId = req.sessionPayload!.userId;
     const student = await this.studentService.findOneOrFail(studentId);
@@ -242,10 +242,10 @@ export class StudentController {
 
   @Get('stats/dashboard')
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'Dashboard statistics for all students' })
+  @ApiOperation({ summary: 'Estat?sticas do painel de estudantes' })
   @ApiResponse({
     status: 200,
-    description: 'Aggregated student statistics.',
+    description: 'Estat?sticas agregadas dos estudantes.',
     schema: {
       example: {
         totalStudents: 120,
@@ -278,20 +278,20 @@ export class StudentController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'Find student by ID' })
+  @ApiOperation({ summary: 'Buscar estudante por ID' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiResponse({ status: 200, description: 'Student data.' })
-  @ApiResponse({ status: 400, description: 'Invalid ID.' })
-  @ApiResponse({ status: 404, description: 'Not found.' })
+  @ApiResponse({ status: 400, description: 'ID inv?lido.' })
+  @ApiResponse({ status: 404, description: 'N?o encontrado.' })
   findOne(@Param('id', MongoObjectIdPipe) id: string) {
     return this.studentService.findOneOrFail(id);
   }
 
   @Patch('me')
   @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Update own profile' })
+  @ApiOperation({ summary: 'Atualizar meu perfil' })
   @ApiBody({ type: UpdateStudentProfileDto })
-  @ApiResponse({ status: 200, description: 'Profile updated.' })
+  @ApiResponse({ status: 200, description: 'Perfil atualizado.' })
   updateProfile(
     @Req() req: Request,
     @Body() dto: UpdateStudentProfileDto,
@@ -301,12 +301,12 @@ export class StudentController {
 
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
-  @ApiOperation({ summary: 'Update student by ID (admin or employee)' })
+  @ApiOperation({ summary: 'Atualizar estudante por ID (admin ou funcion?rio)' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiBody({ type: UpdateStudentDto })
-  @ApiResponse({ status: 200, description: 'Student updated.' })
-  @ApiResponse({ status: 400, description: 'Invalid data or ID.' })
-  @ApiResponse({ status: 404, description: 'Not found.' })
+  @ApiResponse({ status: 200, description: 'Estudante atualizado.' })
+  @ApiResponse({ status: 400, description: 'Dados ou ID inv?lidos.' })
+  @ApiResponse({ status: 404, description: 'N?o encontrado.' })
   update(
     @Param('id', MongoObjectIdPipe) id: string,
     @Body() dto: UpdateStudentDto,
@@ -316,21 +316,30 @@ export class StudentController {
 
   @Delete(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Remove student (admin only)' })
+  @ApiOperation({ summary: 'Remover estudante (apenas admin)' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId' })
   @ApiResponse({ status: 200, description: 'Student removed.' })
-  @ApiResponse({ status: 400, description: 'Invalid ID.' })
-  @ApiResponse({ status: 404, description: 'Not found.' })
+  @ApiResponse({ status: 400, description: 'ID inv?lido.' })
+  @ApiResponse({ status: 404, description: 'N?o encontrado.' })
   remove(@Param('id', MongoObjectIdPipe) id: string) {
     return this.studentService.remove(id);
   }
 
  @Get('by-bus/:busIdentifier')
  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
- @ApiOperation({ summary: 'List students by bus identifier' })
+ @ApiOperation({ summary: 'Listar estudantes por identificador do ?nibus' })
  @ApiParam({ name: 'busIdentifier', description: 'Bus identifier string (ex: "Ônibus 03")' })
- @ApiResponse({ status: 200, description: 'Students assigned to bus.' })
+ @ApiResponse({ status: 200, description: 'Estudantes vinculados ao ?nibus.' })
  findByBus(@Param('busIdentifier') busIdentifier: string) {
    return this.studentService.findByBus(busIdentifier);
  }
+
+  @Get('by-bus-id/:busId')
+  @Roles(UserRole.ADMIN, UserRole.EMPLOYEE)
+  @ApiOperation({ summary: 'Listar estudantes por ID do ?nibus' })
+  @ApiParam({ name: 'busId', description: 'ObjectId MongoDB do ?nibus' })
+  @ApiResponse({ status: 200, description: 'Estudantes vinculados ao ?nibus.' })
+  findByBusId(@Param('busId') busId: string) {
+    return this.studentService.findByBusId(busId);
+  }
 }

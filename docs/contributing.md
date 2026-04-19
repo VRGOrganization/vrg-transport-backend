@@ -1,51 +1,43 @@
-# Contribuindo
+﻿# Contribuindo
 
-## Pre-requisitos
+## Antes de mudar código
 
-- Node.js 22+
-- npm 10+
-- MongoDB local ou via Docker
+- leia o contrato do módulo afetado em `docs/api-reference/`
+- verifique se a mudança afeta front, backend ou ambos
+- pense em concorrência se a regra envolver vaga, fila ou emissão de carteirinha
+
+## Padrões do projeto
+
+- DTO com `class-validator`
+- controller fino
+- regra no service
+- repositório para acesso ao banco
+- `MongoObjectIdPipe` para IDs de rota
+- `Roles` para autorização
+- `@Public()` somente quando fizer sentido
+- docs atualizadas sempre que o contrato mudar
 
 ## Fluxo recomendado
 
-1. Crie branch por tema: feat, fix, docs, refactor ou test.
-2. Aplique mudanca pequena e verificavel.
-3. Rode testes afetados e depois suite completa.
-4. Atualize docs na pasta docs quando houver mudanca de contrato/regra.
-5. Abra PR com contexto, impacto e evidencias de teste.
+1. Faça a menor mudança possível.
+2. Atualize testes.
+3. Rode `npm run build`.
+4. Rode os testes afetados.
+5. Atualize a documentação relacionada.
 
-## Padroes de codigo do projeto
+## Convenção de commits
 
-- DTO com class-validator.
-- Controller fino, regra no service.
-- Repositorio para acesso a dados.
-- Validacao de ID via MongoObjectIdPipe.
-- Controle de acesso via decorator Roles.
-- Trate concorrencia explicitamente em fluxos criticos.
-
-## Scripts uteis
-
-npm run start:dev
-npm run build
-npm run lint
-npm test
-npm run test:e2e
-npm run seed:admin
-
-## Convencao de commit
-
-- feat: nova funcionalidade
-- fix: correcao de bug
-- docs: documentacao
-- refactor: refatoracao sem mudanca funcional
-- test: testes
-- chore: manutencao
+- `feat:` nova funcionalidade
+- `fix:` correção de bug
+- `docs:` documentação
+- `refactor:` refatoração sem mudança funcional
+- `test:` testes
+- `chore:` manutenção
 
 ## Checklist de PR
 
-- [ ] Regra de negocio validada
-- [ ] Concorrencia revisada (quando aplicavel)
-- [ ] DTO/guard/role revisados
-- [ ] Testes unitarios e e2e executados
-- [ ] Documentacao atualizada
-- [ ] Sem segredo em commit
+- [ ] regra de negócio validada
+- [ ] impacto no front mapeado
+- [ ] testes executados
+- [ ] docs atualizadas
+- [ ] sem segredo ou dado sensível

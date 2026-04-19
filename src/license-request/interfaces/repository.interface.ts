@@ -19,6 +19,10 @@ export interface ILicenseRequestRepository<T> {
     cancellationReason: string,
   ): Promise<number>;
   promoteWaitlistedForPeriod(id: string, enrollmentPeriodId: string): Promise<T | null>;
+  findByEnrollmentPeriodId(enrollmentPeriodId: string): Promise<T[]>;
+  findByEnrollmentPeriodAndBusGrouped(enrollmentPeriodId: string): Promise<any[]>;
+  findByEnrollmentPeriodAndBus(enrollmentPeriodId: string, busId: string): Promise<T[]>;
+  reorderWaitlistedPositions(requestIds: string[]): Promise<number>;
   findAll(): Promise<T[]>;
   findAllByStatus(status: LicenseRequestStatus): Promise<T[]>;
   update(id: string, data: Partial<T>, session?: ClientSession): Promise<T | null>;

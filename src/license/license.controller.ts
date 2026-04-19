@@ -16,7 +16,11 @@ import {
 import type { Request } from 'express';
 import { Observable } from 'rxjs';
 import { LicenseService } from './license.service';
-import { CreateLicenseDto, RejectLicenseDto } from './dto/create-license.dto';
+import {
+  CreateLicenseDto,
+  RejectLicenseDto,
+  UpdateLicenseDto,
+} from './dto/create-license.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
@@ -86,30 +90,30 @@ export class LicenseController {
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Create License',
+    summary: 'Criar carteirinha',
     description:
-      'Emits a new student license. Requires EMPLOYEE or ADMIN role.',
+      'Emite uma nova carteirinha do estudante. Requer papel ADMIN.',
   })
   @ApiBody({ type: CreateLicenseDto })
-  @ApiResponse({ status: 201, description: 'License created successfully.' })
-  @ApiResponse({ status: 400, description: 'Invalid data.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions.' })
+  @ApiResponse({ status: 201, description: 'Carteirinha criada com sucesso.' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos.' })
+  @ApiResponse({ status: 401, description: 'Não autenticado.' })
+  @ApiResponse({ status: 403, description: 'Permissão insuficiente.' })
   async create(@Body() dto: CreateLicenseDto, @Req() req: Request) {
     return this.licenseService.create(dto, req.sessionPayload!.userId);
   }
 
   @Get('/health')
   @ApiOperation({
-    summary: 'Health check do serviço de licenças',
+    summary: 'Verificar sa?de do servi?o de licen?as',
     description:
-      'Verifica o status do serviço externo de geração de carteirinhas. Disponível para ADMIN ou EMPLOYEE.',
+      'Verifica o status do servi?o externo de gera??o de carteirinhas. Dispon?vel para ADMIN.',
   })
-  @ApiResponse({ status: 200, description: 'Service is operational.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
+  @ApiResponse({ status: 200, description: 'Servi?o operacional.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).',
+    description: 'Permiss?o insuficiente (requer papel EMPLOYEE ou ADMIN).',
   })
   checkHealth() {
     return this.licenseService.checkHealth();
@@ -118,14 +122,14 @@ export class LicenseController {
   @Get('/all')
   @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
-    summary: 'List all licenses',
-    description: 'Returns all registered licenses.',
+    summary: 'Listar carteirinhas',
+    description: 'Retorna todas as carteirinhas cadastradas.',
   })
-  @ApiResponse({ status: 200, description: 'List of licenses.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
+  @ApiResponse({ status: 200, description: 'Lista de carteirinhas.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).',
+    description: 'Permiss?o insuficiente (requer papel EMPLOYEE ou ADMIN).',
   })
   async findAll() {
     return this.licenseService.getAll();
@@ -134,23 +138,23 @@ export class LicenseController {
   @Get('/searchByStudent/:studentId')
   @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
-    summary: 'Find license by student ID',
-    description: 'Returns the license associated with a specific student.',
+    summary: 'Buscar carteirinha por aluno',
+    description: 'Retorna a carteirinha associada a um aluno espec?fico.',
   })
   @ApiParam({
     name: 'studentId',
     description: 'Student ID (MongoDB ObjectId)',
     example: '6650a1f2c3d4e5f6a7b8c9d0',
   })
-  @ApiResponse({ status: 200, description: 'License for the student.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
+  @ApiResponse({ status: 200, description: 'Carteirinha do aluno.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).',
+    description: 'Permiss?o insuficiente (requer papel EMPLOYEE ou ADMIN).',
   })
   @ApiResponse({
     status: 404,
-    description: 'License not found for this student.',
+    description: 'Carteirinha n?o encontrada para este aluno.',
   })
   async findByStudent(
     @Param('studentId', MongoObjectIdPipe) studentId: string,
@@ -161,11 +165,11 @@ export class LicenseController {
   @Get('/me')
   @Roles(UserRole.STUDENT)
   @ApiOperation({
-    summary: 'Get my license',
-    description: 'Returns the license of the authenticated student.',
+    summary: 'Buscar minha carteirinha',
+    description: 'Retorna a carteirinha do estudante autenticado.',
   })
-  @ApiResponse({ status: 200, description: 'License data.' })
-  @ApiResponse({ status: 404, description: 'License not found.' })
+  @ApiResponse({ status: 200, description: 'Dados da carteirinha.' })
+  @ApiResponse({ status: 404, description: 'Carteirinha n?o encontrada.' })
   async findMine(@Req() req: Request) {
     return this.licenseService.getLicenseByStudentId(
       req.sessionPayload!.userId,
@@ -175,21 +179,21 @@ export class LicenseController {
   @Get('/:id')
   @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
-    summary: 'Find license by ID',
-    description: 'Returns the data of a specific license.',
+    summary: 'Buscar carteirinha por ID',
+    description: 'Retorna os dados de uma carteirinha espec?fica.',
   })
   @ApiParam({
     name: 'id',
-    description: 'License ID (MongoDB ObjectId)',
+    description: 'ID da carteirinha (MongoDB ObjectId)',
     example: '6650a1f2c3d4e5f6a7b8c9d0',
   })
-  @ApiResponse({ status: 200, description: 'License data.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
+  @ApiResponse({ status: 200, description: 'Dados da carteirinha.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).',
+    description: 'Permiss?o insuficiente (requer papel EMPLOYEE ou ADMIN).',
   })
-  @ApiResponse({ status: 404, description: 'License not found.' })
+  @ApiResponse({ status: 404, description: 'Carteirinha n?o encontrada.' })
   async findOne(@Param('id', MongoObjectIdPipe) id: string) {
     return this.licenseService.getLicenseById(id);
   }
@@ -197,26 +201,26 @@ export class LicenseController {
   @Patch('/update/:id')
   @Roles(UserRole.EMPLOYEE, UserRole.ADMIN)
   @ApiOperation({
-    summary: 'Update license',
-    description: 'Updates the data of an existing license.',
+    summary: 'Atualizar carteirinha',
+    description: 'Atualiza os dados de uma carteirinha existente.',
   })
   @ApiParam({
     name: 'id',
-    description: 'License ID (MongoDB ObjectId)',
+    description: 'ID da carteirinha (MongoDB ObjectId)',
     example: '6650a1f2c3d4e5f6a7b8c9d0',
   })
   @ApiBody({ type: CreateLicenseDto })
-  @ApiResponse({ status: 200, description: 'License updated successfully.' })
-  @ApiResponse({ status: 400, description: 'Invalid data.' })
-  @ApiResponse({ status: 401, description: 'Not authenticated.' })
+  @ApiResponse({ status: 200, description: 'Carteirinha atualizada com sucesso.' })
+  @ApiResponse({ status: 400, description: 'Dados inv?lidos.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires EMPLOYEE or ADMIN role).',
+    description: 'Permiss?o insuficiente (requer papel EMPLOYEE ou ADMIN).',
   })
-  @ApiResponse({ status: 404, description: 'License not found.' })
+  @ApiResponse({ status: 404, description: 'Carteirinha n?o encontrada.' })
   async update(
     @Param('id', MongoObjectIdPipe) id: string,
-    @Body() dto: CreateLicenseDto,
+    @Body() dto: UpdateLicenseDto,
     @Req() req: Request,
   ) {
     return this.licenseService.update(id, dto, req.sessionPayload!.userId);
@@ -227,12 +231,12 @@ export class LicenseController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Recusar carteirinha',
-    description: 'Marca a licença como recusada e notifica o aluno por email.',
+    description: 'Marca a carteirinha como recusada e notifica o aluno por email.',
   })
-  @ApiParam({ name: 'id', description: 'License ID (MongoDB ObjectId)' })
+  @ApiParam({ name: 'id', description: 'ID da carteirinha (MongoDB ObjectId)' })
   @ApiBody({ type: RejectLicenseDto })
-  @ApiResponse({ status: 200, description: 'Licença recusada com sucesso.' })
-  @ApiResponse({ status: 404, description: 'Licença não encontrada.' })
+  @ApiResponse({ status: 200, description: 'Carteirinha recusada com sucesso.' })
+  @ApiResponse({ status: 404, description: 'Carteirinha n?o encontrada.' })
   async reject(
     @Param('id', MongoObjectIdPipe) id: string,
     @Body() dto: RejectLicenseDto,
@@ -247,24 +251,24 @@ export class LicenseController {
 
   @Delete('/delete/:id')
   @ApiOperation({
-    summary: 'Remove license',
-    description: 'Removes a license permanently.',
+    summary: 'Remover carteirinha',
+    description: 'Remove uma carteirinha permanentemente.',
   })
   @ApiParam({
     name: 'id',
-    description: 'License ID (MongoDB ObjectId)',
+    description: 'ID da carteirinha (MongoDB ObjectId)',
     example: '6650a1f2c3d4e5f6a7b8c9d0',
   })
-  @ApiResponse({ status: 200, description: 'License removed successfully.' })
-  @ApiResponse({ status: 401, description: 'NNot authenticated.' })
+  @ApiResponse({ status: 200, description: 'Carteirinha removida com sucesso.' })
+  @ApiResponse({ status: 401, description: 'N?o autenticado.' })
   @ApiResponse({
     status: 403,
-    description: 'Insufficient permissions (requires ADMIN role).',
+    description: 'Permiss?o insuficiente (requer papel ADMIN).',
   })
-  @ApiResponse({ status: 404, description: 'License not found.' })
+  @ApiResponse({ status: 404, description: 'Carteirinha n?o encontrada.' })
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
-  async remove(@Param('id', MongoObjectIdPipe) id: string) {
-    return this.licenseService.remove(id);
+  async remove(@Param('id', MongoObjectIdPipe) id: string, @Req() req: Request) {
+    return this.licenseService.remove(id, req.sessionPayload!.userId);
   }
 }

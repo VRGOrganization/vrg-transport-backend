@@ -5,10 +5,10 @@ import { LicenseController } from './license.controller';
 import { LicenseRepository } from './repository/license.repository';
 import { License, LicenseSchema } from './schemas/license.schema';
 import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
-import { StudentModule } from 'src/student/student.module';
-import { AuditModule } from 'src/common/audit/audit.module';
-import { MailModule } from 'src/mail/mail.module';
-import { LicenseRequestModule } from 'src/license-request/license-request.module';
+import { AuditModule } from '../common/audit/audit.module';
+import { MailModule } from '../mail/mail.module';
+import { LicenseRequestModule } from '../license-request/license-request.module';
+import { StudentModule } from '../student/student.module';
 
 @Module({
   controllers: [LicenseController],
@@ -22,8 +22,8 @@ import { LicenseRequestModule } from 'src/license-request/license-request.module
   imports: [
     AuditModule,
     MailModule,
-    forwardRef(() => LicenseRequestModule),
     forwardRef(() => StudentModule),
+    forwardRef(() => LicenseRequestModule),
     MongooseModule.forFeature([
       { name: License.name, schema: LicenseSchema },
     ]),

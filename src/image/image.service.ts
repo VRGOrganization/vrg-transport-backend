@@ -7,7 +7,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import { Image } from './schema/image.schema';
 import { CreateImageDto, UpdateImageDto, UploadMyDocumentDto } from './dto/image.dto';
 import { PhotoType } from './types/photoType.enum';
@@ -27,7 +27,7 @@ export class ImagesService {
     private readonly imageHistoryModel: Model<ImageHistoryDocument>,
   ) {}
 
-  async create(dto: CreateImageDto): Promise<Image> {
+  async create(dto: CreateImageDto, session?: ClientSession): Promise<Image> {
     const existing = await this.imageRepository.findOneByStudentAndPhotoType(
       dto.studentId,
       dto.photoType,
@@ -68,7 +68,7 @@ export class ImagesService {
       photo3x4: dto.photo3x4 ?? null,
       documentImage: dto.documentImage ?? null,
       studentCard: null,
-    });
+    }, session);
   }
 
   async createForStudent(studentId: string, dto: UploadMyDocumentDto): Promise<Image> {
@@ -197,7 +197,7 @@ export class ImagesService {
     return update as Partial<UpdateImageDto>;
   }
 
-  async update(id: string, dto: UpdateImageDto): Promise<Image> {
+  async update(id: string, dto: UpdateImageDto, session?: ClientSession): Promise<Image> {
     const update = this.pickDefined(dto);
 
     if (update.photo3x4) {
@@ -210,6 +210,7 @@ export class ImagesService {
     const image = await this.imageRepository.updateById(
       id,
       update as Partial<Image>,
+      session,
     );
 
     if (!image) throw new NotFoundException(`Imagem ${id} não encontrada`);
@@ -219,6 +220,7 @@ export class ImagesService {
   async updateByStudentId(
     studentId: string,
     dto: UpdateImageDto,
+    session?: ClientSession,
   ): Promise<Image> {
     const update = this.pickDefined(dto);
     if (update.photo3x4) {
@@ -231,6 +233,7 @@ export class ImagesService {
     const image = await this.imageRepository.updateProfilePhotoByStudentId(
       studentId,
       update as Partial<Image>,
+      session,
     );
 
     if (!image) {

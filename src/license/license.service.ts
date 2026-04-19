@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  forwardRef,
   NotFoundException,
   BadGatewayException,
   BadRequestException,
@@ -15,7 +16,7 @@ import { Observable, Subject } from 'rxjs';
 import { isUUID } from 'class-validator';
 import type { ILicenseRepository } from './interfaces/repository.interface';
 import { LICENSE_REPOSITORY } from './interfaces/repository.interface';
-import { CreateLicenseDto } from './dto/create-license.dto';
+import { CreateLicenseDto, UpdateLicenseDto } from './dto/create-license.dto';
 import { License, LicenseStatus } from './schemas/license.schema';
 import { nowInBR, addMonthsBR } from '../common/utils/date.utils';
 import { StudentService } from '../student/student.service';
@@ -54,6 +55,7 @@ export class LicenseService {
     private readonly licenseRepository: ILicenseRepository<License>,
     @Inject(LICENSE_REQUEST_REPOSITORY)
     private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
+    @Inject(forwardRef(() => StudentService))
     private readonly studentService: StudentService,
     private readonly configService: ConfigService,
     private readonly auditLog: AuditLogService,
@@ -68,6 +70,8 @@ export class LicenseService {
     );
     cleanupTimer.unref?.();
   }
+
+  // StudentService injected directly via constructor
 
   issueSseTicket(studentId: string): { ticket: string; expiresInMs: number } {
     this.pruneExpiredSseTickets();
@@ -161,6 +165,7 @@ export class LicenseService {
     enrollmentPeriodId: string | null = null,
     skipApprovedRequestValidation = false,
     session?: import('mongoose').ClientSession,
+    cardContext?: { cardNote?: string | null; accessBusIdentifiers?: string[] },
   ): Promise<License> {
     if (!skipApprovedRequestValidation) {
       await this.assertHasApprovedRequest(dto.id);
@@ -190,7 +195,9 @@ export class LicenseService {
       bus: dto.bus,
       photo: normalizedPhoto,
       qr_code_url: qrCodeUrl,
-    }
+      card_note: cardContext?.cardNote ?? null,
+      access_bus_identifiers: cardContext?.accessBusIdentifiers ?? [dto.bus],
+    };
 
     const data = await this.callLicenseApi(payload);
     await this.auditLog.record({
@@ -303,12 +310,19 @@ export class LicenseService {
     return this.licenseRepository.findAll();
   }
 
-  async remove(id: string): Promise<{ message: string }> {
+  async remove(id: string, employeeId?: string): Promise<{ message: string }> {
     const existing = await this.licenseRepository.findOne(id);
     const result = await this.licenseRepository.remove(id);
     if (!result) {
       throw new NotFoundException(`Licença ${id} não encontrada`);
     }
+
+    await this.auditLog.record({
+      action: 'license.remove',
+      outcome: 'success',
+      actor: employeeId ? { id: employeeId, role: 'employee' } : null,
+      target: { licenseId: id, studentId: existing?.studentId },
+    });
 
     if (existing?.studentId) {
       this.emitLicenseEvent(existing.studentId, {
@@ -374,32 +388,78 @@ export class LicenseService {
     };
   }
 
-  async update(id: string, dto: CreateLicenseDto, employeeId: string): Promise<License> {
-    const oldLicense = await this.licenseRepository.findOne(id);
-    const newLicense = await this.create(dto, employeeId);
-
-    try {
-      await this.remove(id);
-
-      if (newLicense.studentId) {
-        this.emitLicenseEvent(newLicense.studentId, {
-          type: 'license.changed',
-          reason: 'updated',
-        });
-      }
-
-      if (oldLicense?.studentId && oldLicense.studentId !== newLicense.studentId) {
-        this.emitLicenseEvent(oldLicense.studentId, {
-          type: 'license.changed',
-          reason: 'updated',
-        });
-      }
-
-      return newLicense;
-    } catch (error) {
-      await this.licenseRepository.remove((newLicense as any)._id.toString()).catch(() => undefined);
-      throw error;
+  async update(
+    id: string,
+    dto: UpdateLicenseDto,
+    employeeId: string,
+    cardContext?: { cardNote?: string | null; accessBusIdentifiers?: string[] },
+  ): Promise<License> {
+    const existing = await this.licenseRepository.findOne(id);
+    if (!existing) {
+      throw new NotFoundException(`Licença ${id} não encontrada`);
     }
+
+    const studentId = existing.studentId;
+    const student = await this.studentService.findOneOrFail(studentId);
+
+    const verificationCode = randomUUID();
+    const qrCodeUrl = `${this.qrCodeBaseUrl}/${verificationCode}`;
+
+    const normalizedPhoto = this.normalizePhotoForLicenseApi(dto.photo);
+    if (normalizedPhoto && normalizedPhoto.length > this.MAX_PHOTO_SIZE_BYTES) {
+      throw new BadRequestException('Foto excede o tamanho máximo permitido de 5MB');
+    }
+
+    const payload = {
+      id: studentId,
+      employee_id: employeeId,
+      name: student.name,
+      degree: student.degree,
+      institution: dto.institution,
+      shift: student.shift,
+      telephone: student.telephone,
+      blood_type: student.bloodType,
+      bus: dto.bus,
+      photo: normalizedPhoto,
+      qr_code_url: qrCodeUrl,
+      card_note: cardContext?.cardNote ?? null,
+      access_bus_identifiers: cardContext?.accessBusIdentifiers ?? [dto.bus],
+    };
+
+    const data = await this.callLicenseApi(payload);
+
+    const licenseValidityMonths = 6;
+
+    const updated = await this.licenseRepository.update(id, {
+      studentId,
+      employeeId,
+      imageLicense: data.image,
+      status: LicenseStatus.ACTIVE,
+      existing: true,
+      expirationDate: addMonthsBR(nowInBR(), licenseValidityMonths),
+      verificationCode,
+      qrCodeUrl,
+      rejectionReason: null,
+      rejectedAt: null,
+    });
+
+    if (!updated) {
+      throw new NotFoundException(`Licença ${id} não encontrada`);
+    }
+
+    await this.auditLog.record({
+      action: 'license.update',
+      outcome: 'success',
+      actor: { id: employeeId, role: 'employee' },
+      target: { studentId, licenseId: id },
+    });
+
+    this.emitLicenseEvent(studentId, {
+      type: 'license.changed',
+      reason: 'updated',
+    });
+
+    return updated;
   }
 
   async regenerateExistingForStudent(
@@ -407,6 +467,7 @@ export class LicenseService {
     dto: { institution: string; bus: string; photo?: string },
     employeeId: string,
     licenseValidityMonths = 6,
+    cardContext?: { cardNote?: string | null; accessBusIdentifiers?: string[] },
   ): Promise<License> {
     const existing = await this.licenseRepository.findOneByStudentId(studentId);
     if (!existing) {
@@ -435,6 +496,8 @@ export class LicenseService {
       bus: dto.bus,
       photo: normalizedPhoto,
       qr_code_url: qrCodeUrl,
+      card_note: cardContext?.cardNote ?? null,
+      access_bus_identifiers: cardContext?.accessBusIdentifiers ?? [dto.bus],
     };
 
     const data = await this.callLicenseApi(payload);

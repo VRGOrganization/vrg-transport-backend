@@ -36,13 +36,13 @@ export class UniversityRepository implements IUniversityRepository<University> {
 
   async update(id: string, data: Partial<University>): Promise<University | null> {
     return this.universityModel
-      .findByIdAndUpdate(id, { $set: data }, { new: true })
+      .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after' })
       .exec();
   }
 
   async deactivate(id: string): Promise<boolean> {
     const result = await this.universityModel
-      .findByIdAndUpdate(id, { $set: { active: false } }, { new: true })
+      .findByIdAndUpdate(id, { $set: { active: false } }, { returnDocument: 'after' })
       .exec();
     return !!result;
   }

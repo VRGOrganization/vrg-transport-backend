@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import { Image, ImageDocument } from './schema/image.schema';
 import {
 	ImageHistory,
@@ -18,9 +18,9 @@ export class ImageRepository implements IImageRepository {
 		private readonly imageHistoryModel: Model<ImageHistoryDocument>,
 	) {}
 
-	async create(data: Partial<Image>): Promise<Image> {
+	async create(data: Partial<Image>, session?: ClientSession): Promise<Image> {
 		const image = new this.imageModel(data);
-		return image.save();
+		return image.save({ session });
 	}
 
 	async findOneByFilter(
@@ -69,15 +69,16 @@ export class ImageRepository implements IImageRepository {
 			.exec();
 	}
 
-	async updateById(id: string, data: Partial<Image>): Promise<Image | null> {
+	async updateById(id: string, data: Partial<Image>, session?: ClientSession): Promise<Image | null> {
 		return this.imageModel
 			.findByIdAndUpdate(
 				id,
 				{ $set: data },
 				{
-					new: true,
+					returnDocument: 'after',
 					runValidators: true,
 					context: 'query',
+          session,
 				},
 			)
 			.exec();
@@ -86,15 +87,17 @@ export class ImageRepository implements IImageRepository {
 	async updateProfilePhotoByStudentId(
 		studentId: string,
 		data: Partial<Image>,
+    session?: ClientSession,
 	): Promise<Image | null> {
 		return this.imageModel
 			.findOneAndUpdate(
 				{ studentId, photoType: PhotoType.ProfilePhoto, active: true },
 				{ $set: data },
 				{
-					new: true,
+					returnDocument: 'after',
 					runValidators: true,
 					context: 'query',
+          session,
 				},
 			)
 			.exec();
@@ -105,7 +108,7 @@ export class ImageRepository implements IImageRepository {
 			.findByIdAndUpdate(
 				id,
 				{ $set: { active: false } },
-				{ new: true, runValidators: true },
+				{ returnDocument: 'after', runValidators: true },
 			)
 			.exec();
 
@@ -136,3 +139,4 @@ export class ImageRepository implements IImageRepository {
 		await history.save();
 	}
 }
+

@@ -9,6 +9,7 @@ import {
   ValidateNested,
   IsIn,
   ArrayMinSize,
+  IsMongoId,
 } from 'class-validator';
 import { plainToInstance, Transform, Type } from 'class-transformer';
 import { OmitType, PartialType } from '@nestjs/swagger';
@@ -118,6 +119,13 @@ export class UpdateStudentProfileDto extends OmitType(
   PartialType(CreateStudentDto),
   ['bus'] as const,
 ) {
+  @ApiPropertyOptional({
+    example: '64a7f1e2b5d6c2f9a0e12345',
+    description: 'MongoDB ObjectId da universidade selecionada (opcional)',
+  })
+  @IsOptional()
+  @IsMongoId({ message: 'universityId inválido' })
+  universityId?: string;
   @ApiPropertyOptional({
     type: [DayPeriodDto],
     description: 'Grade horária selecionada',

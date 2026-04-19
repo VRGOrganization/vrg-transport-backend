@@ -31,6 +31,7 @@ export class EnrollmentPeriodService {
     private readonly repository: IEnrollmentPeriodRepository<EnrollmentPeriod>,
     @Inject(LICENSE_REQUEST_REPOSITORY)
     private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
+    @Inject(forwardRef(() => StudentService))
     private readonly studentService: StudentService,
     private readonly mailService: MailService,
     private readonly licenseService: LicenseService,
@@ -43,7 +44,6 @@ export class EnrollmentPeriodService {
     dto: CreateEnrollmentPeriodDto,
     adminId: string,
   ): Promise<EnrollmentPeriod> {
-    await this.licenseService.deactivateExpiredLicenses();
 
     const active = await this.repository.findActive();
     if (active) {
@@ -61,6 +61,21 @@ export class EnrollmentPeriodService {
     const startDate = new Date(dto.startDate);
     const endDate = new Date(dto.endDate);
     this.assertValidDateRange(startDate, endDate);
+
+    // Valida: totalSlots nao pode ser menor que a soma das capacidades dos onibus (quando definida)
+    let activeBuses: any[] = [];
+    if (this.busService && typeof this.busService.findAllActive === 'function') {
+      activeBuses = await this.busService.findAllActive();
+    }
+    const sumCapacities = (activeBuses || []).reduce((acc: number, b: any) => {
+      const cap = (b as any)?.capacity;
+      return acc + (typeof cap === 'number' && cap > 0 ? cap : 0);
+    }, 0);
+    if (sumCapacities > 0 && dto.totalSlots < sumCapacities) {
+      throw new BadRequestException(
+        `Nao e possivel criar um periodo com totalSlots (${dto.totalSlots}) menor que a soma das capacidades dos onibus (${sumCapacities}).`,
+      );
+    }
 
     const created = await this.repository
       .create({
@@ -99,7 +114,6 @@ export class EnrollmentPeriodService {
   }
 
   async getActive(): Promise<EnrollmentPeriod | null> {
-    await this.licenseService.deactivateExpiredLicenses();
 
     const active = await this.repository.findActive();
     if (!active) {
@@ -140,13 +154,22 @@ export class EnrollmentPeriodService {
       throw new NotFoundException('Periodo de inscricao nao encontrado.');
     }
 
-    if (
-      dto.totalSlots !== undefined &&
-      dto.totalSlots < current.filledSlots
-    ) {
-      throw new ConflictException(
-        'Nao e possivel reduzir o total de vagas abaixo das vagas preenchidas.',
-      );
+    // Se for alterar totalSlots, valida contra vagas preenchidas e soma das capacidades dos onibus (quando aplicavel)
+    if (dto.totalSlots !== undefined) {
+      let activeBuses: any[] = [];
+      if (this.busService && typeof this.busService.findAllActive === 'function') {
+        activeBuses = await this.busService.findAllActive();
+      }
+      const sumCapacities = (activeBuses || []).reduce((acc: number, b: any) => {
+        const cap = (b as any)?.capacity;
+        return acc + (typeof cap === 'number' && cap > 0 ? cap : 0);
+      }, 0);
+      const minAllowed = Math.max(current.filledSlots ?? 0, sumCapacities > 0 ? sumCapacities : 0);
+      if (dto.totalSlots < minAllowed) {
+        throw new ConflictException(
+          'Nao e possivel reduzir o total de vagas abaixo das vagas preenchidas ou abaixo da soma das capacidades dos onibus.',
+        );
+      }
     }
 
     const startDate =
@@ -180,7 +203,6 @@ export class EnrollmentPeriodService {
         previousValidity,
         nextValidity,
       );
-      await this.licenseService.deactivateExpiredLicenses();
     }
 
     if (updated.active && this.isWindowExpired(updated.endDate)) {
@@ -294,6 +316,11 @@ export class EnrollmentPeriodService {
       .slice(0, quantity);
   }
 
+  async findWaitlisted(periodId: string): Promise<LicenseRequest[]> {
+    await this.assertPeriodExists(periodId);
+    return this.licenseRequestRepository.findWaitlistedByEnrollmentPeriod(periodId);
+  }
+
   async confirmReleaseSlots(
     periodId: string,
     requestIds: string[],
@@ -359,12 +386,9 @@ export class EnrollmentPeriodService {
       (a, b) => this.toTime(a.createdAt) - this.toTime(b.createdAt),
     );
 
-    for (let index = 0; index < sortedRemaining.length; index += 1) {
-      const request = sortedRemaining[index];
-      await this.licenseRequestRepository.update(this.toId(request), {
-        filaPosition: index + 1,
-      });
-    }
+    await this.licenseRequestRepository.reorderWaitlistedPositions(
+      sortedRemaining.map((request) => this.toId(request)),
+    );
 
     await this.auditLog.record({
       action: 'enrollment_period.release_slots',

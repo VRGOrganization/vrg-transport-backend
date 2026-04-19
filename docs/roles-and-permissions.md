@@ -1,105 +1,69 @@
-# Roles e Permissoes
+﻿# Papéis e permissões
 
-## Roles
+## Papéis
 
-| Role | Valor de sessao | Escopo |
-|---|---|---|
-| ADMIN | admin | Gestao total |
-| EMPLOYEE | employee | Operacao de atendimento |
-| STUDENT | student | Operacoes do proprio cadastro |
+| Role | Escopo |
+|---|---|
+| `ADMIN` | gestão total do sistema |
+| `EMPLOYEE` | operação de atendimento |
+| `STUDENT` | ações do próprio cadastro |
 
-## Auth (todos exigem x-service-secret)
+## Visão resumida
 
-| Endpoint | Publico | STUDENT | EMPLOYEE | ADMIN |
-|---|---|---|---|---|
-| POST /auth/student/register | sim | - | - | - |
-| POST /auth/student/verify | sim | - | - | - |
-| POST /auth/student/resend-code | sim | - | - | - |
-| POST /auth/student/login | sim | - | - | - |
-| POST /auth/employee/login | sim | - | - | - |
-| POST /auth/admin/login | sim | - | - | - |
-| GET /auth/me | nao | sim | sim | sim |
-| POST /auth/logout | sim | sim | sim | sim |
-| GET /auth/admin/dashboard | nao | nao | nao | sim |
+### Auth
 
-## Students
+- rotas de registro/login/verify/reset exigem `x-service-secret`
+- `GET /auth/me` exige sessão
+- `GET /auth/admin/dashboard` exige `ADMIN`
+
+### Student
 
 | Endpoint | STUDENT | EMPLOYEE | ADMIN |
 |---|---|---|---|
-| GET /student | nao | sim | sim |
-| POST /student/schedule | sim | nao | nao |
-| POST /student/me/license-submit | sim | nao | nao |
-| POST /student/me/document-update-request | sim | nao | nao |
-| PATCH /student/me/photo | sim | nao | nao |
-| DELETE /student/me/photo | sim | nao | nao |
-| GET /student/me | sim | nao | nao |
-| GET /student/stats/dashboard | nao | sim | sim |
-| GET /student/:id | nao | sim | sim |
-| PATCH /student/me | sim | nao | nao |
-| PATCH /student/:id | nao | sim | sim |
-| DELETE /student/:id | nao | nao | sim |
+| `GET /student` | - | sim | sim |
+| `GET /student/inactive` | - | sim | sim |
+| `POST /student/schedule` | sim | - | - |
+| `POST /student/me/license-submit` | sim | - | - |
+| `POST /student/me/document-update-request` | sim | - | - |
+| `PATCH /student/me/photo` | sim | - | - |
+| `DELETE /student/me/photo` | sim | - | - |
+| `GET /student/me` | sim | - | - |
+| `GET /student/stats/dashboard` | - | sim | sim |
+| `GET /student/:id` | - | sim | sim |
+| `PATCH /student/me` | sim | - | - |
+| `PATCH /student/:id` | - | sim | sim |
+| `DELETE /student/:id` | - | - | sim |
 
-## Employees
-
-Todos os endpoints de employee exigem ADMIN.
-
-## Enrollment Period
+### License Request
 
 | Endpoint | STUDENT | EMPLOYEE | ADMIN |
 |---|---|---|---|
-| POST /enrollment-period | nao | nao | sim |
-| GET /enrollment-period | nao | nao | sim |
-| GET /enrollment-period/active | sim | sim | sim |
-| PATCH /enrollment-period/:id | nao | nao | sim |
-| PATCH /enrollment-period/:id/close | nao | nao | sim |
-| PATCH /enrollment-period/:id/reopen | nao | nao | sim |
-| GET /enrollment-period/:id/waitlist | nao | nao | sim |
-| POST /enrollment-period/:id/release-slots | nao | nao | sim |
-| POST /enrollment-period/:id/confirm-release | nao | nao | sim |
+| `GET /license-request/me` | sim | - | - |
+| `GET /license-request/all` | - | sim | sim |
+| `GET /license-request/pending` | - | sim | sim |
+| `GET /license-request/student/:studentId` | - | sim | sim |
+| `PATCH /license-request/approve/:id` | - | sim | sim |
+| `PATCH /license-request/reject/:id` | - | sim | sim |
 
-## License Request
+### License
 
 | Endpoint | STUDENT | EMPLOYEE | ADMIN |
 |---|---|---|---|
-| GET /license-request/all | nao | sim | sim |
-| GET /license-request/pending | nao | sim | sim |
-| GET /license-request/me | sim | nao | nao |
-| GET /license-request/student/:studentId | nao | sim | sim |
-| PATCH /license-request/approve/:id | nao | sim | sim |
-| PATCH /license-request/reject/:id | nao | sim | sim |
+| `POST /license/events/token` | sim | - | - |
+| `GET /license/events?ticket=...` | sim | sim | sim |
+| `GET /license/verify/:code` | público | público | público |
+| `POST /license/create` | - | - | sim |
+| `GET /license/health` | - | sim | sim |
+| `GET /license/all` | - | sim | sim |
+| `GET /license/searchByStudent/:studentId` | - | sim | sim |
+| `GET /license/me` | sim | - | - |
+| `GET /license/:id` | - | sim | sim |
+| `PATCH /license/update/:id` | - | sim | sim |
+| `PATCH /license/reject/:id` | - | sim | sim |
+| `DELETE /license/delete/:id` | - | - | sim |
 
-## License
+### Bus / University / Course / Employee
 
-| Endpoint | Publico | STUDENT | EMPLOYEE | ADMIN |
-|---|---|---|---|---|
-| POST /license/events/token | nao | sim | nao | nao |
-| GET /license/events?ticket=... | sim (ticket) | sim | sim | sim |
-| GET /license/verify/:code | sim | sim | sim | sim |
-| POST /license/create | nao | nao | nao | sim |
-| GET /license/health | nao | nao | sim | sim |
-| GET /license/all | nao | nao | sim | sim |
-| GET /license/searchByStudent/:studentId | nao | nao | sim | sim |
-| GET /license/me | nao | sim | nao | nao |
-| GET /license/:id | nao | nao | sim | sim |
-| PATCH /license/update/:id | nao | nao | sim | sim |
-| PATCH /license/reject/:id | nao | nao | sim | sim |
-| DELETE /license/delete/:id | nao | nao | nao | sim |
-
-## Image
-
-| Endpoint | STUDENT | EMPLOYEE | ADMIN |
-|---|---|---|---|
-| POST /image | nao | sim | sim |
-| GET /image | nao | sim | sim |
-| POST /image/me | sim | nao | nao |
-| GET /image/me | sim | nao | nao |
-| GET /image/me/profile | sim | nao | nao |
-| GET /image/student/me | sim | nao | nao |
-| GET /image/history/student/:studentId | nao | sim | sim |
-| GET /image/student/:studentId | nao | sim | sim |
-| GET /image/:id/file | sim (somente dono) | nao | nao |
-| GET /image/:id | nao | sim | sim |
-| PATCH /image/student/:studentId/profile | nao | sim | sim |
-| PATCH /image/:id | nao | sim | sim |
-| DELETE /image/student/:studentId | nao | nao | sim |
-| DELETE /image/:id | nao | nao | sim |
+- CRUD administrativo usa `ADMIN`
+- a listagem pública existe apenas onde o controller marcou `@Public()`
+- rotas `inactive` existem separadas para não colidir com `:id`

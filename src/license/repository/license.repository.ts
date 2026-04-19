@@ -28,13 +28,17 @@ export class LicenseRepository implements ILicenseRepository<License> {
 
   async remove(id: string): Promise<boolean> {
     const result = await this.licenseModel
-      .findByIdAndUpdate(id, {$set: { status: 'inactive', existing: false }}, { new: true })
+      .findByIdAndUpdate(
+        id,
+        { $set: { status: LicenseStatus.INACTIVE, existing: false } },
+        { returnDocument: 'after' },
+      )
       .exec();
     return !!result;
   }
 
   async update(id: string, data: Partial<License>): Promise<License | null> {
-    return this.licenseModel.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true, context: 'query' })
+    return this.licenseModel.findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after', runValidators: true, context: 'query' })
     .exec();
   }
 
@@ -70,3 +74,4 @@ export class LicenseRepository implements ILicenseRepository<License> {
     return this.licenseModel.findOne({ verificationCode: code }).exec();
   }
 }
+

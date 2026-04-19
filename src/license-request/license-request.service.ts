@@ -17,12 +17,15 @@ import type { ILicenseRequestRepository } from './interfaces/repository.interfac
 import {
   LicenseRequest,
   LicenseRequestStatus,
+  LicenseRequestType,
 } from './schemas/license-request.schema';
 import { ApproveLicenseRequestDto } from './dto/license-request.dto';
+import { SubmitLicenseRequestFormDto } from '../student/dto/student.dto';
 import { PhotoType } from '../image/types/photoType.enum';
 import { ImagesService } from '../image/image.service';
 import { Types } from 'mongoose';
 import { BusService } from '../bus/bus.service';
+import { Shift } from '../common/interfaces/student-attributes.enum';
 
 type UploadedImageFile = {
   buffer: Buffer;
@@ -47,112 +50,193 @@ export class LicenseRequestService {
     private readonly auditLog: AuditLogService,
   ) {}
 
-  async assertInitialRequestEligibility(studentId: string): Promise<void> {
-    const requests = await this.repository.findByStudentId(studentId);
-    const existingPendingOrWaitlistedInitial = requests.find(
-      (request) =>
-        (request.status === LicenseRequestStatus.PENDING ||
-          request.status === LicenseRequestStatus.WAITLISTED) &&
-        request.type === 'initial',
-    );
-
-    if (existingPendingOrWaitlistedInitial) {
-      throw new BadRequestException(
-        'Você já possui uma solicitação em andamento. Aguarde a análise antes de enviar uma nova.',
-      );
-    }
-
-    const activePeriod = await this.enrollmentPeriodService.getActive();
-
-    if (!activePeriod) {
-      throw new BadRequestException(
-        'Inscrições encerradas. Aguarde a abertura de um novo período.',
-      );
-    }
-
-    this.assertPeriodWindow(activePeriod.startDate, activePeriod.endDate);
+  private createRequestRecord(data: any, session?: ClientSession) {
+    return session ? this.repository.create(data, session) : this.repository.create(data);
   }
 
-  async createRequest(studentId: string): Promise<LicenseRequest> {
-    const requests = await this.repository.findByStudentId(studentId);
-    const existingPendingOrWaitlistedInitial = requests.find(
-      (request) =>
-        (request.status === LicenseRequestStatus.PENDING ||
-          request.status === LicenseRequestStatus.WAITLISTED) &&
-        request.type === 'initial',
-    );
-
-    if (existingPendingOrWaitlistedInitial) {
-      throw new BadRequestException(
-        'Você já possui uma solicitação em andamento. Aguarde a análise antes de enviar uma nova.',
-      );
+  private toStringId(value: unknown): string | null {
+    if (!value) {
+      return null;
     }
 
-    const activePeriod = await this.enrollmentPeriodService.getActive();
-
-    if (!activePeriod) {
-      throw new BadRequestException(
-        'Inscrições encerradas. Aguarde a abertura de um novo período.',
-      );
+    if (typeof value === 'string') {
+      return value;
     }
 
-    this.assertPeriodWindow(activePeriod.startDate, activePeriod.endDate);
+    return (value as { toString?: () => string }).toString?.() ?? null;
+  }
 
-    const enrollmentPeriodId = (activePeriod as any)._id?.toString?.();
-    if (!enrollmentPeriodId) {
-      throw new BadRequestException('Período de inscrição inválido.');
+  private buildCardNote(
+    studentShift: Shift,
+    directBusIdentifier: string,
+    accessBusIdentifiers: string[],
+  ): string | null {
+    if (studentShift !== Shift.FULL_TIME) {
+      return null;
     }
 
-    // Resolve student and their university to snapshot into the request
-    const student = await this.studentService.findOneOrFail(studentId);
-    const universityIdForRequest = (student as any).universityId
-      ? (student as any).universityId
-      : null;
+    const busList = accessBusIdentifiers.length > 0
+      ? accessBusIdentifiers.join(', ')
+      : directBusIdentifier;
 
-    if (!universityIdForRequest) {
+    return `Aluno integral. Inscrito diretamente no ônibus da manhã (${directBusIdentifier}). Acesso a todos os ônibus da faculdade: ${busList}.`;
+  }
+
+  private async resolveBusContextForRequest(student: any): Promise<{
+    busId: string | null;
+    busIdentifier: string | null;
+    accessBusIdentifiers: string[];
+    cardNote: string | null;
+  }> {
+    const universityId = this.toStringId(student?.universityId);
+    if (!universityId) {
       throw new BadRequestException('Cadastre sua instituição antes de se inscrever.');
     }
 
-    // Find the bus that serves this university (the bus with lowest priorityOrder)
-    const bus = await this.busService.findByUniversityId(
-      typeof universityIdForRequest === 'string'
-        ? universityIdForRequest
-        : (universityIdForRequest as any)?.toString?.(),
-    );
+    const studentShift = student?.shift as Shift | undefined;
+    const preferredShift = studentShift === Shift.FULL_TIME ? Shift.MORNING : studentShift ?? null;
 
-    if (!bus) {
+    const busCandidates = await this.busService.findAllByUniversityId(universityId);
+    if (!busCandidates || busCandidates.length === 0) {
       throw new BadRequestException('Nenhum ônibus disponível para sua instituição.');
     }
 
-    const busIdForRequest = typeof (bus as any)._id === 'string' ? (bus as any)._id : (bus as any)._id?.toString?.();
+    const selectedBus = await this.busService.findByUniversityIdAndShift(
+      universityId,
+      preferredShift,
+    );
+
+    if (!selectedBus) {
+      throw new BadRequestException('Nenhum ônibus disponível para sua instituição.');
+    }
+
+    const busId = this.toStringId((selectedBus as any)._id);
+    const busIdentifier = (selectedBus as any).identifier ?? null;
+    const accessBusIdentifiers = busCandidates
+      .map((bus: any) => bus.identifier)
+      .filter((identifier: unknown): identifier is string => typeof identifier === 'string' && identifier.length > 0);
+
+    return {
+      busId,
+      busIdentifier,
+      accessBusIdentifiers,
+      cardNote: this.buildCardNote(studentShift ?? Shift.MORNING, busIdentifier ?? '', accessBusIdentifiers),
+    };
+  }
+
+  private async resolveCardContextForApproval(request: any): Promise<{
+    cardNote: string | null;
+    accessBusIdentifiers: string[];
+  }> {
+    if (
+      request?.cardNote ||
+      (Array.isArray(request?.accessBusIdentifiers) && request.accessBusIdentifiers.length > 0)
+    ) {
+      return {
+        cardNote: request.cardNote ?? null,
+        accessBusIdentifiers: request.accessBusIdentifiers ?? [],
+      };
+    }
+
+    return {
+      cardNote: null,
+      accessBusIdentifiers: [],
+    };
+  }
+
+  // Verifica elegibilidade e retorna o período de inscrição ativo (quando aplicável)
+  async assertInitialRequestEligibility(studentId: string): Promise<any> {
+    const requests = await this.repository.findByStudentId(studentId);
+    const existingPendingOrWaitlistedInitial = requests.find(
+      (request) =>
+        (request.status === LicenseRequestStatus.PENDING ||
+          request.status === LicenseRequestStatus.WAITLISTED) &&
+        request.type === LicenseRequestType.INITIAL,
+    );
+
+    if (existingPendingOrWaitlistedInitial) {
+      throw new BadRequestException(
+        'Você já possui uma solicitação em andamento. Aguarde a análise antes de enviar uma nova.',
+      );
+    }
+
+    const activePeriod = await this.enrollmentPeriodService.getActive();
+
+    if (!activePeriod) {
+      throw new BadRequestException(
+        'Inscrições encerradas. Aguarde a abertura de um novo período.',
+      );
+    }
+
+    this.assertPeriodWindow(activePeriod.startDate, activePeriod.endDate);
+
+    return activePeriod;
+  }
+
+  async createRequest(
+    studentId: string,
+    activePeriodParam?: any,
+    session?: ClientSession,
+  ): Promise<LicenseRequest> {
+    // If caller provided the active period (to avoid duplicate checks), reuse it;
+    // otherwise run the eligibility check which returns the active period.
+    const activePeriod = activePeriodParam ?? (await this.assertInitialRequestEligibility(studentId));
+
+    const enrollmentPeriodId = (activePeriod as any)._id?.toString?.();
+    if (!enrollmentPeriodId) {
+      throw new BadRequestException('Per?odo de inscri??o inv?lido.');
+    }
+
+    const student = await this.studentService.findOneOrFail(studentId);
+    const busContext = await this.resolveBusContextForRequest(student);
+    const universityIdForRequest = this.toStringId((student as any).universityId);
+    const busIdForRequest = busContext.busId;
+    const busIdentifierForRequest = busContext.busIdentifier;
+
+    if (!busIdForRequest || !universityIdForRequest) {
+      throw new BadRequestException('Nenhum ?nibus dispon?vel para sua institui??o.');
+    }
+
+    const bus = await this.busService.findOneOrFail(busIdForRequest);
+    const busObjectId = new Types.ObjectId(busIdForRequest);
+    const universityObjectId = new Types.ObjectId(universityIdForRequest);
+
+    const baseRequestData = {
+      studentId,
+      type: LicenseRequestType.INITIAL,
+      rejectionReason: null,
+      cancellationReason: null,
+      rejectedAt: null,
+      approvedByEmployeeId: null,
+      rejectedByEmployeeId: null,
+      licenseId: null,
+      pendingImages: [] as any[],
+      changedDocuments: [] as any[],
+      enrollmentPeriodId,
+      busId: busObjectId,
+      universityId: universityObjectId,
+      cardNote: busContext.cardNote,
+      accessBusIdentifiers: busContext.accessBusIdentifiers,
+    };
 
     // If bus has no capacity defined, accept as PENDING
     if ((bus as any).capacity == null) {
-      const request = await this.repository.create({
-        studentId,
-        type: 'initial',
+      const request = await this.createRequestRecord({
+        ...baseRequestData,
         status: LicenseRequestStatus.PENDING,
-        rejectionReason: null,
-        cancellationReason: null,
-        rejectedAt: null,
-        approvedByEmployeeId: null,
-        rejectedByEmployeeId: null,
-        licenseId: null,
-        pendingImages: [],
-        changedDocuments: [],
-        enrollmentPeriodId,
         filaPosition: null,
-        busId: busIdForRequest
-          ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest)
-          : null,
-        universityId: typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest,
-      });
+      }, session);
 
       await this.auditLog.record({
         action: 'license_request.create',
         outcome: 'success',
         target: { studentId, enrollmentPeriodId },
-        metadata: { busId: busIdForRequest, universityId: universityIdForRequest },
+        metadata: {
+          busId: busIdForRequest,
+          busIdentifier: busIdentifierForRequest,
+          universityId: universityIdForRequest,
+          cardNote: busContext.cardNote,
+        },
       });
 
       return { ...(request as any), waitlisted: false };
@@ -166,28 +250,14 @@ export class LicenseRequestService {
 
     if ((bus as any).capacity != null && totalFilled >= (bus as any).capacity) {
       // Assign filaPosition scoped to this bus (per-bus queue)
-      const filaCount = await this.repository.countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId, busIdForRequest as string);
+      const filaCount = await this.repository.countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId, busIdForRequest);
       const filaPosition = (filaCount || 0) + 1;
 
-      const request = await this.repository.create({
-        studentId,
-        type: 'initial',
+      const request = await this.createRequestRecord({
+        ...baseRequestData,
         status: LicenseRequestStatus.WAITLISTED,
-        rejectionReason: null,
-        cancellationReason: null,
-        rejectedAt: null,
-        approvedByEmployeeId: null,
-        rejectedByEmployeeId: null,
-        licenseId: null,
-        pendingImages: [],
-        changedDocuments: [],
-        enrollmentPeriodId,
         filaPosition,
-        busId: busIdForRequest
-          ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest)
-          : null,
-        universityId: typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest,
-      });
+      }, session);
 
       try {
         await this.mailService.sendWaitlistConfirmation(student.email, student.name, filaPosition);
@@ -199,7 +269,13 @@ export class LicenseRequestService {
         action: 'license_request.waitlisted',
         outcome: 'success',
         target: { studentId, enrollmentPeriodId },
-        metadata: { filaPosition, busId: busIdForRequest, universityId: universityIdForRequest },
+        metadata: {
+          filaPosition,
+          busId: busIdForRequest,
+          busIdentifier: busIdentifierForRequest,
+          universityId: universityIdForRequest,
+          cardNote: busContext.cardNote,
+        },
       });
 
       return { ...(request as any), waitlisted: true, filaPosition };
@@ -208,11 +284,11 @@ export class LicenseRequestService {
     // Find the student's slot in the bus
     const studentSlot = ((bus as any).universitySlots || []).find((s: any) =>
       (s.universityId && s.universityId.toString ? s.universityId.toString() : s.universityId) ===
-      (typeof universityIdForRequest === 'string' ? universityIdForRequest : (universityIdForRequest as any)?.toString?.()),
+      universityIdForRequest,
     );
 
     if (!studentSlot) {
-      throw new BadRequestException('Sua instituição não está vinculada a este ônibus.');
+      throw new BadRequestException('Sua institui??o n?o est? vinculada a este ?nibus.');
     }
 
     // Check if any higher-priority university has active demand for this bus
@@ -223,32 +299,18 @@ export class LicenseRequestService {
     for (const slot of higherPrioritySlots) {
       const uniIdStr = slot.universityId && slot.universityId.toString ? slot.universityId.toString() : slot.universityId;
       const hasDemand = await this.repository.hasActiveDemandForBusAndUniversity(
-        busIdForRequest as string,
+        busIdForRequest,
         typeof uniIdStr === 'string' ? uniIdStr : uniIdStr?.toString?.(),
       );
       if (hasDemand) {
         // Assign filaPosition scoped to this bus (per-bus queue)
-        const filaCount = await this.repository.countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId, busIdForRequest as string);
+        const filaCount = await this.repository.countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId, busIdForRequest);
         const filaPosition = (filaCount || 0) + 1;
 
-        const request = await this.repository.create({
-          studentId,
-          type: 'initial',
+        const request = await this.createRequestRecord({
+          ...baseRequestData,
           status: LicenseRequestStatus.WAITLISTED,
-          rejectionReason: null,
-          cancellationReason: null,
-          rejectedAt: null,
-          approvedByEmployeeId: null,
-          rejectedByEmployeeId: null,
-          licenseId: null,
-          pendingImages: [],
-          changedDocuments: [],
-          enrollmentPeriodId,
           filaPosition,
-          busId: busIdForRequest
-            ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest)
-            : null,
-          universityId: typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest,
         });
 
         try {
@@ -261,7 +323,13 @@ export class LicenseRequestService {
           action: 'license_request.waitlisted',
           outcome: 'success',
           target: { studentId, enrollmentPeriodId },
-          metadata: { filaPosition, busId: busIdForRequest, universityId: universityIdForRequest },
+          metadata: {
+            filaPosition,
+            busId: busIdForRequest,
+            busIdentifier: busIdentifierForRequest,
+            universityId: universityIdForRequest,
+            cardNote: busContext.cardNote,
+          },
         });
 
         return { ...(request as any), waitlisted: true, filaPosition };
@@ -269,34 +337,54 @@ export class LicenseRequestService {
     }
 
     // Passed all checks -> create PENDING
-    const request = await this.repository.create({
-      studentId,
-      type: 'initial',
+    const request = await this.createRequestRecord({
+      ...baseRequestData,
       status: LicenseRequestStatus.PENDING,
-      rejectionReason: null,
-      cancellationReason: null,
-      rejectedAt: null,
-      approvedByEmployeeId: null,
-      rejectedByEmployeeId: null,
-      licenseId: null,
-      pendingImages: [],
-      changedDocuments: [],
-      enrollmentPeriodId,
       filaPosition: null,
-      busId: busIdForRequest
-        ? (typeof busIdForRequest === 'string' ? new Types.ObjectId(busIdForRequest) : busIdForRequest)
-        : null,
-      universityId: typeof universityIdForRequest === 'string' ? new Types.ObjectId(universityIdForRequest) : universityIdForRequest,
-    });
+    }, session);
 
     await this.auditLog.record({
       action: 'license_request.create',
       outcome: 'success',
       target: { studentId, enrollmentPeriodId },
-      metadata: { busId: busIdForRequest, universityId: universityIdForRequest },
+      metadata: {
+        busId: busIdForRequest,
+        busIdentifier: busIdentifierForRequest,
+        universityId: universityIdForRequest,
+        cardNote: busContext.cardNote,
+      },
     });
 
     return { ...(request as any), waitlisted: false };
+  }
+
+  async submitAndCreateRequest(
+    studentId: string,
+    dto: SubmitLicenseRequestFormDto,
+    files: {
+      ProfilePhoto?: UploadedImageFile[];
+      EnrollmentProof?: UploadedImageFile[];
+      CourseSchedule?: UploadedImageFile[];
+    },
+  ): Promise<any> {
+    const session = await mongoose.startSession();
+    try {
+      let studentResult: any;
+      await session.withTransaction(async () => {
+        const activePeriod = await this.assertInitialRequestEligibility(studentId);
+        studentResult = await this.studentService.submitLicenseRequest(
+          studentId,
+          dto,
+          files,
+          session,
+        );
+        await this.createRequest(studentId, activePeriod, session);
+      });
+
+      return studentResult;
+    } finally {
+      await session.endSession();
+    }
   }
 
   async submitDocumentUpdateRequest(
@@ -366,7 +454,7 @@ export class LicenseRequestService {
 
     const pendingUpdate = requests.find(
       (request) =>
-        request.status === LicenseRequestStatus.PENDING && request.type === 'update',
+        request.status === LicenseRequestStatus.PENDING && request.type === LicenseRequestType.UPDATE,
     );
 
     if (pendingUpdate) {
@@ -377,7 +465,7 @@ export class LicenseRequestService {
 
     const pendingInitial = requests.find(
       (request) =>
-        request.status === LicenseRequestStatus.PENDING && request.type === 'initial',
+        request.status === LicenseRequestStatus.PENDING && request.type === LicenseRequestType.INITIAL,
     );
 
     if (pendingInitial) {
@@ -389,7 +477,7 @@ export class LicenseRequestService {
 
     const request = await this.repository.create({
       studentId,
-      type: 'update',
+      type: LicenseRequestType.UPDATE,
       status: LicenseRequestStatus.PENDING,
       rejectionReason: null,
       cancellationReason: null,
@@ -420,8 +508,9 @@ export class LicenseRequestService {
   ): Promise<LicenseRequest> {
     const request = await this.repository.findById(requestId);
     if (!request) throw new NotFoundException('Solicitação não encontrada');
-    if (request.status !== LicenseRequestStatus.PENDING) {
-      throw new BadRequestException('Solicitação não está pendente');
+    const approvable = [LicenseRequestStatus.PENDING];
+    if (!approvable.includes(request.status)) {
+      throw new BadRequestException('Solicitação não pode ser aprovada no status atual');
     }
 
     let validityMonths = 6;
@@ -431,7 +520,8 @@ export class LicenseRequestService {
     let uniIdForIncrement: string | null = null;
     let session: ClientSession | undefined = undefined;
     let usedSession = false;
-    if (request.type === 'initial' && request.enrollmentPeriodId) {
+    const cardContext = await this.resolveCardContextForApproval(request);
+    if (request.type === LicenseRequestType.INITIAL && request.enrollmentPeriodId) {
       const period = await this.enrollmentPeriodService.findById(
         request.enrollmentPeriodId,
       );
@@ -473,7 +563,7 @@ export class LicenseRequestService {
 
               // create license (will use session in repository)
               let licenseCreated: any;
-              if (request.type === 'update') {
+              if (request.type === LicenseRequestType.UPDATE) {
                 // update license path handled below outside transaction creation path
               } else {
                 licenseCreated = await this.licenseService.create(
@@ -488,6 +578,7 @@ export class LicenseRequestService {
                   request.enrollmentPeriodId ?? null,
                   true,
                   session,
+                  cardContext,
                 );
               }
 
@@ -530,7 +621,7 @@ export class LicenseRequestService {
         // When usedSession is true, license creation and request update were already handled inside the transaction above.
         // We still need to retrieve the license id for audit logging; set license = null to indicate already processed.
         license = null;
-      } else if (request.type === 'update') {
+      } else if (request.type === LicenseRequestType.UPDATE) {
         const changedDocuments = request.changedDocuments ?? [];
         const images = await this.imagesService.findByStudentId(request.studentId);
         const pendingMap = Object.fromEntries(
@@ -558,6 +649,7 @@ export class LicenseRequestService {
           },
           employeeId,
           validityMonths,
+          cardContext,
         );
 
         for (const photoType of changedDocuments) {
@@ -584,6 +676,8 @@ export class LicenseRequestService {
           validityMonths,
           request.enrollmentPeriodId ?? null,
           true,
+          undefined,
+          cardContext,
         );
 
         license = createdLicense as any;
@@ -601,12 +695,6 @@ export class LicenseRequestService {
     }
 
     if (!usedSession) {
-      // If the bus snapshot exists, increment its filledSlots now (non-transactional path)
-      if (busIdForIncrement && uniIdForIncrement) {
-        await this.busService.incrementUniversityFilledSlots(busIdForIncrement, uniIdForIncrement);
-        busIncremented = true;
-      }
-
       const licenseId = license!._id.toString();
 
       const updated = await this.repository.update(requestId, {
@@ -616,7 +704,7 @@ export class LicenseRequestService {
         pendingImages: [],
       });
 
-      if (request.type === 'update') {
+      if (request.type === LicenseRequestType.UPDATE) {
         const student = await this.studentService.findOneOrFail(request.studentId);
 
         await this.mailService
@@ -645,7 +733,7 @@ export class LicenseRequestService {
     // If used session, fetch the updated request to return
     const updatedRequest = await this.repository.findById(requestId);
     // If this was an update request and we used a DB session, send notification after commit
-    if (request.type === 'update') {
+    if (request.type === LicenseRequestType.UPDATE) {
       try {
         const student = await this.studentService.findOneOrFail(request.studentId);
         await this.mailService
@@ -682,8 +770,9 @@ export class LicenseRequestService {
   ): Promise<LicenseRequest> {
     const request = await this.repository.findById(requestId);
     if (!request) throw new NotFoundException('Solicitação não encontrada');
-    if (request.status !== LicenseRequestStatus.PENDING) {
-      throw new BadRequestException('Solicitação não está pendente');
+    const rejectable = [LicenseRequestStatus.PENDING, LicenseRequestStatus.WAITLISTED];
+    if (!rejectable.includes(request.status)) {
+      throw new BadRequestException('Solicitação não pode ser recusada no status atual');
     }
 
     const updated = await this.repository.update(requestId, {
@@ -695,7 +784,7 @@ export class LicenseRequestService {
 
     const student = await this.studentService.findOneOrFail(request.studentId);
 
-    if (request.type === 'update') {
+    if (request.type === LicenseRequestType.UPDATE) {
       await this.mailService
         .sendDocumentUpdateRejected(student.email, student.name, reason)
         .catch(() => {});

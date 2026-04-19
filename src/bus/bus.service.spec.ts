@@ -1,5 +1,3 @@
-import { } from '@nestjs/common';
-
 describe('BusService (promotion)', () => {
   let BusServiceCtor: any;
 
@@ -9,6 +7,7 @@ describe('BusService (promotion)', () => {
     findAll: jest.fn(),
     findAllActive: jest.fn(),
     update: jest.fn(),
+    reorderWaitlistedPositions: jest.fn(),
     findByUniversityId: jest.fn(),
     incrementUniversityFilledSlots: jest.fn(),
     decrementUniversityFilledSlots: jest.fn(),
@@ -23,6 +22,7 @@ describe('BusService (promotion)', () => {
     findWaitlistedByEnrollmentPeriodAndBus: jest.fn(),
     promoteWaitlistedForPeriod: jest.fn(),
     update: jest.fn(),
+    reorderWaitlistedPositions: jest.fn(),
   };
 
   const mockStudentService = { findOneOrFail: jest.fn() };
@@ -71,7 +71,9 @@ describe('BusService (promotion)', () => {
     const r2 = { _id: 'r2', studentId: 'student-r2', universityId: 'uni-2', busId: 'bus-1', filaPosition: 1, createdAt: new Date('2026-01-02T00:00:00.000Z') };
     const r3 = { _id: 'r3', studentId: 'student-r3', universityId: 'uni-1', busId: 'bus-1', filaPosition: 2, createdAt: new Date('2026-01-03T00:00:00.000Z') };
 
-    mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus.mockResolvedValue([r3, r1, r2]);
+    mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus
+      .mockResolvedValueOnce([r3, r1, r2])
+      .mockResolvedValueOnce([r2]);
     mockLicenseRequestRepository.promoteWaitlistedForPeriod.mockResolvedValueOnce(r1).mockResolvedValueOnce(r3);
 
     mockStudentService.findOneOrFail
@@ -93,9 +95,7 @@ describe('BusService (promotion)', () => {
       type: 'license.changed',
       reason: 'waitlist_promoted',
     });
-    const updatedIds = mockLicenseRequestRepository.update.mock.calls.map((c: any) => c[0]);
-    expect(updatedIds).toEqual(expect.arrayContaining(['r1', 'r2', 'r3']));
-    expect(mockLicenseRequestRepository.update).toHaveBeenCalledTimes(3);
+    expect(mockLicenseRequestRepository.reorderWaitlistedPositions).toHaveBeenCalledWith(['r2']);
     expect(result).toEqual({ releasedSlots: 2 });
   });
 

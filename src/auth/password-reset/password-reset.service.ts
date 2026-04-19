@@ -13,6 +13,7 @@ import { StudentService } from '../../student/student.service';
 import { SessionService } from '../session/session.service';
 import { MailService } from '../../mail/mail.service';
 import { PasswordResetTokenRepository } from './repositories/password-reset-token.repository';
+import { getPasswordPolicyViolation } from '../../common/validators/password-policy';
 
 @Injectable()
 export class PasswordResetService {
@@ -98,20 +99,9 @@ export class PasswordResetService {
   }
 
   private validatePassword(password: string): void {
-    if (password.length < 8) {
-      throw new BadRequestException('Senha deve ter no mínimo 8 caracteres');
-    }
-
-    if (!/[a-z]/.test(password)) {
-      throw new BadRequestException('Senha deve conter letras minúsculas');
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      throw new BadRequestException('Senha deve conter letras maiúsculas');
-    }
-
-    if (!/\d/.test(password)) {
-      throw new BadRequestException('Senha deve conter números');
+    const violation = getPasswordPolicyViolation(password);
+    if (violation) {
+      throw new BadRequestException(violation);
     }
   }
 

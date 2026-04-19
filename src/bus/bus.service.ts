@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -21,6 +20,7 @@ import { MailService } from '../mail/mail.service';
 import { EnrollmentPeriodService } from '../enrollment-period/enrollment-period.service';
 import { Inject, forwardRef } from '@nestjs/common';
 import { LicenseService } from '../license/license.service';
+import { Shift } from '../common/interfaces/student-attributes.enum';
 
 @Injectable()
 export class BusService {
@@ -31,10 +31,12 @@ export class BusService {
     private readonly auditLog: AuditLogService,
     @Inject(LICENSE_REQUEST_REPOSITORY)
     private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
+    @Inject(forwardRef(() => StudentService))
     private readonly studentService: StudentService,
     private readonly mailService: MailService,
     @Inject(forwardRef(() => EnrollmentPeriodService))
     private readonly enrollmentPeriodService: EnrollmentPeriodService,
+    @Inject(forwardRef(() => LicenseService))
     private readonly licenseService: LicenseService,
   ) {}
 
@@ -56,6 +58,7 @@ export class BusService {
 
     const created = await this.repository.create({
       identifier: dto.identifier,
+      ...(dto.shift !== undefined ? { shift: dto.shift } : {}),
       ...(dto.capacity !== undefined ? { capacity: dto.capacity } : {}),
       universitySlots: [],
     });
@@ -108,37 +111,22 @@ export class BusService {
     const periodId = (activePeriod as any)._id?.toString?.();
     if (!periodId) return [];
 
-    const allRequests = await this.licenseRequestRepository.findAll();
-    const requestsForPeriod = (allRequests || []).filter((r: any) => {
-      const rid = r.enrollmentPeriodId ? (typeof r.enrollmentPeriodId === 'string' ? r.enrollmentPeriodId : (r.enrollmentPeriodId as any).toString?.()) : null;
-      return rid === periodId;
-    });
-
-    const pending = requestsForPeriod.filter((r: any) => r.status === 'pending');
-    const waitlisted = requestsForPeriod.filter((r: any) => r.status === 'waitlisted');
+    const grouped = await this.licenseRequestRepository.findByEnrollmentPeriodAndBusGrouped(periodId);
 
     const pendingByBus: Record<string, number> = {};
     const waitlistedByBus: Record<string, number> = {};
     const perUni: Record<string, Record<string, { pending: number; waitlisted: number }>> = {};
 
-    for (const r of pending) {
-      const b = r.busId ? (typeof r.busId === 'string' ? r.busId : (r.busId as any).toString?.()) : null;
-      const u = r.universityId ? (typeof r.universityId === 'string' ? r.universityId : (r.universityId as any).toString?.()) : null;
-      if (!b) continue;
-      pendingByBus[b] = (pendingByBus[b] || 0) + 1;
-      perUni[b] = perUni[b] || {};
-      perUni[b][u || ''] = perUni[b][u || ''] || { pending: 0, waitlisted: 0 };
-      perUni[b][u || ''].pending += 1;
-    }
-
-    for (const r of waitlisted) {
-      const b = r.busId ? (typeof r.busId === 'string' ? r.busId : (r.busId as any).toString?.()) : null;
-      const u = r.universityId ? (typeof r.universityId === 'string' ? r.universityId : (r.universityId as any).toString?.()) : null;
-      if (!b) continue;
-      waitlistedByBus[b] = (waitlistedByBus[b] || 0) + 1;
-      perUni[b] = perUni[b] || {};
-      perUni[b][u || ''] = perUni[b][u || ''] || { pending: 0, waitlisted: 0 };
-      perUni[b][u || ''].waitlisted += 1;
+    for (const item of grouped || []) {
+      const bid = item._id ? (typeof item._id === 'string' ? item._id : item._id.toString?.()) : null;
+      if (!bid) continue;
+      pendingByBus[bid] = item.pending || 0;
+      waitlistedByBus[bid] = item.waitlisted || 0;
+      perUni[bid] = perUni[bid] || {};
+      for (const pu of item.perUniversity || []) {
+        const uid = pu.universityId ? (typeof pu.universityId === 'string' ? pu.universityId : pu.universityId.toString?.()) : '';
+        perUni[bid][uid] = { pending: pu.pending || 0, waitlisted: pu.waitlisted || 0 };
+      }
     }
 
     return (buses || []).map((bus: any) => {
@@ -186,12 +174,7 @@ export class BusService {
     }
 
     const periodId = (activePeriod as any)._id?.toString?.();
-    const allRequests = await this.licenseRequestRepository.findAll();
-    const filtered = (allRequests || []).filter((r: any) => {
-      const rid = r.enrollmentPeriodId ? (typeof r.enrollmentPeriodId === 'string' ? r.enrollmentPeriodId : (r.enrollmentPeriodId as any).toString?.()) : null;
-      const bid = r.busId ? (typeof r.busId === 'string' ? r.busId : (r.busId as any).toString?.()) : null;
-      return rid === periodId && bid === busId;
-    });
+    const filtered = await this.licenseRequestRepository.findByEnrollmentPeriodAndBus(periodId, busId);
 
     const pendingRequests = filtered.filter((r: any) => r.status === 'pending')
       .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -226,14 +209,18 @@ export class BusService {
     return bus;
   }
 
-  // Retorna o ônibus ativo que contém essa universidade em universitySlots.
-  // Quando há múltiplos ônibus, retorna o que tem menor priorityOrder para a universidade.
-  async findByUniversityId(universityId: string): Promise<Bus | null> {
-    const candidates = await this.repository.findByUniversityId(universityId);
-    if (!candidates || candidates.length === 0) return null;
+  async findByIdentifier(identifier: string): Promise<Bus | null> {
+    return this.repository.findByIdentifier(identifier);
+  }
 
+  async findAllByUniversityId(universityId: string): Promise<Bus[]> {
+    return this.repository.findByUniversityId(universityId);
+  }
+
+  private pickBestBusForUniversity(candidates: Bus[], universityId: string): Bus | null {
     let bestBus: Bus | null = null;
     let bestPriority = Infinity;
+
     for (const bus of candidates) {
       const slot = (bus as any).universitySlots?.find((s: any) => s.universityId?.toString() === universityId);
       if (slot && slot.priorityOrder < bestPriority) {
@@ -241,7 +228,38 @@ export class BusService {
         bestBus = bus;
       }
     }
+
     return bestBus;
+  }
+
+  // Retorna o ?nibus ativo que cont?m essa universidade em universitySlots.
+  // Quando h? m?ltiplos ?nibus, retorna o que tem menor priorityOrder para a universidade.
+  async findByUniversityId(universityId: string): Promise<Bus | null> {
+    const candidates = await this.findAllByUniversityId(universityId);
+    if (!candidates || candidates.length === 0) return null;
+
+    return this.pickBestBusForUniversity(candidates, universityId);
+  }
+
+  async findByUniversityIdAndShift(
+    universityId: string,
+    shift?: Shift | null,
+  ): Promise<Bus | null> {
+    const candidates = await this.findAllByUniversityId(universityId);
+    if (!candidates || candidates.length === 0) {
+      return null;
+    }
+
+    if (!shift) {
+      return this.pickBestBusForUniversity(candidates, universityId);
+    }
+
+    const shiftedCandidates = candidates.filter((bus: any) => bus.shift === shift);
+    if (shiftedCandidates.length > 0) {
+      return this.pickBestBusForUniversity(shiftedCandidates, universityId);
+    }
+
+    return this.pickBestBusForUniversity(candidates, universityId);
   }
 
   async update(id: string, dto: UpdateBusDto, adminId: string): Promise<Bus> {
@@ -256,6 +274,7 @@ export class BusService {
 
     const updated = await this.repository.update(id, {
       ...(dto.identifier !== undefined ? { identifier: dto.identifier } : {}),
+      ...(dto.shift !== undefined ? { shift: dto.shift } : {}),
       ...(dto.capacity !== undefined ? { capacity: dto.capacity } : {}),
     });
 
@@ -534,12 +553,9 @@ export class BusService {
       (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
 
-    for (let index = 0; index < sortedRemainingBus.length; index += 1) {
-      const r = sortedRemainingBus[index];
-      await this.licenseRequestRepository.update((r as any)._id?.toString?.(), {
-        filaPosition: index + 1,
-      });
-    }
+    await this.licenseRequestRepository.reorderWaitlistedPositions(
+      sortedRemainingBus.map((request: any) => request._id?.toString?.()).filter(Boolean),
+    );
 
     await this.auditLog.record({
       action: 'bus.release_slots_promote',

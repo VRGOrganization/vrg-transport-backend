@@ -18,6 +18,7 @@ describe('EnrollmentPeriodService (TDD)', () => {
     promoteWaitlistedForPeriod: jest.fn(),
     findByStudentId: jest.fn(),
     update: jest.fn(),
+    reorderWaitlistedPositions: jest.fn(),
     findWaitlistedByEnrollmentPeriod: jest.fn(),
     cancelWaitlistedByEnrollmentPeriod: jest.fn(),
   };
@@ -72,7 +73,6 @@ describe('EnrollmentPeriodService (TDD)', () => {
 
     mockRepository.findActive.mockResolvedValue(null);
     mockRepository.create.mockResolvedValue({ _id: 'period-1', active: true });
-    mockLicenseService.deactivateExpiredLicenses.mockResolvedValue(0);
 
     const result = await service.create(
       {
@@ -85,7 +85,6 @@ describe('EnrollmentPeriodService (TDD)', () => {
     );
 
     expect(result).toEqual(expect.objectContaining({ _id: 'period-1' }));
-    expect(mockLicenseService.deactivateExpiredLicenses).toHaveBeenCalled();
     expect(mockRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         active: true,
@@ -99,7 +98,7 @@ describe('EnrollmentPeriodService (TDD)', () => {
   it('deve encerrar fila do periodo expirado antes de criar novo periodo', async () => {
     const service = buildService();
 
-    mockLicenseService.deactivateExpiredLicenses.mockResolvedValue(1);
+    // scheduler now runs expiration asynchronously; tests don't rely on deactivateExpiredLicenses being called here
     mockRepository.findActive.mockResolvedValue({
       _id: 'period-expired',
       active: true,
@@ -237,10 +236,7 @@ describe('EnrollmentPeriodService (TDD)', () => {
     expect(
       mockLicenseRequestRepository.promoteWaitlistedForPeriod,
     ).toHaveBeenNthCalledWith(2, 'r2', 'period-1');
-    expect(mockLicenseRequestRepository.update).toHaveBeenCalledWith(
-      'r3',
-      expect.objectContaining({ filaPosition: 1 }),
-    );
+    expect(mockLicenseRequestRepository.reorderWaitlistedPositions).toHaveBeenCalledWith(['r3']);
     expect(mockLicenseService.emitLicenseEvent).toHaveBeenCalledWith('student-r1', {
       type: 'license.changed',
       reason: 'waitlist_promoted',
@@ -308,10 +304,7 @@ describe('EnrollmentPeriodService (TDD)', () => {
       reason: 'waitlist_promoted',
     });
     expect(mockMailService.sendWaitlistPromotion).toHaveBeenCalledTimes(2);
-    expect(mockLicenseRequestRepository.update).toHaveBeenCalledWith(
-      'r4',
-      expect.objectContaining({ filaPosition: 1 }),
-    );
+    expect(mockLicenseRequestRepository.reorderWaitlistedPositions).toHaveBeenCalledWith(['r4']);
     expect(mockAuditLog.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'enrollment_period.release_slots',

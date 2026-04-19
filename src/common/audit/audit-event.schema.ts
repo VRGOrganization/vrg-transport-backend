@@ -22,9 +22,6 @@ export class AuditEvent {
 
   @Prop({ type: Object, default: null })
   metadata?: Record<string, unknown> | null;
-
-  @Prop({ required: true })
-  timestamp: string;
 }
 
 export const AuditEventSchema = SchemaFactory.createForClass(AuditEvent);
