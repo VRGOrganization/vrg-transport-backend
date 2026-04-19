@@ -23,6 +23,8 @@ const mockRepository = {
   findAll: jest.fn(),
   findAllByStatus: jest.fn(),
   findWaitlistedByEnrollmentPeriod: jest.fn(),
+  findWaitlistedByEnrollmentPeriodAndBus: jest.fn(),
+  countWaitlistedByEnrollmentPeriodAndBus: jest.fn(),
   hasActiveDemandForBusAndUniversity: jest.fn(),
   update: jest.fn(),
 };
@@ -174,7 +176,8 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         totalSlots: 1,
         filledSlots: 1,
       });
-      mockEnrollmentPeriodService.reserveWaitlistPosition.mockResolvedValue(3);
+      // Simulate that there are already 2 waitlisted for this bus -> new position will be 3
+      mockRepository.countWaitlistedByEnrollmentPeriodAndBus.mockResolvedValue(2);
       mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
       // bus with capacity 1 already full
       mockBusService.findByUniversityId.mockResolvedValue({ _id: '000000000000000000000001', identifier: 'A01', capacity: 1, universitySlots: [{ universityId: '000000000000000000000002', priorityOrder: 1, filledSlots: 1 }] });
@@ -260,7 +263,8 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         ],
       });
 
-      mockEnrollmentPeriodService.reserveWaitlistPosition.mockResolvedValue(4);
+      // Simulate that there are already 3 waitlisted for this bus -> new position will be 4
+      mockRepository.countWaitlistedByEnrollmentPeriodAndBus.mockResolvedValue(3);
       mockRepository.create.mockResolvedValue(
         makeRequest({ status: 'waitlisted' as any, enrollmentPeriodId: 'period-1' as any, filaPosition: 4 as any } as any),
       );
@@ -299,7 +303,8 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
 
       // Simulate that uni-1 has active demand on this bus
       mockRepository.hasActiveDemandForBusAndUniversity.mockResolvedValue(true);
-      mockEnrollmentPeriodService.reserveWaitlistPosition.mockResolvedValue(7);
+      // Simulate that there are already 6 waitlisted for this bus -> new position will be 7
+      mockRepository.countWaitlistedByEnrollmentPeriodAndBus.mockResolvedValue(6);
       mockRepository.create.mockResolvedValue(
         makeRequest({ status: 'waitlisted' as any, enrollmentPeriodId: 'period-1' as any, filaPosition: 7 as any } as any),
       );

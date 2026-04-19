@@ -85,3 +85,5 @@ export const LicenseRequestSchema =
 LicenseRequestSchema.index({ studentId: 1 });
 LicenseRequestSchema.index({ status: 1 });
 LicenseRequestSchema.index({ enrollmentPeriodId: 1, status: 1, createdAt: 1 });
+// Index para buscas/contagem por período + ônibus + status (eficiente para filas por ônibus)
+LicenseRequestSchema.index({ enrollmentPeriodId: 1, busId: 1, status: 1, createdAt: 1 });

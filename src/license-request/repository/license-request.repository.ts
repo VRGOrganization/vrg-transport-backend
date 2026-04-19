@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   LicenseRequest,
   LicenseRequestStatus,
@@ -83,6 +83,36 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
       .sort({ createdAt: 1 })
       .lean()
       .exec() as Promise<LicenseRequest[]>;
+  }
+
+  async findWaitlistedByEnrollmentPeriodAndBus(
+    enrollmentPeriodId: string,
+    busId: string,
+  ): Promise<LicenseRequest[]> {
+    return this.model
+      .find({
+        enrollmentPeriodId,
+        busId: typeof busId === 'string' ? new Types.ObjectId(busId) : busId,
+        status: LicenseRequestStatus.WAITLISTED,
+      })
+      .sort({ createdAt: 1 })
+      .lean()
+      .exec() as Promise<LicenseRequest[]>;
+  }
+
+  async countWaitlistedByEnrollmentPeriodAndBus(
+    enrollmentPeriodId: string,
+    busId: string,
+  ): Promise<number> {
+    const count = await this.model
+      .countDocuments({
+        enrollmentPeriodId,
+        busId: typeof busId === 'string' ? new Types.ObjectId(busId) : busId,
+        status: LicenseRequestStatus.WAITLISTED,
+      })
+      .exec();
+
+    return count ?? 0;
   }
 
   async promoteWaitlistedForPeriod(

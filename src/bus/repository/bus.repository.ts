@@ -52,18 +52,23 @@ export class BusRepository implements IBusRepository<Bus> {
   }
 
   async incrementUniversityFilledSlots(busId: string, universityId: string, session?: ClientSession): Promise<void> {
-    const result = await this.busModel.updateOne(
-      {
-        _id: busId,
-        'universitySlots.universityId': new Types.ObjectId(universityId),
-      },
-      { $inc: { 'universitySlots.$.filledSlots': 1 } },
-      { session },
-    ).exec();
+    // Load bus document in session (if provided) and perform guarded increment
+    const bus = await this.busModel.findById(busId).session(session ?? null).exec();
+    if (!bus) throw new Error('Ônibus não encontrado');
 
-    if (!result || (result as any).modifiedCount === 0) {
-      throw new Error('Falha ao incrementar filledSlots do ônibus (ônibus ou universidade não encontrado)');
+    const slot = (bus as any).universitySlots.find((s: any) => s.universityId?.toString() === universityId);
+    if (!slot) throw new Error('Universidade não está nos slots do ônibus');
+
+    const currentTotal = (bus as any).universitySlots.reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0);
+    const capacity = (bus as any).capacity;
+
+    if (capacity != null && currentTotal >= capacity) {
+      throw new Error('Capacidade do ônibus atingida');
     }
+
+    // Increment the slot and save within session
+    slot.filledSlots = (slot.filledSlots || 0) + 1;
+    await bus.save({ session });
   }
 
   async decrementUniversityFilledSlots(busId: string, universityId: string, session?: ClientSession): Promise<void> {

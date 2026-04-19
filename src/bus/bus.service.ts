@@ -19,6 +19,7 @@ import { LicenseRequest } from '../license-request/schemas/license-request.schem
 import { StudentService } from '../student/student.service';
 import { MailService } from '../mail/mail.service';
 import { EnrollmentPeriodService } from '../enrollment-period/enrollment-period.service';
+import { Inject, forwardRef } from '@nestjs/common';
 import { LicenseService } from '../license/license.service';
 
 @Injectable()
@@ -32,6 +33,7 @@ export class BusService {
     private readonly licenseRequestRepository: ILicenseRequestRepository<LicenseRequest>,
     private readonly studentService: StudentService,
     private readonly mailService: MailService,
+    @Inject(forwardRef(() => EnrollmentPeriodService))
     private readonly enrollmentPeriodService: EnrollmentPeriodService,
     private readonly licenseService: LicenseService,
   ) {}
@@ -442,9 +444,10 @@ export class BusService {
     const periodId = (activePeriod as any)._id?.toString?.();
     if (!periodId) return { releasedSlots: released };
 
-    // Fetch current waitlisted requests for the period
-    const waitlisted = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriod(
+    // Fetch current waitlisted requests for the period scoped to this bus
+    const waitlistedForBus = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus(
       periodId,
+      busId,
     );
 
     // Load bus to read universitySlots priority
@@ -459,7 +462,7 @@ export class BusService {
     // For each university in priority, pick waitlisted requests for this bus/university
     for (const uniId of sortedUniIds) {
       if (promotedIds.length >= released) break;
-      const candidates = (waitlisted || [])
+      const candidates = (waitlistedForBus || [])
         .filter((r: any) => {
           const rUni = r.universityId ? (typeof r.universityId === 'string' ? r.universityId : (r.universityId as any).toString?.()) : null;
           if (rUni !== uniId) return false;
@@ -521,17 +524,18 @@ export class BusService {
       });
     }
 
-    // Recompute filaPosition for remaining waitlisted in the period
-    const remainingWaitlisted = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriod(
+    // Recompute filaPosition for remaining waitlisted for THIS BUS only
+    const remainingWaitlistedForBus = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus(
       periodId,
+      busId,
     );
 
-    const sortedRemaining = [...remainingWaitlisted].sort(
+    const sortedRemainingBus = [...remainingWaitlistedForBus].sort(
       (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
 
-    for (let index = 0; index < sortedRemaining.length; index += 1) {
-      const r = sortedRemaining[index];
+    for (let index = 0; index < sortedRemainingBus.length; index += 1) {
+      const r = sortedRemainingBus[index];
       await this.licenseRequestRepository.update((r as any)._id?.toString?.(), {
         filaPosition: index + 1,
       });

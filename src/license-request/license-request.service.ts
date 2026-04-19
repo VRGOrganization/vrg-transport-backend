@@ -165,7 +165,9 @@ export class LicenseRequestService {
     );
 
     if ((bus as any).capacity != null && totalFilled >= (bus as any).capacity) {
-      const filaPosition = await this.enrollmentPeriodService.reserveWaitlistPosition(enrollmentPeriodId);
+      // Assign filaPosition scoped to this bus (per-bus queue)
+      const filaCount = await this.repository.countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId, busIdForRequest as string);
+      const filaPosition = (filaCount || 0) + 1;
 
       const request = await this.repository.create({
         studentId,
@@ -225,7 +227,9 @@ export class LicenseRequestService {
         typeof uniIdStr === 'string' ? uniIdStr : uniIdStr?.toString?.(),
       );
       if (hasDemand) {
-        const filaPosition = await this.enrollmentPeriodService.reserveWaitlistPosition(enrollmentPeriodId);
+        // Assign filaPosition scoped to this bus (per-bus queue)
+        const filaCount = await this.repository.countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId, busIdForRequest as string);
+        const filaPosition = (filaCount || 0) + 1;
 
         const request = await this.repository.create({
           studentId,

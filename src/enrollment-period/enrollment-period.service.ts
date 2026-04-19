@@ -14,6 +14,7 @@ import { type LicenseRequest } from '../license-request/schemas/license-request.
 import { MailService } from '../mail/mail.service';
 import { StudentService } from '../student/student.service';
 import { BusService } from '../bus/bus.service';
+import { forwardRef } from '@nestjs/common';
 import { CreateEnrollmentPeriodDto, UpdateEnrollmentPeriodDto } from './dto/enrollment-period.dto';
 import {
   ENROLLMENT_PERIOD_REPOSITORY,
@@ -34,6 +35,7 @@ export class EnrollmentPeriodService {
     private readonly mailService: MailService,
     private readonly licenseService: LicenseService,
     private readonly auditLog: AuditLogService,
+    @Inject(forwardRef(() => BusService))
     private readonly busService: BusService,
   ) {}
 

@@ -20,6 +20,7 @@ describe('BusService (promotion)', () => {
 
   const mockLicenseRequestRepository = {
     findWaitlistedByEnrollmentPeriod: jest.fn(),
+    findWaitlistedByEnrollmentPeriodAndBus: jest.fn(),
     promoteWaitlistedForPeriod: jest.fn(),
     update: jest.fn(),
   };
@@ -70,7 +71,7 @@ describe('BusService (promotion)', () => {
     const r2 = { _id: 'r2', studentId: 'student-r2', universityId: 'uni-2', busId: 'bus-1', filaPosition: 1, createdAt: new Date('2026-01-02T00:00:00.000Z') };
     const r3 = { _id: 'r3', studentId: 'student-r3', universityId: 'uni-1', busId: 'bus-1', filaPosition: 2, createdAt: new Date('2026-01-03T00:00:00.000Z') };
 
-    mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriod.mockResolvedValue([r3, r1, r2]);
+    mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus.mockResolvedValue([r3, r1, r2]);
     mockLicenseRequestRepository.promoteWaitlistedForPeriod.mockResolvedValueOnce(r1).mockResolvedValueOnce(r3);
 
     mockStudentService.findOneOrFail
