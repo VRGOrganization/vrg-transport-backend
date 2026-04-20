@@ -67,3 +67,9 @@
 - CRUD administrativo usa `ADMIN`
 - a listagem pública existe apenas onde o controller marcou `@Public()`
 - rotas `inactive` existem separadas para não colidir com `:id`
+
+## Notas sobre filas e privacidade
+
+- `GET /bus/with-queue-counts` retorna contagens agregadas por ônibus e por `universitySlots` (campos como `pendingCount` e `waitlistedCount`). Esse endpoint NÃO deve expor dados pessoais (nome, email, CPF, telefone, cpfHash).
+- `GET /bus/:id/queue-summary` retorna requests completas (inclui `studentId`) e deve ser restrito a `EMPLOYEE`/`ADMIN` — não usar para modais públicos que exibem apenas contagens.
+- A regra de prioridade dinâmica (ver [docs/invariants.md](./invariants.md)) significa que o frontend deve confiar no backend para decidir quais universidades aparecem como aprováveis; o funcionário NÃO deve basear promoções em contagens locais sem checar a prioridade ativa retornada pelo backend.

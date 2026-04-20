@@ -35,6 +35,8 @@ Lista ônibus inativos.
 
 Resumo de filas por ônibus e faculdade.
 
+Nota: a resposta inclui `pendingCount` e `waitlistedCount` por ônibus e por `universitySlots`. Esse endpoint NÃO deve expor dados pessoais dos alunos (nomes, emails, CPF, telefone, etc.).
+
 ## `GET /bus/:id`
 
 Busca ônibus por ID.
@@ -62,6 +64,12 @@ Desvincula faculdade do ônibus.
 ## `PATCH /bus/:id/release-slots`
 
 Libera vagas preenchidas do ônibus e, opcionalmente, promove waitlist.
+
+Query params:
+- `promote?: boolean` — default `true`. Se `false`, apenas zera/decrementa vagas sem promover.
+- `quantity?: number` — opcional. Quando fornecido, libera/aplica promoção apenas para `quantity` vagas (não zera todas as vagas).
+
+Retorna: `{ releasedSlots: number }`
 
 ## `DELETE /bus/:id`
 

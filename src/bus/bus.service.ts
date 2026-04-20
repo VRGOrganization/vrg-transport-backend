@@ -513,20 +513,17 @@ export class BusService {
       if ((counts.pending || 0) + (counts.waitlisted || 0) > 0) { startIndex = i; break; }
     }
 
-    // Iterate from the first active priority downwards, respecting the dynamic-priority rule
+    // Iterate priorities from the first active one, enforcing the dynamic-priority rule:
+    // promote as many waitlisted candidates from the current university as possible,
+    // but NEVER advance to a lower-priority university while the current one still
+    // has active demand (pending OR remaining waitlisted).
     for (let idx = startIndex; idx < sortedUniIds.length; idx++) {
       if (remainingToPromote <= 0) break;
       const uniId = sortedUniIds[idx];
       const counts = perUniCounts[uniId] || { pending: 0, waitlisted: 0 };
 
-      // If this university has no active demand, skip
+      // If this university has no active demand at all, skip it.
       if ((counts.pending || 0) + (counts.waitlisted || 0) === 0) continue;
-
-      // If there are no waitlisted candidates but there are pending, block lower priorities
-      if ((counts.waitlisted || 0) === 0) {
-        // has active demand only because of pending — per dynamic-priority rule, stop here
-        break;
-      }
 
       // Collect ordered waitlisted candidates for this bus/university
       const candidates = (waitlistedForBus || [])
@@ -543,27 +540,36 @@ export class BusService {
           return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         });
 
-      if (!candidates.length) {
-        // no waitlist now, but counts.waitlisted > 0 => inconsistency; skip
+      // If there are no waitlisted candidates but there is pending demand,
+      // we must block lower priorities (the current university is active).
+      if (candidates.length === 0) {
+        if ((counts.pending || 0) > 0) {
+          break;
+        }
+        // no waitlist and no pending -> nothing to do for this uni
         continue;
       }
 
-      const take = Math.min(remainingToPromote, candidates.length);
-      for (let i = 0; i < take; i++) {
+      // Promote up to remainingToPromote candidates from this university
+      for (let i = 0; i < candidates.length && remainingToPromote > 0; i++) {
         promotedIds.push((candidates[i] as any)._id?.toString?.());
+        remainingToPromote -= 1;
       }
-      remainingToPromote -= take;
 
-      // If we didn't exhaust this university's waitlist, stop and do not pass to lower priorities
-      if (candidates.length > take) {
+      // After attempting to promote all candidates from this university,
+      // if any candidates remain unpromoted here, DO NOT pass to next priority.
+      const notPromoted = candidates.filter((c: any) => !promotedIds.includes((c as any)._id?.toString?.()));
+      if (notPromoted.length > 0) {
         break;
       }
 
-      // If we exhausted the waitlist but university still has pending > 0, block lower priorities
+      // If we promoted all waitlisted but there are still pending requests,
+      // block lower priorities until pending also clears.
       if ((counts.pending || 0) > 0) {
         break;
       }
-      // otherwise, continue to next priority
+
+      // otherwise, this university has no more active demand; continue to next
     }
 
     if (promotedIds.length === 0) {

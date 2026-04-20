@@ -88,3 +88,7 @@ Body:
 - o front não escolhe o ônibus na inscrição inicial
 - o backend resolve o ônibus por faculdade + turno
 - aluno `Integral` vai para ônibus da `Manhã` quando houver correspondência
+
+## Regra de prioridade dinâmica
+
+Ao criar ou aprovar/promover solicitações, o backend aplica a regra de prioridade dinâmica: se uma universidade de maior prioridade tem demanda ativa (status `pending` ou `waitlisted`) para um determinado ônibus, universidades de menor prioridade não devem ser aprovadas nem promovidas até que a universidade atual esgote sua demanda. Consulte [docs/invariants.md](../invariants.md) para a lista completa de invariantes.

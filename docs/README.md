@@ -36,6 +36,7 @@ Esta documentação foi reorganizada para refletir o estado atual do backend e s
 - [integration-contract.md](./integration-contract.md)
 - [manual-testing-hoppscotch.md](./manual-testing-hoppscotch.md)
 - [contributing.md](./contributing.md)
+ - [invariants.md](./invariants.md)
 
 ## Referências de API
 

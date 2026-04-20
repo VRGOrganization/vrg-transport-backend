@@ -172,4 +172,158 @@ describe('BusService (promotion)', () => {
     expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).not.toHaveBeenCalled();
     expect(result).toEqual({ releasedSlots: 2 });
   });
+
+  it('promove todos de P1 e passa para P2 somente quando P1 é totalmente esgotada', async () => {
+    const service = buildService();
+    const busId = 'bus-2';
+    const adminId = 'admin-2';
+
+    mockRepository.findById.mockResolvedValue({
+      _id: busId,
+      universitySlots: [
+        { universityId: { toString: () => 'u1' }, priorityOrder: 1 },
+        { universityId: { toString: () => 'u2' }, priorityOrder: 2 },
+      ],
+    });
+
+    // release 3 slots
+    mockRepository.resetUniversityFilledSlots.mockResolvedValue(3);
+    mockEnrollmentPeriodService.getActive.mockResolvedValue({ _id: 'period-xyz' });
+
+    mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
+      {
+        _id: busId,
+        perUniversity: [
+          { universityId: 'u1', pending: 0, waitlisted: 2 },
+          { universityId: 'u2', pending: 0, waitlisted: 3 },
+        ],
+        pending: 0,
+        waitlisted: 5,
+      },
+    ]);
+
+    const r1 = { _id: 'r1', studentId: 's1', universityId: 'u1', busId, filaPosition: 1, createdAt: new Date('2026-01-01') };
+    const r2 = { _id: 'r2', studentId: 's2', universityId: 'u2', busId, filaPosition: 1, createdAt: new Date('2026-01-02') };
+    const r3 = { _id: 'r3', studentId: 's3', universityId: 'u1', busId, filaPosition: 2, createdAt: new Date('2026-01-03') };
+    const r4 = { _id: 'r4', studentId: 's4', universityId: 'u2', busId, filaPosition: 2, createdAt: new Date('2026-01-04') };
+    const r5 = { _id: 'r5', studentId: 's5', universityId: 'u2', busId, filaPosition: 3, createdAt: new Date('2026-01-05') };
+
+    // initial waitlist (unsorted intentionally)
+    mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus
+      .mockResolvedValueOnce([r4, r1, r2, r3, r5])
+      .mockResolvedValueOnce([r4, r5]); // remaining after promotions
+
+    mockLicenseRequestRepository.promoteWaitlistedForPeriod
+      .mockResolvedValueOnce(r1)
+      .mockResolvedValueOnce(r3)
+      .mockResolvedValueOnce(r2);
+
+    mockStudentService.findOneOrFail.mockResolvedValue({ email: 'x@mail', name: 'X' });
+    mockMailService.sendWaitlistPromotion.mockResolvedValue(undefined);
+
+    const result = await service.releaseSlotsForBus(busId, adminId);
+
+    // expects to promote r1, r3 (u1 exhausted) then r2 from u2 (only 3 promoted)
+    expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).toHaveBeenCalledTimes(3);
+    expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).toHaveBeenNthCalledWith(1, 'r1', 'period-xyz');
+    expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).toHaveBeenNthCalledWith(2, 'r3', 'period-xyz');
+    expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).toHaveBeenNthCalledWith(3, 'r2', 'period-xyz');
+    expect(mockLicenseRequestRepository.reorderWaitlistedPositions).toHaveBeenCalledWith(['r4', 'r5']);
+    expect(result).toEqual({ releasedSlots: 3 });
+  });
+
+  it('promove P1 parcialmente e PARA sem passar para P2 mesmo com vagas sobrando', async () => {
+    const service = buildService();
+    const busId = 'bus-3';
+    const adminId = 'admin-3';
+
+    mockRepository.findById.mockResolvedValue({
+      _id: busId,
+      universitySlots: [
+        { universityId: { toString: () => 'a1' }, priorityOrder: 1 },
+        { universityId: { toString: () => 'a2' }, priorityOrder: 2 },
+      ],
+    });
+
+    // release only 1 slot
+    mockRepository.resetUniversityFilledSlots.mockResolvedValue(1);
+    mockEnrollmentPeriodService.getActive.mockResolvedValue({ _id: 'period-abc' });
+
+    mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
+      {
+        _id: busId,
+        perUniversity: [
+          { universityId: 'a1', pending: 0, waitlisted: 2 },
+          { universityId: 'a2', pending: 0, waitlisted: 3 },
+        ],
+        pending: 0,
+        waitlisted: 5,
+      },
+    ]);
+
+    const r1 = { _id: 'ra1', studentId: 'sa1', universityId: 'a1', busId, filaPosition: 1, createdAt: new Date('2026-02-01') };
+    const r2 = { _id: 'ra2', studentId: 'sa2', universityId: 'a1', busId, filaPosition: 2, createdAt: new Date('2026-02-02') };
+    const r3 = { _id: 'rb1', studentId: 'sb1', universityId: 'a2', busId, filaPosition: 1, createdAt: new Date('2026-02-03') };
+
+    mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus
+      .mockResolvedValueOnce([r2, r1, r3])
+      .mockResolvedValueOnce([r2, r3]);
+
+    mockLicenseRequestRepository.promoteWaitlistedForPeriod.mockResolvedValueOnce(r1);
+    mockStudentService.findOneOrFail.mockResolvedValue({ email: 'y@mail', name: 'Y' });
+    mockMailService.sendWaitlistPromotion.mockResolvedValue(undefined);
+
+    const result = await service.releaseSlotsForBus(busId, adminId);
+
+    // only one promotion (from a1) and no promotions from a2
+    expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).toHaveBeenCalledTimes(1);
+    expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).toHaveBeenCalledWith('ra1', 'period-abc');
+    expect(result).toEqual({ releasedSlots: 1 });
+  });
+
+  it('libera exatamente N vagas quando quantity fornecido e não promove além disso', async () => {
+    const service = buildService();
+    const busId = 'bus-4';
+    const adminId = 'admin-4';
+
+    mockRepository.findById.mockResolvedValue({
+      _id: busId,
+      universitySlots: [
+        { universityId: { toString: () => 'z1' }, priorityOrder: 1 },
+      ],
+    });
+
+    // Caller requested to release quantity = 2
+    mockRepository.resetUniversityFilledSlots.mockResolvedValue(2);
+    mockEnrollmentPeriodService.getActive.mockResolvedValue({ _id: 'period-q' });
+
+    mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
+      {
+        _id: busId,
+        perUniversity: [{ universityId: 'z1', pending: 0, waitlisted: 5 }],
+        pending: 0,
+        waitlisted: 5,
+      },
+    ]);
+
+    const r1 = { _id: 'q1', studentId: 'q-s1', universityId: 'z1', busId, filaPosition: 1, createdAt: new Date('2026-03-01') };
+    const r2 = { _id: 'q2', studentId: 'q-s2', universityId: 'z1', busId, filaPosition: 2, createdAt: new Date('2026-03-02') };
+    const r3 = { _id: 'q3', studentId: 'q-s3', universityId: 'z1', busId, filaPosition: 3, createdAt: new Date('2026-03-03') };
+
+    mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus
+      .mockResolvedValueOnce([r1, r2, r3])
+      .mockResolvedValueOnce([r3]);
+
+    mockLicenseRequestRepository.promoteWaitlistedForPeriod
+      .mockResolvedValueOnce(r1)
+      .mockResolvedValueOnce(r2);
+
+    const result = await service.releaseSlotsForBus(busId, adminId, true, 2);
+
+    expect(mockRepository.resetUniversityFilledSlots).toHaveBeenCalledWith(busId, 2);
+    expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).toHaveBeenCalledTimes(2);
+    expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).toHaveBeenNthCalledWith(1, 'q1', 'period-q');
+    expect(mockLicenseRequestRepository.promoteWaitlistedForPeriod).toHaveBeenNthCalledWith(2, 'q2', 'period-q');
+    expect(result).toEqual({ releasedSlots: 2 });
+  });
 });

@@ -36,12 +36,34 @@
 11. **Auditoria**
    - ações críticas registram ator, alvo e outcome.
 
+12. **Mascaramento e logs**
+   - logs de produção devem mascarar dados sensíveis (CPF parcial, emails truncados) e NUNCA gravar OTPs.
+
+13. **Conexões seguras**
+   - exigir HTTPS/TLS em produção; aplicar HSTS e políticas de redirecionamento.
+
+14. **Proteção de endpoints de fila**
+   - endpoints que retornam contagens agregadas (`/bus/with-queue-counts`) não expõem dados pessoais; endpoints com `studentId` são restritos a `EMPLOYEE`/`ADMIN`.
+
 ## Pontos funcionais importantes
 
 - `GET /license/verify/:code` é público, mas só valida o código.
 - `POST /license/events/token` exige estudante autenticado e gera ticket de uso único.
 - `POST /student/me/license-submit` valida elegibilidade antes de persistir a solicitação.
 - fila, promoção e aprovação foram pensadas para evitar dupla execução em corrida.
+
+## Controles operacionais
+
+- Session cookie: configurar `HttpOnly`, `Secure` e `SameSite` apropriado.
+- Rotacionar segredos: `SERVICE_SECRET`, `OTP_PEPPER`, `CPF_HMAC_SECRET` periodicamente.
+- Auditoria: gravar actor, action, resource-id e outcome para operações críticas (approve, reject, release-slots).
+- Monitorar padrões de erro 401/403/409/429 e configurar alertas.
+
+## Proteção de dados PII
+
+- CPF é armazenado como HMAC/hash e nunca retornado pelos endpoints padrão.
+- Todos os endpoints que retornam listas de `LicenseRequest` para interfaces públicas devem omitir campos pessoais (name, email, telephone, cpfHash).
+
 
 ## Recomendações operacionais
 
