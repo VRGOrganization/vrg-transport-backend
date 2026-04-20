@@ -106,18 +106,43 @@ export class BusRepository implements IBusRepository<Bus> {
     }
   }
 
-  async resetUniversityFilledSlots(busId: string, session?: ClientSession): Promise<number> {
+  async resetUniversityFilledSlots(busId: string, quantity?: number, session?: ClientSession): Promise<number> {
     const bus = await this.busModel.findById(busId).session(session ?? null).exec();
     if (!bus) throw new Error('Ônibus não encontrado');
 
     let released = 0;
     let changed = false;
-    for (const slot of (bus as any).universitySlots || []) {
-      const amount = slot.filledSlots || 0;
-      if (amount > 0) {
-        released += amount;
-        slot.filledSlots = 0;
-        changed = true;
+
+    const slots = (bus as any).universitySlots || [];
+    const totalFilled = slots.reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0);
+
+    // If no quantity provided, zero all filledSlots (existing behavior)
+    if (quantity === undefined || quantity === null) {
+      for (const slot of slots) {
+        const amount = slot.filledSlots || 0;
+        if (amount > 0) {
+          released += amount;
+          slot.filledSlots = 0;
+          changed = true;
+        }
+      }
+    } else {
+      // Only release up to the available filled slots
+      let remaining = Math.min(Math.max(0, Math.floor(quantity)), totalFilled);
+
+      if (remaining > 0) {
+        // Distribute release across slots in priority order (lower priorityOrder value first)
+        const ordered = [...slots].sort((a: any, b: any) => (a.priorityOrder || 0) - (b.priorityOrder || 0));
+        for (const slot of ordered) {
+          if (remaining <= 0) break;
+          const amount = slot.filledSlots || 0;
+          if (amount <= 0) continue;
+          const dec = Math.min(amount, remaining);
+          slot.filledSlots = Math.max(0, amount - dec);
+          released += dec;
+          remaining -= dec;
+          changed = true;
+        }
       }
     }
 

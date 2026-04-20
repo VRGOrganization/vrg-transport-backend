@@ -36,6 +36,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
       isGlobal: true,
       envFilePath: [`.env.${process.env.NODE_ENV}`, '.env'],
       validate: validateSecurityConfig,
+      ignoreEnvFile: process.env.IGNORE_ENV_FILE === 'true',
     }),
     MongooseModule.forRootAsync({
       inject: [ConfigService],

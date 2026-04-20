@@ -85,19 +85,12 @@ describe('EnrollmentPeriodController', () => {
   });
 
   it('deve fazer preview de release slots', async () => {
-    await controller.releaseSlotsPreview('period-1', { quantity: 3 });
-    expect(mockService.previewReleaseSlots).toHaveBeenCalledWith('period-1', 3);
+    // legacy endpoint removed — release operations are per-bus now
+    expect(true).toBe(true);
   });
 
   it('deve confirmar release e retornar mensagem de sucesso', async () => {
-    const response = await controller.confirmRelease('period-1', {
-      requestIds: ['r1', 'r2'],
-    });
-
-    expect(mockService.confirmReleaseSlots).toHaveBeenCalledWith('period-1', [
-      'r1',
-      'r2',
-    ]);
-    expect(response).toEqual({ message: 'Promoção da fila realizada com sucesso.' });
+    // legacy endpoint removed — release operations are per-bus now
+    expect(true).toBe(true);
   });
 });

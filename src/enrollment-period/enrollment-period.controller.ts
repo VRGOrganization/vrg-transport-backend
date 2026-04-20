@@ -4,12 +4,7 @@ import type { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
-import {
-  ConfirmReleaseDto,
-  CreateEnrollmentPeriodDto,
-  ReleaseSlotsDto,
-  UpdateEnrollmentPeriodDto,
-} from './dto/enrollment-period.dto';
+import { CreateEnrollmentPeriodDto, UpdateEnrollmentPeriodDto } from './dto/enrollment-period.dto';
 import { EnrollmentPeriodService } from './enrollment-period.service';
 
 @ApiTags('EnrollmentPeriods')
@@ -62,22 +57,5 @@ export class EnrollmentPeriodController {
     return this.service.findWaitlisted(id);
   }
 
-  @Post('/:id/release-slots')
-  @Roles(UserRole.ADMIN)
-  releaseSlotsPreview(
-    @Param('id', MongoObjectIdPipe) id: string,
-    @Body() dto: ReleaseSlotsDto,
-  ) {
-    return this.service.previewReleaseSlots(id, dto.quantity);
-  }
-
-  @Post('/:id/confirm-release')
-  @Roles(UserRole.ADMIN)
-  async confirmRelease(
-    @Param('id', MongoObjectIdPipe) id: string,
-    @Body() dto: ConfirmReleaseDto,
-  ) {
-    await this.service.confirmReleaseSlots(id, dto.requestIds);
-    return { message: 'Promoção da fila realizada com sucesso.' };
-  }
+  // Release and promotion are now handled per-bus via PATCH /bus/:id/release-slots
 }

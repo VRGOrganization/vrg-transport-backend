@@ -24,7 +24,9 @@
     "docker:logs": "docker-compose logs -f",
     "docker:restart": "docker-compose restart",
     "docker:clean": "docker-compose down -v",
-    "dev": "npm run docker:up && npm run start:dev"
+    "dev": "npm run docker:up && npm run start:dev",
+    "verify:invariants": "node scripts/verify_invariants/check_invariants.js",
+    "simulate:release": "node scripts/verify_invariants/simulate_release.js"
   },
   "dependencies": {
     "@getbrevo/brevo": "^5.0.3",
@@ -56,6 +58,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
@@ -68,6 +71,7 @@
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
     "jest": "^30.0.0",
+    "mongodb": "^5.9.2",
     "mongodb-memory-server": "^11.0.1",
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",

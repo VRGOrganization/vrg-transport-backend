@@ -367,24 +367,49 @@ export class LicenseRequestService {
       CourseSchedule?: UploadedImageFile[];
     },
   ): Promise<any> {
-    const session = await mongoose.startSession();
-    try {
-      let studentResult: any;
-      await session.withTransaction(async () => {
-        const activePeriod = await this.assertInitialRequestEligibility(studentId);
-        studentResult = await this.studentService.submitLicenseRequest(
-          studentId,
-          dto,
-          files,
-          session,
-        );
-        await this.createRequest(studentId, activePeriod, session);
-      });
-
-      return studentResult;
-    } finally {
-      await session.endSession();
+    // Only attempt to use transactions when mongoose is connected. When
+    // running in environments where the DB is not available (tests, dev with
+    // absent DB), startSession() may hang or time out. Fallback to
+    // non-transactional path when session cannot be acquired.
+    let session: mongoose.ClientSession | undefined = undefined;
+    if (mongoose?.connection?.readyState === 1) {
+      try {
+        session = await mongoose.startSession();
+      } catch {
+        session = undefined;
+      }
     }
+
+    if (session) {
+      try {
+        let studentResult: any;
+        await session.withTransaction(async () => {
+          const activePeriod = await this.assertInitialRequestEligibility(studentId);
+          studentResult = await this.studentService.submitLicenseRequest(
+            studentId,
+            dto,
+            files,
+            session,
+          );
+          await this.createRequest(studentId, activePeriod, session);
+        });
+
+        return studentResult;
+      } finally {
+        await session.endSession();
+      }
+    }
+
+    // Fallback non-transactional flow
+    const activePeriod = await this.assertInitialRequestEligibility(studentId);
+    const studentResult = await this.studentService.submitLicenseRequest(
+      studentId,
+      dto,
+      files,
+      undefined,
+    );
+    await this.createRequest(studentId, activePeriod, undefined);
+    return studentResult;
   }
 
   async submitDocumentUpdateRequest(
@@ -566,11 +591,28 @@ export class LicenseRequestService {
               if (request.type === LicenseRequestType.UPDATE) {
                 // update license path handled below outside transaction creation path
               } else {
+                // Prefer bus identifier from the request snapshot (accessBusIdentifiers[0])
+                // or resolve via busId when necessary. Do NOT trust employee-provided dto.bus.
+                let busForLicense: string | undefined = dto.bus;
+                if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
+                  busForLicense = (request as any).accessBusIdentifiers[0];
+                } else if ((request as any).busId) {
+                  try {
+                    const rawBusId = typeof (request as any).busId === 'string' ? (request as any).busId : (request as any).busId?.toString?.();
+                    if (rawBusId) {
+                      const busObj = await this.busService.findOneOrFail(rawBusId);
+                      busForLicense = (busObj as any).identifier ?? busForLicense;
+                    }
+                  } catch {
+                    // ignore and fallback to dto.bus
+                  }
+                }
+
                 licenseCreated = await this.licenseService.create(
                   {
                     id: request.studentId,
                     institution: dto.institution,
-                    bus: dto.bus,
+                    bus: busForLicense ?? dto.bus,
                     photo: dto.photo,
                   },
                   employeeId,
@@ -640,11 +682,27 @@ export class LicenseRequestService {
           await this.imagesService.archiveToHistory(imageId);
         }
 
+        // Ensure bus used for regeneration comes from the request snapshot
+        let busForLicenseUpdate: string | undefined = dto.bus;
+        if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
+          busForLicenseUpdate = (request as any).accessBusIdentifiers[0];
+        } else if ((request as any).busId) {
+          try {
+            const rawBusId = typeof (request as any).busId === 'string' ? (request as any).busId : (request as any).busId?.toString?.();
+            if (rawBusId) {
+              const busObj = await this.busService.findOneOrFail(rawBusId);
+              busForLicenseUpdate = (busObj as any).identifier ?? busForLicenseUpdate;
+            }
+          } catch {
+            // ignore and fallback to dto.bus
+          }
+        }
+
         const updatedLicense = await this.licenseService.regenerateExistingForStudent(
           request.studentId,
           {
             institution: dto.institution,
-            bus: dto.bus,
+            bus: busForLicenseUpdate ?? dto.bus,
             photo: dto.photo,
           },
           employeeId,
@@ -664,12 +722,28 @@ export class LicenseRequestService {
         }
 
         license = updatedLicense as any;
-      } else {
+        } else {
+        // Non-transactional code path: resolve bus identifier from request snapshot
+        let busForLicense: string | undefined = dto.bus;
+        if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
+          busForLicense = (request as any).accessBusIdentifiers[0];
+        } else if ((request as any).busId) {
+          try {
+            const rawBusId = typeof (request as any).busId === 'string' ? (request as any).busId : (request as any).busId?.toString?.();
+            if (rawBusId) {
+              const busObj = await this.busService.findOneOrFail(rawBusId);
+              busForLicense = (busObj as any).identifier ?? busForLicense;
+            }
+          } catch {
+            // ignore and fallback to dto.bus
+          }
+        }
+
         const createdLicense = await this.licenseService.create(
           {
             id: request.studentId,
             institution: dto.institution,
-            bus: dto.bus,
+            bus: busForLicense ?? dto.bus,
             photo: dto.photo,
           },
           employeeId,

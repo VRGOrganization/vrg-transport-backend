@@ -18,6 +18,6 @@ export interface IBusRepository<T> {
   incrementUniversityFilledSlots(busId: string, universityId: string, session?: ClientSession): Promise<void>;
   decrementUniversityFilledSlots(busId: string, universityId: string, session?: ClientSession): Promise<void>;
   resetAllFilledSlots(): Promise<void>;
-  resetUniversityFilledSlots(busId: string, session?: ClientSession): Promise<number>;
+  resetUniversityFilledSlots(busId: string, quantity?: number, session?: ClientSession): Promise<number>;
   findAllWithQueueCounts(): Promise<any[]>; // Tipar depois
 }

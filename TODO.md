@@ -1,3 +1,31 @@
+# Retomada - 20/04/2026
+
+Resumo do estado:
+- Data: 20/04/2026
+- Estado atual: Backend com testes verdes (20 suites, 106 testes).
+- Backend: implementado `releaseSlotsForBus` com `quantity`, `resetUniversityFilledSlots` aceita `quantity`, validação em EnrollmentPeriod (`totalSlots >= soma(capacidades onibus)`), removidos métodos/endpoint de preview/confirm de release por período.
+- Frontend: `StudentListPanel` atualizado para regra de prioridade dinâmica; `AdminCardsPage` passa `bus`. NSFW fallback já implementado.
+
+Próximos passos para retomar amanhã:
+1. Implementar `BusReleaseModal` e integrar com `PATCH /bus/:id/release-slots?quantity=N`.
+2. Adicionar handlers MSW para `GET /api/v1/university` nos testes frontend.
+3. Verificação manual da UI em `/employee/cards`.
+4. Ajustes finais, commit e abrir PR.
+
+Arquivos-chave (alterados/para revisar):
+- src/bus/bus.service.ts
+- src/bus/repository/bus.repository.ts
+- src/bus/interface/repository.interface.ts
+- src/enrollment-period/enrollment-period.service.ts
+- src/components/cards/StudentListPanel.tsx
+- src/app/(auth)/admin/cards/page.tsx
+
+Observações rápidas:
+- Backend já pronto para commit (testes verdes).
+- Testes frontend precisam de MSW handlers para evitar warnings e simular universidades.
+
+Use este arquivo para retomar o trabalho amanhã e seguir a ordem dos TODOs.
+
 # TODO
 
 ## Job Agendado de Expiracao de Carteirinhas
@@ -101,3 +129,7 @@
 - [x] 22. Substituir N+1 por bulkWrite
 - [x] 24. Centralizar validador de senhas
 - [x] 25. Criar UpdateLicenseDto
+
+
+
+

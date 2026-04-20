@@ -63,19 +63,7 @@ export class EnrollmentPeriodService {
     this.assertValidDateRange(startDate, endDate);
 
     // Valida: totalSlots nao pode ser menor que a soma das capacidades dos onibus (quando definida)
-    let activeBuses: any[] = [];
-    if (this.busService && typeof this.busService.findAllActive === 'function') {
-      activeBuses = await this.busService.findAllActive();
-    }
-    const sumCapacities = (activeBuses || []).reduce((acc: number, b: any) => {
-      const cap = (b as any)?.capacity;
-      return acc + (typeof cap === 'number' && cap > 0 ? cap : 0);
-    }, 0);
-    if (sumCapacities > 0 && dto.totalSlots < sumCapacities) {
-      throw new BadRequestException(
-        `Nao e possivel criar um periodo com totalSlots (${dto.totalSlots}) menor que a soma das capacidades dos onibus (${sumCapacities}).`,
-      );
-    }
+    await this.assertTotalSlotsNotBelowBusCapacity(dto.totalSlots);
 
     const created = await this.repository
       .create({
@@ -156,11 +144,11 @@ export class EnrollmentPeriodService {
 
     // Se for alterar totalSlots, valida contra vagas preenchidas e soma das capacidades dos onibus (quando aplicavel)
     if (dto.totalSlots !== undefined) {
-      let activeBuses: any[] = [];
-      if (this.busService && typeof this.busService.findAllActive === 'function') {
-        activeBuses = await this.busService.findAllActive();
-      }
-      const sumCapacities = (activeBuses || []).reduce((acc: number, b: any) => {
+      // Validate aggregate capacity constraint
+      await this.assertTotalSlotsNotBelowBusCapacity(dto.totalSlots);
+
+      // Additionally ensure we don't go below already-filled slots
+      const sumCapacities = (await this.busService.findAllActive() || []).reduce((acc: number, b: any) => {
         const cap = (b as any)?.capacity;
         return acc + (typeof cap === 'number' && cap > 0 ? cap : 0);
       }, 0);
@@ -296,117 +284,32 @@ export class EnrollmentPeriodService {
 
     return updated.waitlistSequence;
   }
-
-  async previewReleaseSlots(
-    periodId: string,
-    quantity: number,
-  ): Promise<LicenseRequest[]> {
-    await this.assertPeriodExists(periodId);
-
-    if (quantity < 1) {
-      throw new BadRequestException('A quantidade deve ser maior que zero.');
-    }
-
-    const waitlisted = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriod(
-      periodId,
-    );
-
-    return [...waitlisted]
-      .sort((a, b) => this.toTime(a.createdAt) - this.toTime(b.createdAt))
-      .slice(0, quantity);
-  }
-
   async findWaitlisted(periodId: string): Promise<LicenseRequest[]> {
     await this.assertPeriodExists(periodId);
     return this.licenseRequestRepository.findWaitlistedByEnrollmentPeriod(periodId);
-  }
-
-  async confirmReleaseSlots(
-    periodId: string,
-    requestIds: string[],
-  ): Promise<void> {
-    await this.assertPeriodExists(periodId);
-
-    if (!requestIds.length) {
-      throw new BadRequestException('Nenhuma solicitacao foi informada.');
-    }
-
-    const uniqueRequestIds = [...new Set(requestIds)];
-    if (uniqueRequestIds.length !== requestIds.length) {
-      throw new BadRequestException(
-        'A lista de solicitacoes contem IDs duplicados.',
-      );
-    }
-
-    const promoted: LicenseRequest[] = [];
-    const skipped: string[] = [];
-
-    for (const requestId of uniqueRequestIds) {
-      const promotedRequest =
-        await this.licenseRequestRepository.promoteWaitlistedForPeriod(
-          requestId,
-          periodId,
-        );
-
-      if (!promotedRequest) {
-        skipped.push(requestId);
-        continue;
-      }
-
-      promoted.push(promotedRequest);
-    }
-
-    if (promoted.length === 0) {
-      throw new ConflictException(
-        'Nenhuma solicitacao foi promovida. Elas podem ja ter sido processadas por outra operacao.',
-      );
-    }
-
-    for (const request of promoted) {
-      try {
-        const student = await this.studentService.findOneOrFail(request.studentId);
-        await this.mailService.sendWaitlistPromotion(student.email, student.name);
-      } catch (error) {
-        this.logger.warn(
-          `Falha ao enviar email de promocao de fila para ${request.studentId}: ${(error as Error)?.message}`,
-        );
-      }
-
-      this.licenseService.emitLicenseEvent(request.studentId, {
-        type: 'license.changed',
-        reason: 'waitlist_promoted',
-      });
-    }
-
-    const remainingWaitlisted = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriod(
-      periodId,
-    );
-
-    const sortedRemaining = [...remainingWaitlisted].sort(
-      (a, b) => this.toTime(a.createdAt) - this.toTime(b.createdAt),
-    );
-
-    await this.licenseRequestRepository.reorderWaitlistedPositions(
-      sortedRemaining.map((request) => this.toId(request)),
-    );
-
-    await this.auditLog.record({
-      action: 'enrollment_period.release_slots',
-      outcome: 'success',
-      target: { enrollmentPeriodId: periodId },
-      metadata: {
-        requestedRequestIds: uniqueRequestIds,
-        releasedRequestIds: promoted.map((request) => this.toId(request)),
-        skippedRequestIds: skipped,
-        remaining: sortedRemaining.length,
-      },
-    });
   }
 
   private async assertPeriodExists(periodId: string): Promise<void> {
     const period = await this.repository.findById(periodId);
     if (!period) {
       throw new NotFoundException('Periodo de inscricao nao encontrado.');
+    }
+  }
+
+  private async assertTotalSlotsNotBelowBusCapacity(totalSlots: number): Promise<void> {
+    let activeBuses: any[] = [];
+    if (this.busService && typeof this.busService.findAllActive === 'function') {
+      activeBuses = await this.busService.findAllActive();
+    }
+    const sumCapacity = (activeBuses || []).reduce((acc: number, b: any) => {
+      const cap = (b as any)?.capacity;
+      return acc + (typeof cap === 'number' && cap > 0 ? cap : 0);
+    }, 0);
+
+    if (sumCapacity > 0 && totalSlots < sumCapacity) {
+      throw new BadRequestException(
+        `O total de vagas (${totalSlots}) nao pode ser menor que a soma das capacidades dos onibus ativos (${sumCapacity}).`,
+      );
     }
   }
 

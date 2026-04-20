@@ -435,10 +435,14 @@ export class BusService {
    * Libera (zera) as vagas preenchidas associadas a este ônibus.
    * Retorna o total de vagas liberadas.
    */
-  async releaseSlotsForBus(busId: string, adminId: string, promote = true): Promise<{ releasedSlots: number }> {
+  async releaseSlotsForBus(busId: string, adminId: string, promote = true, quantity?: number): Promise<{ releasedSlots: number }> {
     await this.findOneOrFail(busId);
 
-    const released = await this.repository.resetUniversityFilledSlots(busId);
+    // Reset or decrement filled slots according to 'quantity'. If quantity is
+    // provided, only decrement that many slots (distributed among slots by priority);
+    // otherwise zero all filledSlots. The repository returns the actual number
+    // of released slots.
+    const released = await this.repository.resetUniversityFilledSlots(busId, quantity);
 
     await this.auditLog.record({
       action: 'bus.release_slots',
@@ -478,13 +482,53 @@ export class BusService {
     const slots = (bus as any).universitySlots || [];
     const sortedUniIds = [...slots]
       .sort((a: any, b: any) => (a.priorityOrder || 0) - (b.priorityOrder || 0))
-      .map((s: any) => s.universityId?.toString?.());
+      .map((s: any) => s.universityId?.toString?.())
+      .filter(Boolean) as string[];
+
+    // Get aggregated counts (pending + waitlisted) per university for this period and bus
+    const grouped = await this.licenseRequestRepository.findByEnrollmentPeriodAndBusGrouped(periodId);
+    const groupForBus = (grouped || []).find((g: any) => {
+      const bid = g && g._id;
+      if (!bid) return false;
+      return (typeof bid === 'string' ? bid : bid.toString?.()) === busId;
+    });
+
+    const perUniCounts: Record<string, { pending: number; waitlisted: number }> = {};
+    if (groupForBus && Array.isArray(groupForBus.perUniversity)) {
+      for (const pu of groupForBus.perUniversity) {
+        const uid = pu.universityId ? (typeof pu.universityId === 'string' ? pu.universityId : pu.universityId.toString?.()) : null;
+        if (!uid) continue;
+        perUniCounts[uid] = { pending: pu.pending || 0, waitlisted: pu.waitlisted || 0 };
+      }
+    }
 
     const promotedIds: string[] = [];
+    let remainingToPromote = released;
 
-    // For each university in priority, pick waitlisted requests for this bus/university
-    for (const uniId of sortedUniIds) {
-      if (promotedIds.length >= released) break;
+    // Find first priority that has any active demand (pending OR waitlisted)
+    let startIndex = 0;
+    for (let i = 0; i < sortedUniIds.length; i++) {
+      const uid = sortedUniIds[i];
+      const counts = perUniCounts[uid] || { pending: 0, waitlisted: 0 };
+      if ((counts.pending || 0) + (counts.waitlisted || 0) > 0) { startIndex = i; break; }
+    }
+
+    // Iterate from the first active priority downwards, respecting the dynamic-priority rule
+    for (let idx = startIndex; idx < sortedUniIds.length; idx++) {
+      if (remainingToPromote <= 0) break;
+      const uniId = sortedUniIds[idx];
+      const counts = perUniCounts[uniId] || { pending: 0, waitlisted: 0 };
+
+      // If this university has no active demand, skip
+      if ((counts.pending || 0) + (counts.waitlisted || 0) === 0) continue;
+
+      // If there are no waitlisted candidates but there are pending, block lower priorities
+      if ((counts.waitlisted || 0) === 0) {
+        // has active demand only because of pending — per dynamic-priority rule, stop here
+        break;
+      }
+
+      // Collect ordered waitlisted candidates for this bus/university
       const candidates = (waitlistedForBus || [])
         .filter((r: any) => {
           const rUni = r.universityId ? (typeof r.universityId === 'string' ? r.universityId : (r.universityId as any).toString?.()) : null;
@@ -499,10 +543,27 @@ export class BusService {
           return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         });
 
-      for (const c of candidates) {
-        if (promotedIds.length >= released) break;
-        promotedIds.push((c as any)._id?.toString?.());
+      if (!candidates.length) {
+        // no waitlist now, but counts.waitlisted > 0 => inconsistency; skip
+        continue;
       }
+
+      const take = Math.min(remainingToPromote, candidates.length);
+      for (let i = 0; i < take; i++) {
+        promotedIds.push((candidates[i] as any)._id?.toString?.());
+      }
+      remainingToPromote -= take;
+
+      // If we didn't exhaust this university's waitlist, stop and do not pass to lower priorities
+      if (candidates.length > take) {
+        break;
+      }
+
+      // If we exhausted the waitlist but university still has pending > 0, block lower priorities
+      if ((counts.pending || 0) > 0) {
+        break;
+      }
+      // otherwise, continue to next priority
     }
 
     if (promotedIds.length === 0) {

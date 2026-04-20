@@ -129,14 +129,17 @@ export class BusController {
   @ApiOperation({ summary: 'Liberar vagas preenchidas do ônibus (zera filledSlots por universidade)' })
   @ApiParam({ name: 'id', description: 'MongoDB ObjectId do ônibus' })
   @ApiQuery({ name: 'promote', required: false, description: 'Se true (default) promove automaticamente waitlisted; enviar promote=false para apenas zerar filledSlots sem promover.' })
+  @ApiQuery({ name: 'quantity', required: false, description: 'Quantidade de vagas a liberar (opcional). Quando omitido, zera todos os filledSlots.' })
   @HttpCode(HttpStatus.OK)
   releaseSlots(
     @Param('id', MongoObjectIdPipe) id: string,
     @Query('promote') promote: string | undefined,
+    @Query('quantity') quantity: string | undefined,
     @Req() req: Request,
   ) {
     const doPromote = promote === undefined ? true : promote === 'true';
-    return this.service.releaseSlotsForBus(id, req.sessionPayload!.userId, doPromote);
+    const q = quantity === undefined ? undefined : Number.parseInt(quantity as string, 10);
+    return this.service.releaseSlotsForBus(id, req.sessionPayload!.userId, doPromote, q);
   }
 
   @Delete(':id')

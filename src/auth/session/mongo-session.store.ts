@@ -34,7 +34,11 @@ export class MongoSessionStore implements ISessionStore {
   }
 
   async findById(sessionId: string): Promise<SessionPayload | null> {
-    if (!Types.ObjectId.isValid(sessionId)) return null;
+    console.log('[mongo-session] findById called for', sessionId);
+    if (!Types.ObjectId.isValid(sessionId)) {
+      console.log('[mongo-session] invalid sessionId format');
+      return null;
+    }
 
     const doc = await this.sessionModel.findOneAndUpdate(
       {
@@ -48,6 +52,8 @@ export class MongoSessionStore implements ISessionStore {
       },
       { returnDocument: 'after' },
     );
+
+    console.log('[mongo-session] findById result:', !!doc, doc ? (doc._id as Types.ObjectId).toHexString() : null);
 
     if (!doc) return null;
     return this.toPayload(doc);
