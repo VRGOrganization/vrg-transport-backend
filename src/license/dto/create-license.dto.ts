@@ -45,8 +45,8 @@ export class CreateLicenseDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(2_000_000, {
-    message: 'Foto muito grande. Máximo ~1.5MB em base64.',
+  @MaxLength(2097152, {
+    message: 'Foto muito grande. Máximo 2MB em base64.',
   })
   @Matches(/^data:image\/(jpeg|jpg|png|webp);base64,/, {
     message: 'photo deve ser base64 válido (jpeg, jpg, png ou webp)',

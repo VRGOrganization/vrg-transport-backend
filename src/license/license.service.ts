@@ -5,6 +5,8 @@ import {
   NotFoundException,
   BadGatewayException,
   BadRequestException,
+  ForbiddenException,
+  HttpException,
   Logger,
   GatewayTimeoutException,
   MessageEvent,
@@ -39,7 +41,7 @@ type SseTicketEntry = {
 @Injectable()
 export class LicenseService {
   private readonly logger = new Logger(LicenseService.name);
-  private readonly MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB 
+  private readonly MAX_PHOTO_SIZE_BYTES = 2_097_152; // 2MB (base64 length)
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private readonly qrCodeBaseUrl: string;
@@ -49,6 +51,27 @@ export class LicenseService {
   private readonly CLEANUP_INTERVAL_MS = 60 * 1000;
   private readonly sseTickets = new Map<string, SseTicketEntry>();
   private readonly sseTicketTtlMs = 60_000;
+
+  private readonly DAY_LABELS: Record<string, string> = {
+    SEG: 'Segunda',
+    TER: 'Terça',
+    QUA: 'Quarta',
+    QUI: 'Quinta',
+    SEX: 'Sexta',
+  };
+
+  // Token bucket para limitar chamadas ao serviço de licenças (por minuto)
+  private tokenBucketCapacity: number;
+  private tokenBucketTokens: number;
+  private tokenBucketRefillIntervalMs: number;
+  private tokenBucketLastRefill: number;
+  private throttleWaitMs: number;
+
+  // Circuit-breaker simples
+  private circuitFailureCount = 0;
+  private circuitBreakerThreshold: number;
+  private circuitOpenUntil = 0;
+  private circuitOpenMs: number;
 
   constructor(
     @Inject(LICENSE_REPOSITORY)
@@ -69,6 +92,18 @@ export class LicenseService {
       this.CLEANUP_INTERVAL_MS,
     );
     cleanupTimer.unref?.();
+
+    // inicializa token bucket e circuit-breaker a partir das configs (valores padrão seguros)
+    this.tokenBucketCapacity = Number(this.configService.get('LICENSE_API_MAX_REQUESTS_PER_MIN', 18));
+    this.tokenBucketTokens = this.tokenBucketCapacity;
+    this.tokenBucketRefillIntervalMs = Number(this.configService.get('LICENSE_API_TOKEN_REFILL_MS', 60_000));
+    this.tokenBucketLastRefill = Date.now();
+    this.throttleWaitMs = Number(this.configService.get('LICENSE_API_THROTTLE_WAIT_MS', 2000));
+
+    this.circuitBreakerThreshold = Number(this.configService.get('LICENSE_API_CB_THRESHOLD', 5));
+    this.circuitOpenMs = Number(this.configService.get('LICENSE_API_CB_OPEN_MS', 60_000));
+    this.circuitFailureCount = 0;
+    this.circuitOpenUntil = 0;
   }
 
   // StudentService injected directly via constructor
@@ -180,7 +215,7 @@ export class LicenseService {
 
     const normalizedPhoto = this.normalizePhotoForLicenseApi(dto.photo);
     if (normalizedPhoto && normalizedPhoto.length > this.MAX_PHOTO_SIZE_BYTES) {
-      throw new BadRequestException('Foto excede o tamanho máximo permitido de 5MB');
+      throw new BadRequestException('Foto excede o tamanho máximo permitido de 2MB');
     }
 
     const payload = {
@@ -197,6 +232,7 @@ export class LicenseService {
       qr_code_url: qrCodeUrl,
       card_note: cardContext?.cardNote ?? null,
       access_bus_identifiers: cardContext?.accessBusIdentifiers ?? [dto.bus],
+      study_schedule: this.buildStudySchedule(student),
     };
 
     const data = await this.callLicenseApi(payload);
@@ -407,7 +443,7 @@ export class LicenseService {
 
     const normalizedPhoto = this.normalizePhotoForLicenseApi(dto.photo);
     if (normalizedPhoto && normalizedPhoto.length > this.MAX_PHOTO_SIZE_BYTES) {
-      throw new BadRequestException('Foto excede o tamanho máximo permitido de 5MB');
+      throw new BadRequestException('Foto excede o tamanho máximo permitido de 2MB');
     }
 
     const payload = {
@@ -424,6 +460,7 @@ export class LicenseService {
       qr_code_url: qrCodeUrl,
       card_note: cardContext?.cardNote ?? null,
       access_bus_identifiers: cardContext?.accessBusIdentifiers ?? [dto.bus],
+      study_schedule: this.buildStudySchedule(student),
     };
 
     const data = await this.callLicenseApi(payload);
@@ -498,6 +535,7 @@ export class LicenseService {
       qr_code_url: qrCodeUrl,
       card_note: cardContext?.cardNote ?? null,
       access_bus_identifiers: cardContext?.accessBusIdentifiers ?? [dto.bus],
+      study_schedule: this.buildStudySchedule(student),
     };
 
     const data = await this.callLicenseApi(payload);
@@ -569,6 +607,71 @@ export class LicenseService {
     this.streamLastActivity.set(studentId, Date.now());
   }
 
+  private buildStudySchedule(student: any): string[] | undefined {
+    const selections: Array<{ day?: string; period?: string }> = student?.schedule ?? [];
+    if (!Array.isArray(selections) || selections.length === 0) return undefined;
+
+    const grouped: Record<string, Set<string>> = {};
+    for (const s of selections) {
+      const day = (s.day ?? '').toString();
+      const period = (s.period ?? '').toString();
+      if (!day) continue;
+      if (!grouped[day]) grouped[day] = new Set<string>();
+      grouped[day].add(period || '');
+    }
+
+    const order = ['SEG', 'TER', 'QUA', 'QUI', 'SEX'];
+    const result: string[] = [];
+    for (const d of order) {
+      const periods = grouped[d];
+      if (!periods) continue;
+      const dayLabel = this.DAY_LABELS[d] ?? d;
+      if (periods.size > 1) {
+        result.push(`${dayLabel} Integral`);
+      } else {
+        const p = Array.from(periods)[0];
+        if (!p) continue;
+        result.push(`${dayLabel} ${p}`);
+      }
+    }
+
+    return result.length > 0 ? result : undefined;
+  }
+
+  private async ensureRateLimit(): Promise<void> {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    // circuito aberto? aborta rápido
+    if (Date.now() < this.circuitOpenUntil) {
+      throw new HttpException('Serviço de licenças temporariamente indisponível (circuit open)', 503);
+    }
+
+    const start = Date.now();
+    const deadline = start + this.throttleWaitMs;
+
+    while (Date.now() <= deadline) {
+      const now = Date.now();
+      // refill coarse (a cada interval)
+      if (now - this.tokenBucketLastRefill >= this.tokenBucketRefillIntervalMs) {
+        this.tokenBucketTokens = this.tokenBucketCapacity;
+        this.tokenBucketLastRefill = now;
+      }
+
+      if (this.tokenBucketTokens > 0) {
+        this.tokenBucketTokens -= 1;
+        return;
+      }
+
+      const timeUntilRefill = this.tokenBucketRefillIntervalMs - (now - this.tokenBucketLastRefill);
+      const wait = Math.min(Math.max(timeUntilRefill, 50), deadline - Date.now());
+      if (wait > 0) await sleep(wait);
+      else break;
+    }
+
+    // sem token dentro do tempo máximo de espera
+    throw new HttpException('Limite de requisições local atingido, tente novamente mais tarde', 429);
+  }
+
   private cleanupStaleStreams(): void {
     const now = Date.now();
 
@@ -585,37 +688,191 @@ export class LicenseService {
   }
 
 
-  private async callLicenseApi(payload: Record<string, unknown>){
-    const timeout = this.configService.get('LICENSE_API_TIMEOUT_MS', 5000);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
+  private async callLicenseApi(payload: Record<string, unknown>) {
+    const maxAttempts = Number(this.configService.get('LICENSE_API_MAX_ATTEMPTS', 3));
+    const baseDelay = Number(this.configService.get('LICENSE_API_RETRY_BASE_MS', 200));
+    const maxDelay = Number(this.configService.get('LICENSE_API_RETRY_MAX_MS', 2000));
+    const timeoutMs = Number(this.configService.get('LICENSE_API_TIMEOUT_MS', 5000));
 
-    try{
-      const response = await fetch(`${this.apiUrl}/api/v1/license/create`,{
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': this.apiKey,
-        },
-        body: JSON.stringify(payload),
-      })
+    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        this.logger.error(
-          `License API error: ${response.status} ${response.statusText} body=${errorBody}`,
-        );
-        throw new BadGatewayException('Erro ao comunicar com o serviço de licenças');
+    const parseRetryAfter = (h: string | null): number | null => {
+      if (!h) return null;
+      const seconds = Number(h);
+      if (!Number.isNaN(seconds)) return seconds * 1000;
+      const t = Date.parse(h);
+      if (!Number.isNaN(t)) return Math.max(0, t - Date.now());
+      return null;
+    };
+
+    const idempotencyKey = randomUUID();
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // aplica token-bucket e valida circuito (ensureRateLimit faz a checagem do circuito)
+      await this.ensureRateLimit();
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const response = await fetch(`${this.apiUrl}/api/v1/license/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-KEY': this.apiKey,
+            'Idempotency-Key': idempotencyKey,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          const getBodyText = async (r: any) => {
+            if (!r) return '';
+            try {
+              if (typeof r.text === 'function') return await r.text();
+              if (typeof r.json === 'function') {
+                const j = await r.json();
+                return typeof j === 'string' ? j : JSON.stringify(j);
+              }
+              if (typeof r.body === 'string') return r.body;
+            } catch (_) {}
+            return '';
+          };
+
+          const text = await getBodyText(response);
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(text);
+          } catch (_) {
+            parsed = null;
+          }
+
+          this.logger.error(
+            `License API error (attempt ${attempt}/${maxAttempts}): ${response.status} ${response.statusText} body=${text}`,
+          );
+
+          const retryableStatuses = [429, 500, 502, 503, 504];
+          const isRetryable = retryableStatuses.includes(response.status);
+
+          if (isRetryable && attempt < maxAttempts) {
+            const ra = parseRetryAfter(response.headers.get('retry-after'));
+            const backoff = Math.min(maxDelay, baseDelay * 2 ** (attempt - 1));
+            const waitMs = ra ?? Math.floor(Math.random() * backoff);
+            await sleep(waitMs);
+            continue; // retry
+          }
+
+          // não retryable ou última tentativa: contabiliza falha e lança exceção mapeada
+          try {
+            this.circuitFailureCount += 1;
+            if (this.circuitFailureCount >= this.circuitBreakerThreshold) {
+              this.circuitOpenUntil = Date.now() + this.circuitOpenMs;
+              this.logger.warn('Circuit-breaker ativado para License API por falhas repetidas');
+            }
+          } catch (_) {}
+
+          switch (response.status) {
+            case 400:
+              throw new BadRequestException(parsed?.message ?? 'Requisição inválida ao serviço de licenças');
+            case 401:
+              throw new UnauthorizedException(parsed?.message ?? 'Não autorizado');
+            case 403:
+              throw new ForbiddenException(parsed?.message ?? 'Acesso negado');
+            case 413:
+              throw new BadRequestException(parsed?.message ?? 'Payload muito grande');
+            case 429:
+              throw new HttpException(parsed?.message ?? 'Limite de requisições atingido', 429);
+            default:
+              throw new BadGatewayException('Erro ao comunicar com o serviço de licenças');
+          }
+        }
+
+        // sucesso: reseta contador do circuito e trata multipart ou JSON
+        try { this.circuitFailureCount = 0; } catch (_) {}
+
+        const getHeaderValue = (r: any, name: string) => {
+          if (!r || !r.headers) return '';
+          try {
+            if (typeof r.headers.get === 'function') return r.headers.get(name) || '';
+            if (typeof r.headers[name] === 'string') return r.headers[name];
+            const hn = Object.keys(r.headers).find((k) => k.toLowerCase() === name.toLowerCase());
+            if (hn) return (r.headers as any)[hn];
+          } catch (_) {}
+          return '';
+        };
+
+        const contentType = getHeaderValue(response, 'content-type') || '';
+        if (contentType.includes('multipart/form-data')) {
+          const m = contentType.match(/boundary=(?:"?)([^;\"]+)(?:"?)/i);
+          const boundary = m ? m[1] : null;
+          if (!boundary) {
+            throw new BadGatewayException('Resposta multipart inválida do serviço de licenças');
+          }
+
+          const arrayBuf = await response.arrayBuffer();
+          const buf = Buffer.from(arrayBuf);
+          const boundaryBuf = Buffer.from(`--${boundary}`);
+
+          const partStart = buf.indexOf(boundaryBuf);
+          if (partStart === -1) throw new BadGatewayException('Resposta multipart inválida do serviço de licenças');
+
+          // Move para começo da primeira parte
+          let cursor = partStart + boundaryBuf.length + 2; // skip CRLF
+          const headerEnd = buf.indexOf(Buffer.from('\r\n\r\n'), cursor);
+          if (headerEnd === -1) throw new BadGatewayException('Resposta multipart inválida do serviço de licenças');
+
+          const contentStart = headerEnd + 4;
+          const nextBoundary = buf.indexOf(boundaryBuf, contentStart);
+          if (nextBoundary === -1) throw new BadGatewayException('Resposta multipart inválida do serviço de licenças');
+
+          const contentEnd = nextBoundary - 2; // remove trailing CRLF
+          const fileBuf = buf.slice(contentStart, contentEnd);
+
+          const base64 = fileBuf.toString('base64');
+          return { image: base64 };
+        }
+
+        return response.json();
+      } catch (err: any) {
+        // network / timeout errors -> retry quando possível
+        if ((err instanceof Error && err.name === 'AbortError') || err instanceof TypeError) {
+          if (attempt < maxAttempts) {
+            const backoff = Math.min(maxDelay, baseDelay * 2 ** (attempt - 1));
+            const waitMs = Math.floor(Math.random() * backoff);
+            await sleep(waitMs);
+            continue;
+          }
+
+          if (err instanceof Error && err.name === 'AbortError') {
+            try {
+              this.circuitFailureCount += 1;
+              if (this.circuitFailureCount >= this.circuitBreakerThreshold) {
+                this.circuitOpenUntil = Date.now() + this.circuitOpenMs;
+                this.logger.warn('Circuit-breaker ativado para License API por falhas repetidas');
+              }
+            } catch (_) {}
+
+            throw new GatewayTimeoutException('Serviço de licenças indisponível');
+          }
+        }
+
+        try {
+          this.circuitFailureCount += 1;
+          if (this.circuitFailureCount >= this.circuitBreakerThreshold) {
+            this.circuitOpenUntil = Date.now() + this.circuitOpenMs;
+            this.logger.warn('Circuit-breaker ativado para License API por falhas repetidas');
+          }
+        } catch (_) {}
+
+        throw err instanceof Error ? err : new BadGatewayException('Erro ao comunicar com o serviço de licenças');
+      } finally {
+        clearTimeout(timer);
       }
-      return response.json();
-    }catch(err){
-      if(err instanceof Error && err.name === 'AbortError') {
-        throw new GatewayTimeoutException('Serviço de licenças indisponível');
-      }
-      throw new BadGatewayException('Erro ao comunicar com o serviço de licenças');
-    }finally{
-      clearTimeout(timer);
     }
+
+    // se atingir aqui, não foi possível comunicar após tentativas
+    throw new BadGatewayException('Erro ao comunicar com o serviço de licenças');
   }
 
   private normalizePhotoForLicenseApi(photo?: string): string | undefined {
