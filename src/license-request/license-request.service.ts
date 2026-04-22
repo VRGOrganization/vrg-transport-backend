@@ -591,12 +591,11 @@ export class LicenseRequestService {
               if (request.type === LicenseRequestType.UPDATE) {
                 // update license path handled below outside transaction creation path
               } else {
-                // Prefer bus identifier from the request snapshot (accessBusIdentifiers[0])
-                // or resolve via busId when necessary. Do NOT trust employee-provided dto.bus.
+                // Prefer the bus snapshot (`busId`) when present (this guarantees the
+                // selected bus is the one used at creation). Fall back to the
+                // accessBusIdentifiers array, then to the employee-provided DTO.
                 let busForLicense: string | undefined = dto.bus;
-                if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
-                  busForLicense = (request as any).accessBusIdentifiers[0];
-                } else if ((request as any).busId) {
+                if ((request as any).busId) {
                   try {
                     const rawBusId = typeof (request as any).busId === 'string' ? (request as any).busId : (request as any).busId?.toString?.();
                     if (rawBusId) {
@@ -604,8 +603,10 @@ export class LicenseRequestService {
                       busForLicense = (busObj as any).identifier ?? busForLicense;
                     }
                   } catch {
-                    // ignore and fallback to dto.bus
+                    // ignore and continue to other fallbacks
                   }
+                } else if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
+                  busForLicense = (request as any).accessBusIdentifiers[0];
                 }
 
                 licenseCreated = await this.licenseService.create(
@@ -682,11 +683,10 @@ export class LicenseRequestService {
           await this.imagesService.archiveToHistory(imageId);
         }
 
-        // Ensure bus used for regeneration comes from the request snapshot
+        // Ensure bus used for regeneration comes from the request snapshot when available
+        // (preferred), otherwise fall back to accessBusIdentifiers or DTO.
         let busForLicenseUpdate: string | undefined = dto.bus;
-        if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
-          busForLicenseUpdate = (request as any).accessBusIdentifiers[0];
-        } else if ((request as any).busId) {
+        if ((request as any).busId) {
           try {
             const rawBusId = typeof (request as any).busId === 'string' ? (request as any).busId : (request as any).busId?.toString?.();
             if (rawBusId) {
@@ -694,8 +694,10 @@ export class LicenseRequestService {
               busForLicenseUpdate = (busObj as any).identifier ?? busForLicenseUpdate;
             }
           } catch {
-            // ignore and fallback to dto.bus
+            // ignore and continue to other fallbacks
           }
+        } else if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
+          busForLicenseUpdate = (request as any).accessBusIdentifiers[0];
         }
 
         const updatedLicense = await this.licenseService.regenerateExistingForStudent(
@@ -723,11 +725,9 @@ export class LicenseRequestService {
 
         license = updatedLicense as any;
         } else {
-        // Non-transactional code path: resolve bus identifier from request snapshot
+        // Non-transactional code path: prefer the bus snapshot when available.
         let busForLicense: string | undefined = dto.bus;
-        if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
-          busForLicense = (request as any).accessBusIdentifiers[0];
-        } else if ((request as any).busId) {
+        if ((request as any).busId) {
           try {
             const rawBusId = typeof (request as any).busId === 'string' ? (request as any).busId : (request as any).busId?.toString?.();
             if (rawBusId) {
@@ -735,8 +735,10 @@ export class LicenseRequestService {
               busForLicense = (busObj as any).identifier ?? busForLicense;
             }
           } catch {
-            // ignore and fallback to dto.bus
+            // ignore and fallback to other options
           }
+        } else if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
+          busForLicense = (request as any).accessBusIdentifiers[0];
         }
 
         const createdLicense = await this.licenseService.create(

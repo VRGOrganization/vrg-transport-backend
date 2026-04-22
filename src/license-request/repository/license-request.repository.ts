@@ -245,7 +245,8 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
   ): Promise<LicenseRequest[]> {
     return this.model
       .find({ status })
-      .sort({ createdAt: -1 })
+      // FIFO: older requests first
+      .sort({ createdAt: 1 })
       .lean()
       .exec() as Promise<LicenseRequest[]>;
   }

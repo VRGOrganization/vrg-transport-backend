@@ -1,0 +1,16 @@
+{
+  "id": "2024001",
+  "employee_id": "emp-0001",
+  "name": "Teste QR",
+  "degree": "Curso de Teste",
+  "institution": "Instituto X",
+  "shift": "Noite",
+  "telephone": "(00) 00000-0000",
+  "blood_type": "O+",
+  "bus": "06",
+  "photo": null,
+  "card_note": null,
+  "access_bus_identifiers": ["06","02"],
+  "study_schedule": ["Terça Noite"],
+  "qr_code_url": "http://localhost:3001/verify/test-uuid-123"
+}
