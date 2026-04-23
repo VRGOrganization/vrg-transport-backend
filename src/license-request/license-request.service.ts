@@ -68,23 +68,21 @@ export class LicenseRequestService {
 
   private buildCardNote(
     studentShift: Shift,
-    directBusIdentifier: string,
     accessBusIdentifiers: string[],
   ): string | null {
-    if (studentShift !== Shift.FULL_TIME) {
-      return null;
+    const shiftLabel = studentShift ?? Shift.MORNING;
+    const busList = accessBusIdentifiers.length > 0 ? accessBusIdentifiers.join(', ') : 'não definido';
+
+    if (studentShift === Shift.FULL_TIME) {
+      return `Aluno integral. Elegível para os ônibus da faculdade: ${busList}.`;
     }
 
-    const busList = accessBusIdentifiers.length > 0
-      ? accessBusIdentifiers.join(', ')
-      : directBusIdentifier;
-
-    return `Aluno integral. Inscrito diretamente no ônibus da manhã (${directBusIdentifier}). Acesso a todos os ônibus da faculdade: ${busList}.`;
+    return `Aluno do turno ${shiftLabel}. Elegível para os ônibus da faculdade: ${busList}.`;
   }
 
   private async resolveBusContextForRequest(student: any): Promise<{
-    busId: string | null;
-    busIdentifier: string | null;
+    universityId: string;
+    busCandidates: any[];
     accessBusIdentifiers: string[];
     cardNote: string | null;
   }> {
@@ -94,33 +92,19 @@ export class LicenseRequestService {
     }
 
     const studentShift = student?.shift as Shift | undefined;
-    const preferredShift = studentShift === Shift.FULL_TIME ? Shift.MORNING : studentShift ?? null;
-
     const busCandidates = await this.busService.findAllByUniversityId(universityId);
     if (!busCandidates || busCandidates.length === 0) {
       throw new BadRequestException('Nenhum ônibus disponível para sua instituição.');
     }
-
-    const selectedBus = await this.busService.findByUniversityIdAndShift(
-      universityId,
-      preferredShift,
-    );
-
-    if (!selectedBus) {
-      throw new BadRequestException('Nenhum ônibus disponível para sua instituição.');
-    }
-
-    const busId = this.toStringId((selectedBus as any)._id);
-    const busIdentifier = (selectedBus as any).identifier ?? null;
     const accessBusIdentifiers = busCandidates
       .map((bus: any) => bus.identifier)
       .filter((identifier: unknown): identifier is string => typeof identifier === 'string' && identifier.length > 0);
 
     return {
-      busId,
-      busIdentifier,
+      universityId,
+      busCandidates,
       accessBusIdentifiers,
-      cardNote: this.buildCardNote(studentShift ?? Shift.MORNING, busIdentifier ?? '', accessBusIdentifiers),
+      cardNote: this.buildCardNote(studentShift ?? Shift.MORNING, accessBusIdentifiers),
     };
   }
 
@@ -142,6 +126,15 @@ export class LicenseRequestService {
       cardNote: null,
       accessBusIdentifiers: [],
     };
+  }
+
+  private async resolveApprovedBus(busInput: string): Promise<{ _id: unknown; identifier?: string | null }> {
+    const byIdentifier = await this.busService.findByIdentifier(busInput);
+    if (byIdentifier) {
+      return byIdentifier as any;
+    }
+
+    return this.busService.findOneOrFail(busInput) as any;
   }
 
   // Verifica elegibilidade e retorna o período de inscrição ativo (quando aplicável)
@@ -189,16 +182,8 @@ export class LicenseRequestService {
 
     const student = await this.studentService.findOneOrFail(studentId);
     const busContext = await this.resolveBusContextForRequest(student);
-    const universityIdForRequest = this.toStringId((student as any).universityId);
-    const busIdForRequest = busContext.busId;
-    const busIdentifierForRequest = busContext.busIdentifier;
-
-    if (!busIdForRequest || !universityIdForRequest) {
-      throw new BadRequestException('Nenhum ?nibus dispon?vel para sua institui??o.');
-    }
-
-    const bus = await this.busService.findOneOrFail(busIdForRequest);
-    const busObjectId = new Types.ObjectId(busIdForRequest);
+    const universityIdForRequest = busContext.universityId;
+    const busCandidates = busContext.busCandidates;
     const universityObjectId = new Types.ObjectId(universityIdForRequest);
 
     const baseRequestData = {
@@ -213,44 +198,57 @@ export class LicenseRequestService {
       pendingImages: [] as any[],
       changedDocuments: [] as any[],
       enrollmentPeriodId,
-      busId: busObjectId,
+      busId: null,
       universityId: universityObjectId,
       cardNote: busContext.cardNote,
       accessBusIdentifiers: busContext.accessBusIdentifiers,
     };
 
-    // If bus has no capacity defined, accept as PENDING
-    if ((bus as any).capacity == null) {
-      const request = await this.createRequestRecord({
-        ...baseRequestData,
-        status: LicenseRequestStatus.PENDING,
-        filaPosition: null,
-      }, session);
+    const studentSlotForBus = (bus: any) =>
+      ((bus as any).universitySlots || []).find((s: any) =>
+        (s.universityId && s.universityId.toString ? s.universityId.toString() : s.universityId) ===
+        universityIdForRequest,
+      );
 
-      await this.auditLog.record({
-        action: 'license_request.create',
-        outcome: 'success',
-        target: { studentId, enrollmentPeriodId },
-        metadata: {
-          busId: busIdForRequest,
-          busIdentifier: busIdentifierForRequest,
-          universityId: universityIdForRequest,
-          cardNote: busContext.cardNote,
-        },
-      });
+    const busIsAvailable = async (bus: any): Promise<boolean> => {
+      const studentSlot = studentSlotForBus(bus);
+      if (!studentSlot) {
+        return false;
+      }
 
-      return { ...(request as any), waitlisted: false };
-    }
+      const higherPrioritySlots = ((bus as any).universitySlots || []).filter(
+        (s: any) => (s.priorityOrder || 0) < (studentSlot.priorityOrder || 0),
+      );
 
-    // If bus has capacity, check total filled slots
-    const totalFilled = ((bus as any).universitySlots || []).reduce(
-      (acc: number, s: any) => acc + (s.filledSlots || 0),
-      0,
-    );
+      for (const slot of higherPrioritySlots) {
+        const uniIdStr = slot.universityId && slot.universityId.toString ? slot.universityId.toString() : slot.universityId;
+        const hasDemand = await this.repository.hasActiveDemandForBusAndUniversity(
+          (bus as any).identifier,
+          typeof uniIdStr === 'string' ? uniIdStr : uniIdStr?.toString?.(),
+        );
+        if (hasDemand) {
+          return false;
+        }
+      }
 
-    if ((bus as any).capacity != null && totalFilled >= (bus as any).capacity) {
-      // Assign filaPosition scoped to this bus (per-bus queue)
-      const filaCount = await this.repository.countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId, busIdForRequest);
+      if ((bus as any).capacity == null) {
+        return true;
+      }
+
+      const totalFilled = ((bus as any).universitySlots || []).reduce(
+        (acc: number, s: any) => acc + (s.filledSlots || 0),
+        0,
+      );
+
+      return totalFilled < (bus as any).capacity;
+    };
+
+    const hasAnyAvailableBus = await Promise.all(
+      busCandidates.map(async (bus: any) => busIsAvailable(bus)),
+    ).then((results) => results.some(Boolean));
+
+    if (!hasAnyAvailableBus) {
+      const filaCount = await this.repository.countWaitlistedByEnrollmentPeriod(enrollmentPeriodId);
       const filaPosition = (filaCount || 0) + 1;
 
       const request = await this.createRequestRecord({
@@ -270,70 +268,14 @@ export class LicenseRequestService {
         outcome: 'success',
         target: { studentId, enrollmentPeriodId },
         metadata: {
-          filaPosition,
-          busId: busIdForRequest,
-          busIdentifier: busIdentifierForRequest,
           universityId: universityIdForRequest,
           cardNote: busContext.cardNote,
+          accessBusIdentifiers: busContext.accessBusIdentifiers,
+          filaPosition,
         },
       });
 
       return { ...(request as any), waitlisted: true, filaPosition };
-    }
-
-    // Find the student's slot in the bus
-    const studentSlot = ((bus as any).universitySlots || []).find((s: any) =>
-      (s.universityId && s.universityId.toString ? s.universityId.toString() : s.universityId) ===
-      universityIdForRequest,
-    );
-
-    if (!studentSlot) {
-      throw new BadRequestException('Sua institui??o n?o est? vinculada a este ?nibus.');
-    }
-
-    // Check if any higher-priority university has active demand for this bus
-    const higherPrioritySlots = ((bus as any).universitySlots || []).filter(
-      (s: any) => (s.priorityOrder || 0) < (studentSlot.priorityOrder || 0),
-    );
-
-    for (const slot of higherPrioritySlots) {
-      const uniIdStr = slot.universityId && slot.universityId.toString ? slot.universityId.toString() : slot.universityId;
-      const hasDemand = await this.repository.hasActiveDemandForBusAndUniversity(
-        busIdForRequest,
-        typeof uniIdStr === 'string' ? uniIdStr : uniIdStr?.toString?.(),
-      );
-      if (hasDemand) {
-        // Assign filaPosition scoped to this bus (per-bus queue)
-        const filaCount = await this.repository.countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId, busIdForRequest);
-        const filaPosition = (filaCount || 0) + 1;
-
-        const request = await this.createRequestRecord({
-          ...baseRequestData,
-          status: LicenseRequestStatus.WAITLISTED,
-          filaPosition,
-        });
-
-        try {
-          await this.mailService.sendWaitlistConfirmation(student.email, student.name, filaPosition);
-        } catch (error) {
-          this.logger.warn(`Falha ao enviar email de confirmacao de fila para ${studentId}: ${(error as Error)?.message}`);
-        }
-
-        await this.auditLog.record({
-          action: 'license_request.waitlisted',
-          outcome: 'success',
-          target: { studentId, enrollmentPeriodId },
-          metadata: {
-            filaPosition,
-            busId: busIdForRequest,
-            busIdentifier: busIdentifierForRequest,
-            universityId: universityIdForRequest,
-            cardNote: busContext.cardNote,
-          },
-        });
-
-        return { ...(request as any), waitlisted: true, filaPosition };
-      }
     }
 
     // Passed all checks -> create PENDING
@@ -348,10 +290,9 @@ export class LicenseRequestService {
       outcome: 'success',
       target: { studentId, enrollmentPeriodId },
       metadata: {
-        busId: busIdForRequest,
-        busIdentifier: busIdentifierForRequest,
         universityId: universityIdForRequest,
         cardNote: busContext.cardNote,
+        accessBusIdentifiers: busContext.accessBusIdentifiers,
       },
     });
 
@@ -546,6 +487,13 @@ export class LicenseRequestService {
     let session: ClientSession | undefined = undefined;
     let usedSession = false;
     const cardContext = await this.resolveCardContextForApproval(request);
+    const approvedBus = await this.resolveApprovedBus(dto.bus);
+    const approvedBusId = this.toStringId((approvedBus as any)._id);
+    const approvedBusIdentifier = (approvedBus as any).identifier ?? dto.bus;
+    const finalCardContext = {
+      cardNote: cardContext.cardNote,
+      accessBusIdentifiers: approvedBusIdentifier ? [approvedBusIdentifier] : [],
+    };
     if (request.type === LicenseRequestType.INITIAL && request.enrollmentPeriodId) {
       const period = await this.enrollmentPeriodService.findById(
         request.enrollmentPeriodId,
@@ -574,11 +522,9 @@ export class LicenseRequestService {
               await this.enrollmentPeriodService.incrementFilled(request.enrollmentPeriodId as string, session);
               reservedPeriodId = request.enrollmentPeriodId;
 
-              // If this request has a bus/university snapshot, increment bus filledSlots now (inside transaction)
-              if ((request as any).busId && (request as any).universityId) {
-                const rawBus = (request as any).busId;
+              if (approvedBusId && (request as any).universityId) {
                 const rawUni = (request as any).universityId;
-                busIdForIncrement = typeof rawBus === 'string' ? rawBus : rawBus?.toString?.();
+                busIdForIncrement = approvedBusId;
                 uniIdForIncrement = typeof rawUni === 'string' ? rawUni : rawUni?.toString?.();
                 if (busIdForIncrement && uniIdForIncrement) {
                   await this.busService.incrementUniversityFilledSlots(busIdForIncrement, uniIdForIncrement, session);
@@ -591,29 +537,11 @@ export class LicenseRequestService {
               if (request.type === LicenseRequestType.UPDATE) {
                 // update license path handled below outside transaction creation path
               } else {
-                // Prefer the bus snapshot (`busId`) when present (this guarantees the
-                // selected bus is the one used at creation). Fall back to the
-                // accessBusIdentifiers array, then to the employee-provided DTO.
-                let busForLicense: string | undefined = dto.bus;
-                if ((request as any).busId) {
-                  try {
-                    const rawBusId = typeof (request as any).busId === 'string' ? (request as any).busId : (request as any).busId?.toString?.();
-                    if (rawBusId) {
-                      const busObj = await this.busService.findOneOrFail(rawBusId);
-                      busForLicense = (busObj as any).identifier ?? busForLicense;
-                    }
-                  } catch {
-                    // ignore and continue to other fallbacks
-                  }
-                } else if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
-                  busForLicense = (request as any).accessBusIdentifiers[0];
-                }
-
                 licenseCreated = await this.licenseService.create(
                   {
                     id: request.studentId,
                     institution: dto.institution,
-                    bus: busForLicense ?? dto.bus,
+                    bus: approvedBusIdentifier ?? dto.bus,
                     photo: dto.photo,
                   },
                   employeeId,
@@ -621,7 +549,7 @@ export class LicenseRequestService {
                   request.enrollmentPeriodId ?? null,
                   true,
                   session,
-                  cardContext,
+                  finalCardContext,
                 );
               }
 
@@ -631,6 +559,8 @@ export class LicenseRequestService {
               status: LicenseRequestStatus.APPROVED,
               approvedByEmployeeId: employeeId,
               licenseId: licenseIdStr ?? null,
+              busId: approvedBusId ? new Types.ObjectId(approvedBusId) : null,
+              accessBusIdentifiers: finalCardContext.accessBusIdentifiers,
               pendingImages: [],
             }, session);
           });
@@ -644,11 +574,9 @@ export class LicenseRequestService {
         );
         reservedPeriodId = request.enrollmentPeriodId;
 
-        // If this request has a bus/university snapshot, increment bus filledSlots now (non-transactional path)
-        if ((request as any).busId && (request as any).universityId) {
-          const rawBus = (request as any).busId;
+        if (approvedBusId && (request as any).universityId) {
           const rawUni = (request as any).universityId;
-          busIdForIncrement = typeof rawBus === 'string' ? rawBus : rawBus?.toString?.();
+          busIdForIncrement = approvedBusId;
           uniIdForIncrement = typeof rawUni === 'string' ? rawUni : rawUni?.toString?.();
           if (busIdForIncrement && uniIdForIncrement) {
             await this.busService.incrementUniversityFilledSlots(busIdForIncrement, uniIdForIncrement);
@@ -683,33 +611,16 @@ export class LicenseRequestService {
           await this.imagesService.archiveToHistory(imageId);
         }
 
-        // Ensure bus used for regeneration comes from the request snapshot when available
-        // (preferred), otherwise fall back to accessBusIdentifiers or DTO.
-        let busForLicenseUpdate: string | undefined = dto.bus;
-        if ((request as any).busId) {
-          try {
-            const rawBusId = typeof (request as any).busId === 'string' ? (request as any).busId : (request as any).busId?.toString?.();
-            if (rawBusId) {
-              const busObj = await this.busService.findOneOrFail(rawBusId);
-              busForLicenseUpdate = (busObj as any).identifier ?? busForLicenseUpdate;
-            }
-          } catch {
-            // ignore and continue to other fallbacks
-          }
-        } else if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
-          busForLicenseUpdate = (request as any).accessBusIdentifiers[0];
-        }
-
         const updatedLicense = await this.licenseService.regenerateExistingForStudent(
           request.studentId,
           {
             institution: dto.institution,
-            bus: busForLicenseUpdate ?? dto.bus,
+            bus: approvedBusIdentifier ?? dto.bus,
             photo: dto.photo,
           },
           employeeId,
           validityMonths,
-          cardContext,
+          finalCardContext,
         );
 
         for (const photoType of changedDocuments) {
@@ -725,27 +636,11 @@ export class LicenseRequestService {
 
         license = updatedLicense as any;
         } else {
-        // Non-transactional code path: prefer the bus snapshot when available.
-        let busForLicense: string | undefined = dto.bus;
-        if ((request as any).busId) {
-          try {
-            const rawBusId = typeof (request as any).busId === 'string' ? (request as any).busId : (request as any).busId?.toString?.();
-            if (rawBusId) {
-              const busObj = await this.busService.findOneOrFail(rawBusId);
-              busForLicense = (busObj as any).identifier ?? busForLicense;
-            }
-          } catch {
-            // ignore and fallback to other options
-          }
-        } else if (Array.isArray((request as any).accessBusIdentifiers) && (request as any).accessBusIdentifiers.length > 0) {
-          busForLicense = (request as any).accessBusIdentifiers[0];
-        }
-
         const createdLicense = await this.licenseService.create(
           {
             id: request.studentId,
             institution: dto.institution,
-            bus: busForLicense ?? dto.bus,
+            bus: approvedBusIdentifier ?? dto.bus,
             photo: dto.photo,
           },
           employeeId,
@@ -753,7 +648,7 @@ export class LicenseRequestService {
           request.enrollmentPeriodId ?? null,
           true,
           undefined,
-          cardContext,
+          finalCardContext,
         );
 
         license = createdLicense as any;
@@ -777,6 +672,8 @@ export class LicenseRequestService {
         status: LicenseRequestStatus.APPROVED,
         approvedByEmployeeId: employeeId,
         licenseId,
+        busId: approvedBusId ? new Types.ObjectId(approvedBusId) : null,
+        accessBusIdentifiers: finalCardContext.accessBusIdentifiers,
         pendingImages: [],
       });
 

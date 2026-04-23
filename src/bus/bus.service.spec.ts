@@ -59,6 +59,7 @@ describe('BusService (promotion)', () => {
 
     mockRepository.findById.mockResolvedValue({
       _id: busId,
+      identifier: 'Bus 1',
       universitySlots: [
         { universityId: { toString: () => 'uni-1' }, priorityOrder: 1 },
         { universityId: { toString: () => 'uni-2' }, priorityOrder: 2 },
@@ -71,7 +72,7 @@ describe('BusService (promotion)', () => {
     // grouped counts per university for this bus
     mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
       {
-        _id: busId,
+        _id: 'Bus 1',
         perUniversity: [
           { universityId: 'uni-1', pending: 0, waitlisted: 2 },
           { universityId: 'uni-2', pending: 0, waitlisted: 1 },
@@ -81,9 +82,9 @@ describe('BusService (promotion)', () => {
       },
     ]);
 
-    const r1 = { _id: 'r1', studentId: 'student-r1', universityId: 'uni-1', busId: 'bus-1', filaPosition: 1, createdAt: new Date('2026-01-01T00:00:00.000Z') };
-    const r2 = { _id: 'r2', studentId: 'student-r2', universityId: 'uni-2', busId: 'bus-1', filaPosition: 1, createdAt: new Date('2026-01-02T00:00:00.000Z') };
-    const r3 = { _id: 'r3', studentId: 'student-r3', universityId: 'uni-1', busId: 'bus-1', filaPosition: 2, createdAt: new Date('2026-01-03T00:00:00.000Z') };
+    const r1 = { _id: 'r1', studentId: 'student-r1', universityId: 'uni-1', accessBusIdentifiers: ['Bus 1'], filaPosition: 1, createdAt: new Date('2026-01-01T00:00:00.000Z') };
+    const r2 = { _id: 'r2', studentId: 'student-r2', universityId: 'uni-2', accessBusIdentifiers: ['Bus 1'], filaPosition: 1, createdAt: new Date('2026-01-02T00:00:00.000Z') };
+    const r3 = { _id: 'r3', studentId: 'student-r3', universityId: 'uni-1', accessBusIdentifiers: ['Bus 1'], filaPosition: 2, createdAt: new Date('2026-01-03T00:00:00.000Z') };
 
     mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus
       .mockResolvedValueOnce([r3, r1, r2])
@@ -122,10 +123,10 @@ describe('BusService (promotion)', () => {
     mockRepository.resetUniversityFilledSlots.mockResolvedValue(2);
     mockEnrollmentPeriodService.getActive.mockResolvedValue({ _id: 'period-1' });
     mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriod.mockResolvedValue([
-      { _id: 'r1', busId: 'bus-1', studentId: 'student-r1', universityId: 'uni-1', filaPosition: 1, createdAt: new Date('2026-01-01T00:00:00.000Z') },
+      { _id: 'r1', accessBusIdentifiers: ['Bus 1'], studentId: 'student-r1', universityId: 'uni-1', filaPosition: 1, createdAt: new Date('2026-01-01T00:00:00.000Z') },
     ]);
     mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
-      { _id: busId, perUniversity: [{ universityId: 'uni-1', pending: 0, waitlisted: 1 }], pending: 0, waitlisted: 1 },
+      { _id: 'Bus 1', perUniversity: [{ universityId: 'uni-1', pending: 0, waitlisted: 1 }], pending: 0, waitlisted: 1 },
     ]);
 
     const result = await service.releaseSlotsForBus(busId, adminId, false);
@@ -142,6 +143,7 @@ describe('BusService (promotion)', () => {
 
     mockRepository.findById.mockResolvedValue({
       _id: busId,
+      identifier: 'Bus 1',
       universitySlots: [
         { universityId: { toString: () => 'uni-1' }, priorityOrder: 1 },
         { universityId: { toString: () => 'uni-2' }, priorityOrder: 2 },
@@ -154,7 +156,7 @@ describe('BusService (promotion)', () => {
     // grouped: uni-1 has pending but no waitlist; uni-2 has waitlist
     mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
       {
-        _id: busId,
+        _id: 'Bus 1',
         perUniversity: [
           { universityId: 'uni-1', pending: 1, waitlisted: 0 },
           { universityId: 'uni-2', pending: 0, waitlisted: 3 },
@@ -180,6 +182,7 @@ describe('BusService (promotion)', () => {
 
     mockRepository.findById.mockResolvedValue({
       _id: busId,
+      identifier: 'Bus 2',
       universitySlots: [
         { universityId: { toString: () => 'u1' }, priorityOrder: 1 },
         { universityId: { toString: () => 'u2' }, priorityOrder: 2 },
@@ -192,7 +195,7 @@ describe('BusService (promotion)', () => {
 
     mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
       {
-        _id: busId,
+        _id: 'Bus 2',
         perUniversity: [
           { universityId: 'u1', pending: 0, waitlisted: 2 },
           { universityId: 'u2', pending: 0, waitlisted: 3 },
@@ -202,11 +205,11 @@ describe('BusService (promotion)', () => {
       },
     ]);
 
-    const r1 = { _id: 'r1', studentId: 's1', universityId: 'u1', busId, filaPosition: 1, createdAt: new Date('2026-01-01') };
-    const r2 = { _id: 'r2', studentId: 's2', universityId: 'u2', busId, filaPosition: 1, createdAt: new Date('2026-01-02') };
-    const r3 = { _id: 'r3', studentId: 's3', universityId: 'u1', busId, filaPosition: 2, createdAt: new Date('2026-01-03') };
-    const r4 = { _id: 'r4', studentId: 's4', universityId: 'u2', busId, filaPosition: 2, createdAt: new Date('2026-01-04') };
-    const r5 = { _id: 'r5', studentId: 's5', universityId: 'u2', busId, filaPosition: 3, createdAt: new Date('2026-01-05') };
+    const r1 = { _id: 'r1', studentId: 's1', universityId: 'u1', accessBusIdentifiers: ['Bus 2'], filaPosition: 1, createdAt: new Date('2026-01-01') };
+    const r2 = { _id: 'r2', studentId: 's2', universityId: 'u2', accessBusIdentifiers: ['Bus 2'], filaPosition: 1, createdAt: new Date('2026-01-02') };
+    const r3 = { _id: 'r3', studentId: 's3', universityId: 'u1', accessBusIdentifiers: ['Bus 2'], filaPosition: 2, createdAt: new Date('2026-01-03') };
+    const r4 = { _id: 'r4', studentId: 's4', universityId: 'u2', accessBusIdentifiers: ['Bus 2'], filaPosition: 2, createdAt: new Date('2026-01-04') };
+    const r5 = { _id: 'r5', studentId: 's5', universityId: 'u2', accessBusIdentifiers: ['Bus 2'], filaPosition: 3, createdAt: new Date('2026-01-05') };
 
     // initial waitlist (unsorted intentionally)
     mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus
@@ -239,6 +242,7 @@ describe('BusService (promotion)', () => {
 
     mockRepository.findById.mockResolvedValue({
       _id: busId,
+      identifier: 'Bus 3',
       universitySlots: [
         { universityId: { toString: () => 'a1' }, priorityOrder: 1 },
         { universityId: { toString: () => 'a2' }, priorityOrder: 2 },
@@ -251,7 +255,7 @@ describe('BusService (promotion)', () => {
 
     mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
       {
-        _id: busId,
+        _id: 'Bus 3',
         perUniversity: [
           { universityId: 'a1', pending: 0, waitlisted: 2 },
           { universityId: 'a2', pending: 0, waitlisted: 3 },
@@ -261,9 +265,9 @@ describe('BusService (promotion)', () => {
       },
     ]);
 
-    const r1 = { _id: 'ra1', studentId: 'sa1', universityId: 'a1', busId, filaPosition: 1, createdAt: new Date('2026-02-01') };
-    const r2 = { _id: 'ra2', studentId: 'sa2', universityId: 'a1', busId, filaPosition: 2, createdAt: new Date('2026-02-02') };
-    const r3 = { _id: 'rb1', studentId: 'sb1', universityId: 'a2', busId, filaPosition: 1, createdAt: new Date('2026-02-03') };
+    const r1 = { _id: 'ra1', studentId: 'sa1', universityId: 'a1', accessBusIdentifiers: ['Bus 3'], filaPosition: 1, createdAt: new Date('2026-02-01') };
+    const r2 = { _id: 'ra2', studentId: 'sa2', universityId: 'a1', accessBusIdentifiers: ['Bus 3'], filaPosition: 2, createdAt: new Date('2026-02-02') };
+    const r3 = { _id: 'rb1', studentId: 'sb1', universityId: 'a2', accessBusIdentifiers: ['Bus 3'], filaPosition: 1, createdAt: new Date('2026-02-03') };
 
     mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus
       .mockResolvedValueOnce([r2, r1, r3])
@@ -288,6 +292,7 @@ describe('BusService (promotion)', () => {
 
     mockRepository.findById.mockResolvedValue({
       _id: busId,
+      identifier: 'Bus 4',
       universitySlots: [
         { universityId: { toString: () => 'z1' }, priorityOrder: 1 },
       ],
@@ -299,16 +304,16 @@ describe('BusService (promotion)', () => {
 
     mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
       {
-        _id: busId,
+        _id: 'Bus 4',
         perUniversity: [{ universityId: 'z1', pending: 0, waitlisted: 5 }],
         pending: 0,
         waitlisted: 5,
       },
     ]);
 
-    const r1 = { _id: 'q1', studentId: 'q-s1', universityId: 'z1', busId, filaPosition: 1, createdAt: new Date('2026-03-01') };
-    const r2 = { _id: 'q2', studentId: 'q-s2', universityId: 'z1', busId, filaPosition: 2, createdAt: new Date('2026-03-02') };
-    const r3 = { _id: 'q3', studentId: 'q-s3', universityId: 'z1', busId, filaPosition: 3, createdAt: new Date('2026-03-03') };
+    const r1 = { _id: 'q1', studentId: 'q-s1', universityId: 'z1', accessBusIdentifiers: ['Bus 4'], filaPosition: 1, createdAt: new Date('2026-03-01') };
+    const r2 = { _id: 'q2', studentId: 'q-s2', universityId: 'z1', accessBusIdentifiers: ['Bus 4'], filaPosition: 2, createdAt: new Date('2026-03-02') };
+    const r3 = { _id: 'q3', studentId: 'q-s3', universityId: 'z1', accessBusIdentifiers: ['Bus 4'], filaPosition: 3, createdAt: new Date('2026-03-03') };
 
     mockLicenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus
       .mockResolvedValueOnce([r1, r2, r3])

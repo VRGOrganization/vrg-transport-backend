@@ -132,10 +132,11 @@ export class BusService {
 
     return (buses || []).map((bus: any) => {
       const id = (bus as any)._id?.toString?.();
+      const identifier = (bus as any).identifier;
       const filledSlotsTotal = (bus.universitySlots || []).reduce((acc: number, s: any) => acc + (s.filledSlots || 0), 0);
       const slots = (bus.universitySlots || []).map((s: any) => {
         const uniId = s.universityId?.toString?.();
-        const counts = perUni[id] && perUni[id][uniId] ? perUni[id][uniId] : { pending: 0, waitlisted: 0 };
+        const counts = perUni[identifier] && perUni[identifier][uniId] ? perUni[identifier][uniId] : { pending: 0, waitlisted: 0 };
         return {
           universityId: uniId,
           priorityOrder: s.priorityOrder,
@@ -147,13 +148,13 @@ export class BusService {
 
       return {
         _id: id,
-        identifier: (bus as any).identifier,
+        identifier,
         shift: (bus as any).shift ?? null,
         capacity: (bus as any).capacity ?? null,
         filledSlotsTotal,
         availableSlots: (bus as any).capacity == null ? null : Math.max((bus as any).capacity - filledSlotsTotal, 0),
-        pendingCount: pendingByBus[id] || 0,
-        waitlistedCount: waitlistedByBus[id] || 0,
+        pendingCount: pendingByBus[identifier] || 0,
+        waitlistedCount: waitlistedByBus[identifier] || 0,
         universitySlots: slots,
       } as any;
     });
@@ -161,6 +162,7 @@ export class BusService {
 
   async getQueueSummary(busId: string): Promise<any> {
     const bus = await this.findOneOrFail(busId);
+    const busIdentifier = (bus as any).identifier;
 
     const activePeriod = await this.enrollmentPeriodService.getActive();
     if (!activePeriod) {
@@ -177,7 +179,7 @@ export class BusService {
     }
 
     const periodId = (activePeriod as any)._id?.toString?.();
-    const filtered = await this.licenseRequestRepository.findByEnrollmentPeriodAndBus(periodId, busId);
+    const filtered = await this.licenseRequestRepository.findByEnrollmentPeriodAndBus(periodId, busIdentifier);
 
     const pendingRequests = filtered.filter((r: any) => r.status === 'pending')
       .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -470,11 +472,12 @@ export class BusService {
 
     const periodId = (activePeriod as any)._id?.toString?.();
     if (!periodId) return { releasedSlots: released };
+    const busIdentifier = (await this.findOneOrFail(busId) as any).identifier;
 
     // Fetch current waitlisted requests for the period scoped to this bus
     const waitlistedForBus = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus(
       periodId,
-      busId,
+      busIdentifier,
     );
 
     // Load bus to read universitySlots priority
@@ -490,7 +493,7 @@ export class BusService {
     const groupForBus = (grouped || []).find((g: any) => {
       const bid = g && g._id;
       if (!bid) return false;
-      return (typeof bid === 'string' ? bid : bid.toString?.()) === busId;
+      return (typeof bid === 'string' ? bid : bid.toString?.()) === busIdentifier;
     });
 
     const perUniCounts: Record<string, { pending: number; waitlisted: number }> = {};
@@ -526,12 +529,12 @@ export class BusService {
       if ((counts.pending || 0) + (counts.waitlisted || 0) === 0) continue;
 
       // Collect ordered waitlisted candidates for this bus/university
-      const candidates = (waitlistedForBus || [])
+        const candidates = (waitlistedForBus || [])
         .filter((r: any) => {
           const rUni = r.universityId ? (typeof r.universityId === 'string' ? r.universityId : (r.universityId as any).toString?.()) : null;
           if (rUni !== uniId) return false;
-          const rBus = r.busId ? (typeof r.busId === 'string' ? r.busId : (r.busId as any).toString?.()) : null;
-          return rBus === busId;
+          const eligible = Array.isArray(r.accessBusIdentifiers) ? r.accessBusIdentifiers : [];
+          return eligible.includes(busIdentifier);
         })
         .sort((a: any, b: any) => {
           const pa = a.filaPosition ?? 0;
@@ -617,7 +620,7 @@ export class BusService {
     // Recompute filaPosition for remaining waitlisted for THIS BUS only
     const remainingWaitlistedForBus = await this.licenseRequestRepository.findWaitlistedByEnrollmentPeriodAndBus(
       periodId,
-      busId,
+      busIdentifier,
     );
 
     const sortedRemainingBus = [...remainingWaitlistedForBus].sort(

@@ -71,7 +71,7 @@ export class LicenseRequest {
   @Prop({ type: Number, default: null })
   filaPosition: number | null;
 
-  // Ônibus determinado na inscrição. Imutável após criação.
+  // Ônibus definitivo definido somente na aprovação.
   @Prop({ type: Types.ObjectId, ref: 'Bus', default: null })
   busId: Types.ObjectId | null;
 
@@ -83,7 +83,7 @@ export class LicenseRequest {
   @Prop({ type: String, default: null })
   cardNote: string | null;
 
-  // Snapshot dos ?nibus da faculdade para impress?o da carteirinha.
+  // Ônibus elegíveis para esta solicitação antes da aprovação.
   @Prop({ type: [String], default: [] })
   accessBusIdentifiers: string[];
 

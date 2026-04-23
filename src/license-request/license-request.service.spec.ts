@@ -24,6 +24,7 @@ const mockRepository = {
   findAll: jest.fn(),
   findAllByStatus: jest.fn(),
   findWaitlistedByEnrollmentPeriod: jest.fn(),
+  countWaitlistedByEnrollmentPeriod: jest.fn(),
   findWaitlistedByEnrollmentPeriodAndBus: jest.fn(),
   countWaitlistedByEnrollmentPeriodAndBus: jest.fn(),
   hasActiveDemandForBusAndUniversity: jest.fn(),
@@ -71,12 +72,14 @@ const mockBusService = {
   findByUniversityId: jest.fn(),
   findAllByUniversityId: jest.fn(),
   findByUniversityIdAndShift: jest.fn(),
+  findByIdentifier: jest.fn(),
   findOneOrFail: jest.fn(),
 };
 
 const setBusRouting = (bus: any, allBuses?: any[]) => {
   mockBusService.findAllByUniversityId.mockResolvedValue(allBuses ?? [bus]);
   mockBusService.findByUniversityIdAndShift.mockResolvedValue(bus);
+  mockBusService.findByIdentifier.mockResolvedValue(bus);
   mockBusService.findOneOrFail.mockResolvedValue(bus);
 };
 
@@ -122,6 +125,11 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
     service = module.get<LicenseRequestService>(LicenseRequestService);
 
     jest.clearAllMocks();
+    mockBusService.findByIdentifier.mockResolvedValue({
+      _id: '0000000000000000000000aa',
+      identifier: 'A01',
+      universitySlots: [],
+    });
     mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: null });
   });
 
@@ -187,7 +195,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         filledSlots: 1,
       });
       // Simulate that there are already 2 waitlisted for this bus -> new position will be 3
-      mockRepository.countWaitlistedByEnrollmentPeriodAndBus.mockResolvedValue(2);
+      mockRepository.countWaitlistedByEnrollmentPeriod.mockResolvedValue(2);
       mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: '000000000000000000000002' });
       // bus with capacity 1 already full
       setBusRouting({ _id: '000000000000000000000001', identifier: 'A01', capacity: 1, universitySlots: [{ universityId: '000000000000000000000002', priorityOrder: 1, filledSlots: 1 }] });
@@ -274,7 +282,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       });
 
       // Simulate that there are already 3 waitlisted for this bus -> new position will be 4
-      mockRepository.countWaitlistedByEnrollmentPeriodAndBus.mockResolvedValue(3);
+      mockRepository.countWaitlistedByEnrollmentPeriod.mockResolvedValue(3);
       mockRepository.create.mockResolvedValue(
         makeRequest({ status: 'waitlisted' as any, enrollmentPeriodId: 'period-1' as any, filaPosition: 4 as any } as any),
       );
@@ -314,14 +322,14 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       // Simulate that uni-1 has active demand on this bus
       mockRepository.hasActiveDemandForBusAndUniversity.mockResolvedValue(true);
       // Simulate that there are already 6 waitlisted for this bus -> new position will be 7
-      mockRepository.countWaitlistedByEnrollmentPeriodAndBus.mockResolvedValue(6);
+      mockRepository.countWaitlistedByEnrollmentPeriod.mockResolvedValue(6);
       mockRepository.create.mockResolvedValue(
         makeRequest({ status: 'waitlisted' as any, enrollmentPeriodId: 'period-1' as any, filaPosition: 7 as any } as any),
       );
 
       const result = (await service.createRequest('student-1')) as any;
 
-      expect(mockRepository.hasActiveDemandForBusAndUniversity).toHaveBeenCalledWith('000000000000000000000001', '000000000000000000000011');
+      expect(mockRepository.hasActiveDemandForBusAndUniversity).toHaveBeenCalledWith('A01', '000000000000000000000011');
       expect(mockRepository.create).toHaveBeenCalledWith(expect.objectContaining({ status: 'waitlisted' }));
       expect(result.waitlisted).toBe(true);
     });
@@ -361,7 +369,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         undefined,
         expect.objectContaining({
           cardNote: null,
-          accessBusIdentifiers: [],
+          accessBusIdentifiers: ['A01'],
         }),
       );
       expect(mockEnrollmentPeriodService.incrementFilled).toHaveBeenCalledWith(
@@ -389,7 +397,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         await service.approve('request-1', 'employee-1', { bus: 'A01', institution: 'IF' });
 
         expect(mockEnrollmentPeriodService.incrementFilled).toHaveBeenCalledWith('period-1');
-        expect(mockBusService.incrementUniversityFilledSlots).toHaveBeenCalledWith('bus-1', 'uni-1');
+        expect(mockBusService.incrementUniversityFilledSlots).toHaveBeenCalledWith('0000000000000000000000aa', 'uni-1');
       });
 
       it('deve reverter incremento do ônibus se a criação da licença falhar', async () => {
@@ -408,7 +416,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         await expect(service.approve('request-1', 'employee-1', { bus: 'A01', institution: 'IF' })).rejects.toThrow();
 
         expect(mockEnrollmentPeriodService.decrementFilled).toHaveBeenCalledWith('period-1');
-        expect(mockBusService.decrementUniversityFilledSlots).toHaveBeenCalledWith('bus-1', 'uni-1');
+        expect(mockBusService.decrementUniversityFilledSlots).toHaveBeenCalledWith('0000000000000000000000aa', 'uni-1');
       });
 
     it('deve manter aprovacao mesmo se email de update falhar', async () => {

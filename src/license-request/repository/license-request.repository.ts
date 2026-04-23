@@ -50,7 +50,7 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
   ): Promise<boolean> {
     const count = await this.model
       .countDocuments({
-        busId,
+        accessBusIdentifiers: busId,
         universityId,
         status: { $in: [LicenseRequestStatus.PENDING, LicenseRequestStatus.WAITLISTED] },
       })
@@ -86,6 +86,17 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
       .exec() as Promise<LicenseRequest[]>;
   }
 
+  async countWaitlistedByEnrollmentPeriod(enrollmentPeriodId: string): Promise<number> {
+    const count = await this.model
+      .countDocuments({
+        enrollmentPeriodId,
+        status: LicenseRequestStatus.WAITLISTED,
+      })
+      .exec();
+
+    return count ?? 0;
+  }
+
   async findWaitlistedByEnrollmentPeriodAndBus(
     enrollmentPeriodId: string,
     busId: string,
@@ -93,7 +104,7 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
     return this.model
       .find({
         enrollmentPeriodId,
-        busId: typeof busId === 'string' ? new Types.ObjectId(busId) : busId,
+        accessBusIdentifiers: busId,
         status: LicenseRequestStatus.WAITLISTED,
       })
       .sort({ createdAt: 1 })
@@ -108,7 +119,7 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
     const count = await this.model
       .countDocuments({
         enrollmentPeriodId,
-        busId: typeof busId === 'string' ? new Types.ObjectId(busId) : busId,
+        accessBusIdentifiers: busId,
         status: LicenseRequestStatus.WAITLISTED,
       })
       .exec();
@@ -178,10 +189,13 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
   }
 
   async findByEnrollmentPeriodAndBus(enrollmentPeriodId: string, busId: string): Promise<LicenseRequest[]> {
-    // enrollmentPeriodId is a string in the schema; busId is an ObjectId
-    const busMatch = typeof busId === 'string' ? new Types.ObjectId(busId) : busId;
+    // busId now refers to the bus identifier snapshot exposed to employees
     return this.model
-      .find({ enrollmentPeriodId, busId: busMatch })
+      .find({
+        enrollmentPeriodId,
+        status: { $in: [LicenseRequestStatus.PENDING, LicenseRequestStatus.WAITLISTED] },
+        accessBusIdentifiers: busId,
+      })
       .lean()
       .exec() as Promise<LicenseRequest[]>;
   }
@@ -203,12 +217,17 @@ export class LicenseRequestRepository implements ILicenseRequestRepository<Licen
   }
 
   async findByEnrollmentPeriodAndBusGrouped(enrollmentPeriodId: string): Promise<any[]> {
-    // enrollmentPeriodId is stored as string in the schema, match by the string value
     const pipeline = [
-      { $match: { enrollmentPeriodId } },
+      {
+        $match: {
+          enrollmentPeriodId,
+          status: { $in: [LicenseRequestStatus.PENDING, LicenseRequestStatus.WAITLISTED] },
+        },
+      },
+      { $unwind: '$accessBusIdentifiers' },
       {
         $group: {
-          _id: { busId: '$busId', universityId: '$universityId' },
+          _id: { busId: '$accessBusIdentifiers', universityId: '$universityId' },
           pending: { $sum: { $cond: [{ $eq: ['$status', LicenseRequestStatus.PENDING] }, 1, 0] } },
           waitlisted: { $sum: { $cond: [{ $eq: ['$status', LicenseRequestStatus.WAITLISTED] }, 1, 0] } },
         },

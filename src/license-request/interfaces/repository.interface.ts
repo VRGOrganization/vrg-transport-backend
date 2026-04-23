@@ -12,6 +12,7 @@ export interface ILicenseRequestRepository<T> {
   hasActiveDemandForBusAndUniversity(busId: string, universityId: string): Promise<boolean>;
   findPendingOrWaitlistedInitial(studentId: string): Promise<T | null>;
   findWaitlistedByEnrollmentPeriod(enrollmentPeriodId: string): Promise<T[]>;
+  countWaitlistedByEnrollmentPeriod(enrollmentPeriodId: string): Promise<number>;
   findWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId: string, busId: string): Promise<T[]>;
   countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId: string, busId: string): Promise<number>;
   cancelWaitlistedByEnrollmentPeriod(

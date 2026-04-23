@@ -67,16 +67,16 @@ describe('BusService (queue counts)', () => {
     mockEnrollmentPeriodService.getActive.mockResolvedValue({ _id: 'period-1' });
 
     const requests = [
-      { _id: 'r1', status: 'pending', busId: 'bus-1', universityId: 'uni-1', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-01') },
-      { _id: 'r2', status: 'pending', busId: 'bus-1', universityId: 'uni-2', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-02') },
-      { _id: 'r3', status: 'waitlisted', busId: 'bus-1', universityId: 'uni-2', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-03') },
-      { _id: 'r4', status: 'pending', busId: 'bus-2', universityId: 'uni-3', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-04') },
-      { _id: 'r5', status: 'pending', busId: 'bus-1', universityId: 'uni-1', enrollmentPeriodId: 'period-2' },
+      { _id: 'r1', status: 'pending', accessBusIdentifiers: ['Bus 1'], universityId: 'uni-1', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-01') },
+      { _id: 'r2', status: 'pending', accessBusIdentifiers: ['Bus 1'], universityId: 'uni-2', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-02') },
+      { _id: 'r3', status: 'waitlisted', accessBusIdentifiers: ['Bus 1'], universityId: 'uni-2', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-03') },
+      { _id: 'r4', status: 'pending', accessBusIdentifiers: ['Bus 2'], universityId: 'uni-3', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-04') },
+      { _id: 'r5', status: 'pending', accessBusIdentifiers: ['Bus 1'], universityId: 'uni-1', enrollmentPeriodId: 'period-2' },
     ];
 
     mockLicenseRequestRepository.findByEnrollmentPeriodAndBusGrouped.mockResolvedValue([
       {
-        _id: 'bus-1',
+        _id: 'Bus 1',
         pending: 2,
         waitlisted: 1,
         perUniversity: [
@@ -85,7 +85,7 @@ describe('BusService (queue counts)', () => {
         ],
       },
       {
-        _id: 'bus-2',
+        _id: 'Bus 2',
         pending: 1,
         waitlisted: 0,
         perUniversity: [
@@ -125,8 +125,8 @@ describe('BusService (queue counts)', () => {
     mockEnrollmentPeriodService.getActive.mockResolvedValue({ _id: 'period-1' });
 
     const requests = [
-      { _id: 'r1', status: 'pending', busId: 'bus-1', universityId: 'uni-1', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-01') },
-      { _id: 'r2', status: 'waitlisted', busId: 'bus-1', universityId: 'uni-1', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-02') },
+      { _id: 'r1', status: 'pending', accessBusIdentifiers: ['Bus 1'], universityId: 'uni-1', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-01') },
+      { _id: 'r2', status: 'waitlisted', accessBusIdentifiers: ['Bus 1'], universityId: 'uni-1', enrollmentPeriodId: 'period-1', createdAt: new Date('2026-01-02') },
     ];
 
     mockLicenseRequestRepository.findByEnrollmentPeriodAndBus.mockResolvedValue(requests);
