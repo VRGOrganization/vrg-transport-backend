@@ -148,4 +148,42 @@ describe('LicenseService', () => {
       expect(monthDiff).toBeLessThanOrEqual(10);
     });
   });
+
+  describe('license api response parsing', () => {
+    it('deve converter multipart/form-data em base64 para persistencia', async () => {
+      const boundary = 'license-boundary';
+      const imageBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+      const multipartBody = Buffer.concat([
+        Buffer.from(
+          `--${boundary}\r\n` +
+            'Content-Disposition: form-data; name="image"; filename="license.jpg"\r\n' +
+            'Content-Type: image/jpeg\r\n\r\n',
+        ),
+        imageBytes,
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ]);
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn((name: string) =>
+            name.toLowerCase() === 'content-type'
+              ? `multipart/form-data; boundary=${boundary}`
+              : null,
+          ),
+        },
+        arrayBuffer: async () =>
+          multipartBody.buffer.slice(
+            multipartBody.byteOffset,
+            multipartBody.byteOffset + multipartBody.byteLength,
+          ),
+      });
+
+      const result = await (service as any).callLicenseApi({ foo: 'bar' });
+
+      expect(result).toEqual({
+        image: imageBytes.toString('base64'),
+      });
+    });
+  });
 });
