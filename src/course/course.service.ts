@@ -24,7 +24,7 @@ export class CourseService {
   ) {}
 
   async create(dto: CreateCourseDto, adminId: string): Promise<Course> {
-    await this.universityService.findOneOrFail(dto.universityId);
+    await this.universityService.assertActive(dto.universityId);
 
     const existing = await this.repository.findByNameAndUniversity(
       dto.name,
@@ -63,7 +63,7 @@ export class CourseService {
   }
 
   async findByUniversity(universityId: string): Promise<Course[]> {
-    await this.universityService.findOneOrFail(universityId);
+    await this.universityService.assertActive(universityId);
     return this.repository.findByUniversity(universityId);
   }
 
@@ -85,6 +85,8 @@ export class CourseService {
     if (dto.name) {
       const universityId = (current as any).universityId?._id?.toString?.()
         ?? (current as any).universityId?.toString?.();
+
+      await this.universityService.assertActive(universityId);
 
       const existing = await this.repository.findByNameAndUniversity(
         dto.name,

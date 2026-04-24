@@ -156,6 +156,8 @@ export class MailService {
       [PhotoType.EnrollmentProof]: 'Comprovante de matrícula',
       [PhotoType.CourseSchedule]: 'Grade horária',
       [PhotoType.LicenseImage]: 'Imagem da carteirinha',
+      [PhotoType.GovernmentId]: 'Documento de identidade',
+      [PhotoType.ProofOfResidence]: 'Comprovante de residência',
     };
 
     const listItems = changedDocuments

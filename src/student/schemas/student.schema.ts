@@ -79,6 +79,9 @@ export class Student {
   @Prop({ type: Date, default: null, select: false })
   verificationCodeLastSentAt: Date | null;
 
+  @Prop({ default: false })
+  hasCompletedInitialEnrollment: boolean;
+
   @Prop({ default: true })
   active: boolean;
 }

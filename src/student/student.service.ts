@@ -147,9 +147,16 @@ export class StudentService {
       ProfilePhoto?: UploadedImageFile[];
       EnrollmentProof?: UploadedImageFile[];
       CourseSchedule?: UploadedImageFile[];
+      GovernmentId?: UploadedImageFile[];
+      ProofOfResidence?: UploadedImageFile[];
     },
     session?: ClientSession,
   ): Promise<Student> {
+    const currentStudent = await this.findOneOrFail(id);
+    if (!currentStudent.hasCompletedInitialEnrollment) {
+      this.assertInitialEnrollmentDocuments(files);
+    }
+
     const inferredShift = this.inferShiftFromSchedule(dto.schedule);
 
     const profileDto: UpdateStudentProfileDto = {
@@ -165,6 +172,8 @@ export class StudentService {
     const profileFile = files.ProfilePhoto?.[0];
     const enrollmentFile = files.EnrollmentProof?.[0];
     const scheduleFile = files.CourseSchedule?.[0];
+    const governmentIdFile = files.GovernmentId?.[0];
+    const proofOfResidenceFile = files.ProofOfResidence?.[0];
 
     if (profileFile) {
       await this.createOrUpdateImage(id, PhotoType.ProfilePhoto, profileFile, session);
@@ -188,6 +197,24 @@ export class StudentService {
       );
     }
 
+    if (governmentIdFile) {
+      await this.createOrUpdateImage(
+        id,
+        PhotoType.GovernmentId,
+        governmentIdFile,
+        session,
+      );
+    }
+
+    if (proofOfResidenceFile) {
+      await this.createOrUpdateImage(
+        id,
+        PhotoType.ProofOfResidence,
+        proofOfResidenceFile,
+        session,
+      );
+    }
+
     await this.auditLog.record({
       action: 'student.submit_license_request',
       outcome: 'success',
@@ -197,6 +224,8 @@ export class StudentService {
           profileFile ? PhotoType.ProfilePhoto : null,
           enrollmentFile ? PhotoType.EnrollmentProof : null,
           scheduleFile ? PhotoType.CourseSchedule : null,
+          governmentIdFile ? PhotoType.GovernmentId : null,
+          proofOfResidenceFile ? PhotoType.ProofOfResidence : null,
         ].filter(Boolean),
         scheduleCount: dto.schedule.length,
       },
@@ -319,6 +348,19 @@ export class StudentService {
     const base64 = file.buffer.toString('base64');
     const outputMimeType = isAllowedPdf ? 'application/pdf' : (detectedMimeType || mimeType);
     return `data:${outputMimeType};base64,${base64}`;
+  }
+
+  private assertInitialEnrollmentDocuments(files: {
+    GovernmentId?: UploadedImageFile[];
+    ProofOfResidence?: UploadedImageFile[];
+  }): void {
+    if (!files.GovernmentId?.[0]) {
+      throw new BadRequestException('Envie o documento de identidade para a primeira inscrição.');
+    }
+
+    if (!files.ProofOfResidence?.[0]) {
+      throw new BadRequestException('Envie o comprovante de residência para a primeira inscrição.');
+    }
   }
 
   private inferShiftFromSchedule(

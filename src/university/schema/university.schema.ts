@@ -8,6 +8,9 @@ export class University {
   @Prop({ required: true, trim: true })
   name: string;
 
+  @Prop({ required: true, trim: true, lowercase: true, select: false })
+  nameNormalized: string;
+
   @Prop({ required: true, trim: true, unique: true, uppercase: true })
   acronym: string;
 
@@ -19,3 +22,7 @@ export class University {
 }
 
 export const UniversitySchema = SchemaFactory.createForClass(University);
+UniversitySchema.index(
+  { nameNormalized: 1 },
+  { unique: true, partialFilterExpression: { active: true } },
+);

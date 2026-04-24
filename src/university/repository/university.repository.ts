@@ -34,6 +34,19 @@ export class UniversityRepository implements IUniversityRepository<University> {
       .exec();
   }
 
+  async findByNameNormalized(nameNormalized: string): Promise<University | null> {
+    const escaped = nameNormalized.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return this.universityModel
+      .findOne({
+        active: true,
+        $or: [
+          { nameNormalized: nameNormalized.trim().toLowerCase() },
+          { name: { $regex: new RegExp(`^${escaped}$`, 'i') } },
+        ],
+      })
+      .exec();
+  }
+
   async update(id: string, data: Partial<University>): Promise<University | null> {
     return this.universityModel
       .findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after' })

@@ -8,6 +8,7 @@ import { MailModule } from '../mail/mail.module';
 import { StudentModule } from '../student/student.module';
 import { StudentService } from '../student/student.service';
 import { ImagesModule } from '../image/image.module';
+import { BusRouteModule } from '../bus-route/bus-route.module';
 import { LICENSE_REQUEST_REPOSITORY } from './interfaces/repository.interface';
 import { LicenseRequestController } from './license-request.controller';
 import { LicenseRequestService } from './license-request.service';
@@ -27,6 +28,7 @@ import {
     forwardRef(() => LicenseModule),
     forwardRef(() => EnrollmentPeriodModule),
     forwardRef(() => StudentModule),
+    BusRouteModule,
     ImagesModule,
     MailModule,
     AuditModule,

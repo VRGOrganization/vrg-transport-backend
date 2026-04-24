@@ -142,6 +142,15 @@ export class BusController {
     return this.service.releaseSlotsForBus(id, req.sessionPayload!.userId, doPromote, q);
   }
 
+  @Patch(':id/resync-filled-slots')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Recalcular filledSlots do ônibus a partir dos students atribuídos (admin)' })
+  @ApiParam({ name: 'id', description: 'MongoDB ObjectId do ônibus' })
+  @HttpCode(HttpStatus.OK)
+  resyncFilledSlots(@Param('id', MongoObjectIdPipe) id: string, @Req() req: Request) {
+    return this.service.resyncFilledSlots(id, req.sessionPayload!.userId);
+  }
+
   @Delete(':id')
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)

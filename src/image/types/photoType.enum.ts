@@ -3,4 +3,6 @@ export enum PhotoType {
   EnrollmentProof = 'EnrollmentProof',  // Comprovante de matrícula
   CourseSchedule = 'CourseSchedule',    // Grade horária (imagem)
   LicenseImage = 'LicenseImage',       // Imagem da carteirinha — reservado
+  GovernmentId = 'GovernmentId',       // RG ou CNH
+  ProofOfResidence = 'ProofOfResidence', // Comprovante de residência
 }

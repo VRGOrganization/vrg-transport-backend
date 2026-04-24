@@ -47,7 +47,9 @@ export class ImagesService {
 
     const isDocumentType =
       dto.photoType === PhotoType.EnrollmentProof ||
-      dto.photoType === PhotoType.CourseSchedule;
+      dto.photoType === PhotoType.CourseSchedule ||
+      dto.photoType === PhotoType.GovernmentId ||
+      dto.photoType === PhotoType.ProofOfResidence;
 
     if (isDocumentType && !dto.documentImage) {
       throw new BadRequestException(

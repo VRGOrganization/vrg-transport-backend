@@ -50,6 +50,43 @@ export class BusService {
     }).catch(() => {});
   }
 
+  async resyncFilledSlots(busId: string, adminId?: string): Promise<Bus> {
+    const bus = await this.repository.findById(busId);
+    if (!bus) throw new NotFoundException('Ônibus não encontrado.');
+
+    // Conta alunos atualmente atribuídos a este ônibus
+    const students = await this.studentService.findByBusId(busId);
+    const counts: Record<string, number> = {};
+    for (const s of students || []) {
+      const uid = (s as any).universityId ? (typeof (s as any).universityId === 'string' ? (s as any).universityId : (s as any).universityId.toString?.()) : '';
+      if (!uid) continue;
+      counts[uid] = (counts[uid] || 0) + 1;
+    }
+
+    // Reconstrói os slots preservando ordem/prioridade e ajustando filledSlots
+    const newSlots = (bus.universitySlots || []).map((slot: any) => {
+      const uid = slot.universityId ? (typeof slot.universityId === 'string' ? slot.universityId : slot.universityId.toString?.()) : '';
+      return {
+        universityId: slot.universityId,
+        priorityOrder: slot.priorityOrder,
+        filledSlots: counts[uid] || 0,
+      };
+    });
+
+    const updated = await this.repository.update(busId, { universitySlots: newSlots });
+    if (!updated) throw new NotFoundException('Ônibus não encontrado.');
+
+    await this.auditLog.record({
+      action: 'bus.resync_filled_slots',
+      outcome: 'success',
+      actor: adminId ? { id: adminId, role: 'admin' } : null,
+      target: { busId },
+      metadata: { totalStudents: students.length },
+    }).catch(() => {});
+
+    return updated;
+  }
+
   async create(dto: CreateBusDto, adminId: string): Promise<Bus> {
     const existing = await this.repository.findByIdentifier(dto.identifier);
     if (existing) {

@@ -20,14 +20,28 @@ export class UniversityService {
     private readonly auditLog: AuditLogService,
   ) {}
 
+  private normalizeName(name: string): string {
+    return name.trim().toLowerCase();
+  }
+
   async create(dto: CreateUniversityDto, adminId: string): Promise<University> {
-    const existing = await this.repository.findByAcronym(dto.acronym);
-    if (existing) {
+    const normalizedName = this.normalizeName(dto.name);
+    const [existingByAcronym, existingByName] = await Promise.all([
+      this.repository.findByAcronym(dto.acronym),
+      this.repository.findByNameNormalized(normalizedName),
+    ]);
+
+    if (existingByAcronym) {
       throw new ConflictException('Já existe uma faculdade com esta sigla.');
+    }
+
+    if (existingByName) {
+      throw new ConflictException('Já existe uma faculdade com este nome.');
     }
 
     const created = await this.repository.create({
       name: dto.name,
+      nameNormalized: normalizedName,
       acronym: dto.acronym.toUpperCase(),
       address: dto.address,
     });
@@ -65,6 +79,8 @@ export class UniversityService {
   ): Promise<University> {
     await this.findOneOrFail(id);
 
+    const nextName = dto.name !== undefined ? this.normalizeName(dto.name) : undefined;
+
     if (dto.acronym) {
       const existing = await this.repository.findByAcronym(dto.acronym);
       if (existing && (existing as any)._id?.toString?.() !== id) {
@@ -72,8 +88,16 @@ export class UniversityService {
       }
     }
 
+    if (nextName) {
+      const existing = await this.repository.findByNameNormalized(nextName);
+      if (existing && (existing as any)._id?.toString?.() !== id) {
+        throw new ConflictException('Já existe uma faculdade com este nome.');
+      }
+    }
+
     const updated = await this.repository.update(id, {
       ...(dto.name !== undefined ? { name: dto.name } : {}),
+      ...(nextName !== undefined ? { nameNormalized: nextName } : {}),
       ...(dto.acronym !== undefined ? { acronym: dto.acronym.toUpperCase() } : {}),
       ...(dto.address !== undefined ? { address: dto.address } : {}),
     });
@@ -109,5 +133,14 @@ export class UniversityService {
     });
 
     return { message: 'Faculdade desativada com sucesso.' };
+  }
+
+  async assertActive(id: string): Promise<University> {
+    const university = await this.findOneOrFail(id);
+    if (!university.active) {
+      throw new ConflictException('Não é possível usar uma faculdade inativa.');
+    }
+
+    return university;
   }
 }

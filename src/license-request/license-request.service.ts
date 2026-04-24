@@ -25,6 +25,7 @@ import { PhotoType } from '../image/types/photoType.enum';
 import { ImagesService } from '../image/image.service';
 import { Types } from 'mongoose';
 import { BusService } from '../bus/bus.service';
+import { BusRouteService } from '../bus-route/bus-route.service';
 import { Shift } from '../common/interfaces/student-attributes.enum';
 
 type UploadedImageFile = {
@@ -44,6 +45,7 @@ export class LicenseRequestService {
     private readonly enrollmentPeriodService: EnrollmentPeriodService,
     private readonly studentService: StudentService,
     private readonly busService: BusService,
+    private readonly busRouteService: BusRouteService,
     private readonly licenseService: LicenseService,
     private readonly imagesService: ImagesService,
     private readonly mailService: MailService,
@@ -128,7 +130,28 @@ export class LicenseRequestService {
     };
   }
 
-  private async resolveApprovedBus(busInput: string): Promise<{ _id: unknown; identifier?: string | null }> {
+  private async resolveApprovedBus(
+    busInput?: string,
+    busRouteId?: string,
+  ): Promise<{ _id: unknown; identifier?: string | null }> {
+    if (busRouteId) {
+      const route = await this.busRouteService.findOneOrFail(busRouteId);
+      const resolvedBusIdentifier = (route as any).lineNumber?.toString?.()?.trim();
+      if (resolvedBusIdentifier) {
+        const byRoute = await this.busService.findByIdentifier(resolvedBusIdentifier);
+        if (byRoute) {
+          return byRoute as any;
+        }
+        throw new BadRequestException(
+          `Nenhum ônibus cadastrado corresponde à rota ${resolvedBusIdentifier}.`,
+        );
+      }
+    }
+
+    if (!busInput) {
+      throw new BadRequestException('Informe um ônibus ou uma rota para aprovar a solicitação.');
+    }
+
     const byIdentifier = await this.busService.findByIdentifier(busInput);
     if (byIdentifier) {
       return byIdentifier as any;
@@ -306,6 +329,8 @@ export class LicenseRequestService {
       ProfilePhoto?: UploadedImageFile[];
       EnrollmentProof?: UploadedImageFile[];
       CourseSchedule?: UploadedImageFile[];
+      GovernmentId?: UploadedImageFile[];
+      ProofOfResidence?: UploadedImageFile[];
     },
   ): Promise<any> {
     // Only attempt to use transactions when mongoose is connected. When
@@ -360,6 +385,8 @@ export class LicenseRequestService {
       ProfilePhoto?: UploadedImageFile[];
       EnrollmentProof?: UploadedImageFile[];
       CourseSchedule?: UploadedImageFile[];
+      GovernmentId?: UploadedImageFile[];
+      ProofOfResidence?: UploadedImageFile[];
     },
   ): Promise<LicenseRequest> {
     const existingDocuments = await this.imagesService.findByStudentId(studentId);
@@ -487,9 +514,13 @@ export class LicenseRequestService {
     let session: ClientSession | undefined = undefined;
     let usedSession = false;
     const cardContext = await this.resolveCardContextForApproval(request);
-    const approvedBus = await this.resolveApprovedBus(dto.bus);
+    const approvedBus = await this.resolveApprovedBus(dto.bus, dto.busRouteId);
     const approvedBusId = this.toStringId((approvedBus as any)._id);
-    const approvedBusIdentifier = (approvedBus as any).identifier ?? dto.bus;
+    const approvedBusIdentifier =
+      this.toStringId((approvedBus as any).identifier) ?? dto.bus;
+    if (!approvedBusIdentifier) {
+      throw new BadRequestException('Não foi possível identificar o ônibus aprovado.');
+    }
     const finalCardContext = {
       cardNote: cardContext.cardNote,
       accessBusIdentifiers: approvedBusIdentifier ? [approvedBusIdentifier] : [],
@@ -541,7 +572,7 @@ export class LicenseRequestService {
                   {
                     id: request.studentId,
                     institution: dto.institution,
-                    bus: approvedBusIdentifier ?? dto.bus,
+                    bus: approvedBusIdentifier,
                     photo: dto.photo,
                   },
                   employeeId,
@@ -563,6 +594,14 @@ export class LicenseRequestService {
               accessBusIdentifiers: finalCardContext.accessBusIdentifiers,
               pendingImages: [],
             }, session);
+
+            if (request.type === LicenseRequestType.INITIAL) {
+              await this.studentService.update(
+                request.studentId,
+                { hasCompletedInitialEnrollment: true },
+                session,
+              );
+            }
           });
         } finally {
           session.endSession();
@@ -615,7 +654,7 @@ export class LicenseRequestService {
           request.studentId,
           {
             institution: dto.institution,
-            bus: approvedBusIdentifier ?? dto.bus,
+            bus: approvedBusIdentifier,
             photo: dto.photo,
           },
           employeeId,
@@ -640,7 +679,7 @@ export class LicenseRequestService {
           {
             id: request.studentId,
             institution: dto.institution,
-            bus: approvedBusIdentifier ?? dto.bus,
+            bus: approvedBusIdentifier,
             photo: dto.photo,
           },
           employeeId,
@@ -676,6 +715,12 @@ export class LicenseRequestService {
         accessBusIdentifiers: finalCardContext.accessBusIdentifiers,
         pendingImages: [],
       });
+
+      if (request.type === LicenseRequestType.INITIAL) {
+        await this.studentService.update(request.studentId, {
+          hasCompletedInitialEnrollment: true,
+        });
+      }
 
       if (request.type === LicenseRequestType.UPDATE) {
         const student = await this.studentService.findOneOrFail(request.studentId);

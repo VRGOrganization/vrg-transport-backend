@@ -86,15 +86,17 @@ export class StudentController {
 
   @Post('me/license-submit')
   @Roles(UserRole.STUDENT)
-  @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'ProfilePhoto', maxCount: 1 },
-      { name: 'EnrollmentProof', maxCount: 1 },
-      { name: 'CourseSchedule', maxCount: 1 },
-    ], {
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
+    @UseInterceptors(
+      FileFieldsInterceptor([
+        { name: 'ProfilePhoto', maxCount: 1 },
+        { name: 'EnrollmentProof', maxCount: 1 },
+        { name: 'CourseSchedule', maxCount: 1 },
+        { name: 'GovernmentId', maxCount: 1 },
+        { name: 'ProofOfResidence', maxCount: 1 },
+      ], {
+        limits: { fileSize: 10 * 1024 * 1024 },
+      }),
+    )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Enviar perfil, grade e imagens em uma ?nica requisi??o',
@@ -115,6 +117,8 @@ export class StudentController {
         ProfilePhoto: { type: 'string', format: 'binary' },
         EnrollmentProof: { type: 'string', format: 'binary' },
         CourseSchedule: { type: 'string', format: 'binary' },
+        GovernmentId: { type: 'string', format: 'binary' },
+        ProofOfResidence: { type: 'string', format: 'binary' },
       },
     },
   })
@@ -127,6 +131,8 @@ export class StudentController {
       ProfilePhoto?: UploadedImageFile[];
       EnrollmentProof?: UploadedImageFile[];
       CourseSchedule?: UploadedImageFile[];
+      GovernmentId?: UploadedImageFile[];
+      ProofOfResidence?: UploadedImageFile[];
     },
   ) {
     return this.licenseRequestService.submitAndCreateRequest(

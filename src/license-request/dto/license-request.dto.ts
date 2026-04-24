@@ -13,9 +13,16 @@ export class RejectLicenseRequestDto {
 
 export class ApproveLicenseRequestDto {
   @ApiProperty({ description: 'Linha de ônibus' })
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  bus: string;
+  bus?: string;
+
+  @ApiPropertyOptional({ description: 'ID da rota de ônibus cadastrada' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  busRouteId?: string;
 
   @ApiProperty({ description: 'Instituição de ensino' })
   @IsString()

@@ -6,6 +6,7 @@ export interface IUniversityRepository<T> {
   findAllInactive(): Promise<T[]>;
   findById(id: string): Promise<T | null>;
   findByAcronym(acronym: string): Promise<T | null>;
+  findByNameNormalized(nameNormalized: string): Promise<T | null>;
   update(id: string, data: Partial<T>): Promise<T | null>;
   deactivate(id: string): Promise<boolean>;
 }

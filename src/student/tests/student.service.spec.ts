@@ -39,6 +39,7 @@ const makeStudent = (overrides = {}) => ({
   email: 'joao@test.com',
   status: StudentStatus.ACTIVE,
   active: true,
+  hasCompletedInitialEnrollment: false,
   ...overrides,
 });
 
@@ -133,6 +134,28 @@ describe('StudentService', () => {
       await expect(service.remove('id-inexistente')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('submitLicenseRequest', () => {
+    it('deve exigir GovernmentId e ProofOfResidence na primeira inscricao', async () => {
+      mockStudentRepository.findById.mockResolvedValue(makeStudent());
+
+      await expect(
+        service.submitLicenseRequest(
+          'student-id-123',
+          {
+            schedule: [{ day: 'SEG', period: 'Manhã' }] as any,
+          } as any,
+          {
+            ProfilePhoto: [{ buffer: Buffer.from('img'), mimetype: 'image/jpeg' }] as any,
+            EnrollmentProof: [{ buffer: Buffer.from('img'), mimetype: 'application/pdf' }] as any,
+            CourseSchedule: [{ buffer: Buffer.from('img'), mimetype: 'application/pdf' }] as any,
+          },
+        ),
+      ).rejects.toThrow('Envie o documento de identidade para a primeira inscrição.');
+
+      expect(mockStudentRepository.update).not.toHaveBeenCalled();
     });
   });
 

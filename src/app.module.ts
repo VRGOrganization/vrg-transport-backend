@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -27,6 +28,7 @@ import { validateSecurityConfig } from './common/config/security.validation';
 import { UniversityModule } from './university/university.module';
 import { CourseModule } from './course/course.module';
 import { BusModule } from './bus/bus.module';
+import { BusRouteModule } from './bus-route/bus-route.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 
 
@@ -38,6 +40,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
       validate: validateSecurityConfig,
       ignoreEnvFile: process.env.IGNORE_ENV_FILE === 'true',
     }),
+    ScheduleModule.forRoot(),
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (c: ConfigService) => ({
@@ -66,6 +69,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     UniversityModule,
     CourseModule,
     BusModule,
+    BusRouteModule,
   ],
   controllers: [AppController],
   providers: [

@@ -15,6 +15,7 @@ import { LicenseService } from '../license/license.service';
 import { MailService } from '../mail/mail.service';
 import { StudentService } from '../student/student.service';
 import { PhotoType } from '../image/types/photoType.enum';
+import { BusRouteService } from '../bus-route/bus-route.service';
 
 const mockRepository = {
   create: jest.fn(),
@@ -34,6 +35,7 @@ const mockRepository = {
 const mockStudentService = {
   findOneOrFail: jest.fn(),
   createOrUpdateImage: jest.fn(),
+  update: jest.fn(),
 };
 
 const mockLicenseService = {
@@ -76,6 +78,10 @@ const mockBusService = {
   findOneOrFail: jest.fn(),
 };
 
+const mockBusRouteService = {
+  findOneOrFail: jest.fn(),
+};
+
 const setBusRouting = (bus: any, allBuses?: any[]) => {
   mockBusService.findAllByUniversityId.mockResolvedValue(allBuses ?? [bus]);
   mockBusService.findByUniversityIdAndShift.mockResolvedValue(bus);
@@ -114,6 +120,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
           useValue: mockEnrollmentPeriodService,
         },
         { provide: BusService, useValue: mockBusService },
+        { provide: BusRouteService, useValue: mockBusRouteService },
         { provide: StudentService, useValue: mockStudentService },
         { provide: LicenseService, useValue: mockLicenseService },
         { provide: ImagesService, useValue: mockImagesService },
@@ -129,6 +136,10 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       _id: '0000000000000000000000aa',
       identifier: 'A01',
       universitySlots: [],
+    });
+    mockBusRouteService.findOneOrFail.mockResolvedValue({
+      _id: 'route-1',
+      lineNumber: 'A01',
     });
     mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: null });
   });
@@ -354,6 +365,9 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       mockRepository.update.mockResolvedValue(
         makeRequest({ status: LicenseRequestStatus.APPROVED }),
       );
+      mockStudentService.update.mockResolvedValue({
+        hasCompletedInitialEnrollment: true,
+      });
 
       await service.approve('request-1', 'employee-1', {
         bus: 'A01',
@@ -374,6 +388,10 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       );
       expect(mockEnrollmentPeriodService.incrementFilled).toHaveBeenCalledWith(
         'period-1',
+      );
+      expect(mockStudentService.update).toHaveBeenCalledWith(
+        'student-1',
+        { hasCompletedInitialEnrollment: true },
       );
     });
 
@@ -416,8 +434,84 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         await expect(service.approve('request-1', 'employee-1', { bus: 'A01', institution: 'IF' })).rejects.toThrow();
 
         expect(mockEnrollmentPeriodService.decrementFilled).toHaveBeenCalledWith('period-1');
-        expect(mockBusService.decrementUniversityFilledSlots).toHaveBeenCalledWith('0000000000000000000000aa', 'uni-1');
+      expect(mockBusService.decrementUniversityFilledSlots).toHaveBeenCalledWith('0000000000000000000000aa', 'uni-1');
       });
+
+    it('deve marcar a primeira inscricao como concluida ao aprovar INITIAL', async () => {
+      mockRepository.findById.mockResolvedValue(
+        makeRequest({
+          type: LicenseRequestType.INITIAL,
+          status: LicenseRequestStatus.PENDING,
+        }),
+      );
+      mockLicenseService.create.mockResolvedValue({
+        _id: { toString: () => 'license-1' },
+      });
+      mockRepository.update.mockResolvedValue(
+        makeRequest({ status: LicenseRequestStatus.APPROVED }),
+      );
+      mockStudentService.update.mockResolvedValue({
+        hasCompletedInitialEnrollment: true,
+      });
+
+      await service.approve('request-1', 'employee-1', {
+        bus: 'A01',
+        institution: 'IF',
+      });
+
+      expect(mockStudentService.update).toHaveBeenCalledWith(
+        'student-1',
+        { hasCompletedInitialEnrollment: true },
+      );
+    });
+
+    it('deve aprovar usando busRouteId e resolver o onibus pelo numero da rota', async () => {
+      mockRepository.findById.mockResolvedValue(
+        makeRequest({
+          type: LicenseRequestType.INITIAL,
+          status: LicenseRequestStatus.PENDING,
+          enrollmentPeriodId: 'period-1' as any,
+        } as any),
+      );
+      mockEnrollmentPeriodService.findById.mockResolvedValue({
+        _id: 'period-1',
+        licenseValidityMonths: 6,
+      });
+      mockBusRouteService.findOneOrFail.mockResolvedValue({
+        _id: 'route-1',
+        lineNumber: 'A01',
+      });
+      mockLicenseService.create.mockResolvedValue({
+        _id: { toString: () => 'license-1' },
+      });
+      mockRepository.update.mockResolvedValue(
+        makeRequest({ status: LicenseRequestStatus.APPROVED }),
+      );
+      mockStudentService.update.mockResolvedValue({
+        hasCompletedInitialEnrollment: true,
+      });
+
+      await service.approve('request-1', 'employee-1', {
+        institution: 'IF',
+        busRouteId: 'route-1',
+      });
+
+      expect(mockBusRouteService.findOneOrFail).toHaveBeenCalledWith('route-1');
+      expect(mockBusService.findByIdentifier).toHaveBeenCalledWith('A01');
+      expect(mockLicenseService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bus: 'A01',
+        }),
+        'employee-1',
+        6,
+        'period-1',
+        true,
+        undefined,
+        expect.objectContaining({
+          accessBusIdentifiers: ['A01'],
+        }),
+      );
+    });
 
     it('deve manter aprovacao mesmo se email de update falhar', async () => {
       mockRepository.findById.mockResolvedValue(

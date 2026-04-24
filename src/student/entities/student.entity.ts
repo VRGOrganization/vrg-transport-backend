@@ -6,4 +6,5 @@ export class Student {
     bloodType: string;
     buss:string;
     photo: string|null;
+    hasCompletedInitialEnrollment?: boolean;
 }
