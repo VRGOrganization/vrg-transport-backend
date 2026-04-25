@@ -23,7 +23,7 @@ export class StudentLoginDto {
   @IsEmail({}, { message: 'E-mail inválido' })
   @IsNotEmpty()
   @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 
   @ApiProperty({
     example: 'Senha123',
@@ -32,7 +32,7 @@ export class StudentLoginDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
-  password: string;
+  password!: string;
 }
 
 export class EmployeeLoginDto {
@@ -43,7 +43,7 @@ export class EmployeeLoginDto {
   @IsString()
   @IsNotEmpty({ message: 'Matrícula é obrigatória' })
   @Transform(({ value }) => value?.trim())
-  registrationId: string;
+  registrationId!: string;
 
   @ApiProperty({
     example: 'Senha123',
@@ -52,7 +52,7 @@ export class EmployeeLoginDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
-  password: string;
+  password!: string;
 }
 
 export class AdminLoginDto {
@@ -63,7 +63,7 @@ export class AdminLoginDto {
   @IsString()
   @IsNotEmpty({ message: 'Username é obrigatório' })
   @Transform(({ value }) => value?.toLowerCase().trim())
-  username: string;
+  username!: string;
 
   @ApiProperty({
     example: 'Admin123',
@@ -72,7 +72,7 @@ export class AdminLoginDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(6)
-  password: string;
+  password!: string;
 }
 
 export class RegisterStudentDto {
@@ -84,7 +84,7 @@ export class RegisterStudentDto {
   @IsNotEmpty({ message: 'Nome é obrigatório' })
   @MaxLength(100)
   @Transform(({ value }) => value?.trim())
-  name: string;
+  name!: string;
 
   @ApiProperty({
     example: 'joao@email.com',
@@ -93,7 +93,7 @@ export class RegisterStudentDto {
   @IsEmail({}, { message: 'E-mail inválido' })
   @IsNotEmpty()
   @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 
   @ApiProperty({
     example: 'Senha123!',
@@ -109,7 +109,7 @@ export class RegisterStudentDto {
     message:
       'Senha deve conter letras maiúsculas, minúsculas, números e caractere especial',
   })
-  password: string;
+  password!: string;
 
   @ApiProperty({
     example: '+55 22 99999-9999',
@@ -119,7 +119,7 @@ export class RegisterStudentDto {
   @IsNotEmpty()
   @Transform(({ value }) => value?.replace(/\D/g, ''))
   @Matches(/^\d{10,13}$/, { message: 'Telefone inválido' })
-  telephone: string;
+  telephone!: string;
 
   @ApiProperty({
     example: '123.456.789-09',
@@ -129,7 +129,7 @@ export class RegisterStudentDto {
   @IsNotEmpty({ message: 'CPF é obrigatório' })
   @Transform(({ value }) => value?.replace(/\D/g, ''))
   @Matches(/^\d{11}$/, { message: 'CPF inválido' })
-  cpf: string;
+  cpf!: string;
 }
 
 export class VerifyEmailDto {
@@ -140,7 +140,7 @@ export class VerifyEmailDto {
   @IsEmail({}, { message: 'E-mail inválido' })
   @IsNotEmpty()
   @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 
   @ApiProperty({
     example: '123456',
@@ -149,7 +149,7 @@ export class VerifyEmailDto {
   @IsString()
   @IsNotEmpty()
   @Matches(/^\d{6}$/, { message: 'Código deve ter 6 dígitos' })
-  code: string;
+  code!: string;
 }
 
 export class ResendCodeDto {
@@ -160,7 +160,7 @@ export class ResendCodeDto {
   @IsEmail({}, { message: 'E-mail inválido' })
   @IsNotEmpty()
   @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 }
 
 export class ForgotPasswordDto {
@@ -171,7 +171,7 @@ export class ForgotPasswordDto {
   @IsEmail({}, { message: 'E-mail inválido' })
   @IsNotEmpty()
   @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  email!: string;
 }
 
 export class ResetPasswordDto {

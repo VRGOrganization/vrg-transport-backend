@@ -28,7 +28,6 @@ import { validateSecurityConfig } from './common/config/security.validation';
 import { UniversityModule } from './university/university.module';
 import { CourseModule } from './course/course.module';
 import { BusModule } from './bus/bus.module';
-import { BusRouteModule } from './bus-route/bus-route.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 
 
@@ -69,7 +68,6 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     UniversityModule,
     CourseModule,
     BusModule,
-    BusRouteModule,
   ],
   controllers: [AppController],
   providers: [

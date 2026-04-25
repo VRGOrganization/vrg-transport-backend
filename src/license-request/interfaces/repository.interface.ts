@@ -1,4 +1,3 @@
-import { LicenseRequest } from '../schemas/license-request.schema';
 import { LicenseRequestStatus } from '../schemas/license-request.schema';
 import { ClientSession } from 'mongoose';
 
@@ -7,12 +6,13 @@ export const LICENSE_REQUEST_REPOSITORY = 'LICENSE_REQUEST_REPOSITORY';
 export interface ILicenseRequestRepository<T> {
   create(data: Partial<T>, session?: ClientSession): Promise<T>;
   findById(id: string): Promise<T | null>;
-  findByStudentId(studentId: string): Promise<T[]>;
-  findPendingByStudentId(studentId: string): Promise<T | null>;
-  hasActiveDemandForBusAndUniversity(busId: string, universityId: string): Promise<boolean>;
-  findPendingOrWaitlistedInitial(studentId: string): Promise<T | null>;
-  findWaitlistedByEnrollmentPeriod(enrollmentPeriodId: string): Promise<T[]>;
-  countWaitlistedByEnrollmentPeriod(enrollmentPeriodId: string): Promise<number>;
+  // Allow passing an optional session for transactional reads
+  findByStudentId(studentId: string, session?: ClientSession): Promise<T[]>;
+  findPendingByStudentId(studentId: string, session?: ClientSession): Promise<T | null>;
+  hasActiveDemandForBusAndUniversity(busId: string, universityId: string, session?: ClientSession): Promise<boolean>;
+  findPendingOrWaitlistedInitial(studentId: string, session?: ClientSession): Promise<T | null>;
+  findWaitlistedByEnrollmentPeriod(enrollmentPeriodId: string, session?: ClientSession): Promise<T[]>;
+  countWaitlistedByEnrollmentPeriod(enrollmentPeriodId: string, session?: ClientSession): Promise<number>;
   findWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId: string, busId: string): Promise<T[]>;
   countWaitlistedByEnrollmentPeriodAndBus(enrollmentPeriodId: string, busId: string): Promise<number>;
   cancelWaitlistedByEnrollmentPeriod(

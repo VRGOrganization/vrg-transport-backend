@@ -19,11 +19,15 @@ import { UserRole } from '../common/interfaces/user-roles.enum';
 import { MongoObjectIdPipe } from '../common/pipes/mongo-object-id.pipe';
 import { CreateBusDto, LinkUniversityDto, UpdateBusDto, UpdateUniversitySlotsDto } from './dto/bus.dto';
 import { BusService } from './bus.service';
+import { UniversityService } from '../university/university.service';
 
 @ApiTags('Buses')
 @Controller('bus')
 export class BusController {
-  constructor(private readonly service: BusService) {}
+  constructor(
+    private readonly service: BusService,
+    private readonly universityService: UniversityService,
+  ) {}
 
   @Post()
   @Roles(UserRole.ADMIN)
@@ -38,8 +42,39 @@ export class BusController {
   @Get()
   @Public()
   @ApiOperation({ summary: 'Listar ônibus ativos' })
-  findAll() {
-    return this.service.findAll();
+  async findAll() {
+    const buses = await this.service.findAll();
+
+    const uniCache = new Map<string, string | null>();
+
+    const mapped = [] as any[];
+    for (const bus of buses || []) {
+      const identifier = (bus as any).identifier ?? '';
+      const id = (bus as any)._id?.toString?.() ?? identifier;
+
+      const acronyms: string[] = [];
+      for (const slot of (bus.universitySlots || [])) {
+        const raw = slot?.universityId;
+        const uid = raw ? (typeof raw === 'string' ? raw : raw?.toString?.()) : null;
+        if (!uid) continue;
+        if (!uniCache.has(uid)) {
+          try {
+            const uni = await this.universityService.findOneOrFail(uid);
+            uniCache.set(uid, uni.acronym ?? (uni.name ? uni.name.split(/\s+/).map((w: string) => w[0]).join('').toUpperCase() : uid));
+          } catch {
+            uniCache.set(uid, null);
+          }
+        }
+        const a = uniCache.get(uid);
+        if (a) acronyms.push(a);
+      }
+
+      const destinations = acronyms.length > 0 ? acronyms.map((a) => ({ name: a, active: true })) : [];
+
+      mapped.push({ _id: id, lineNumber: identifier, destinations });
+    }
+
+    return mapped;
   }
 
   @Get('with-queue-counts')

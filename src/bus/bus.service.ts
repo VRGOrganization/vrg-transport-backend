@@ -93,11 +93,20 @@ export class BusService {
       throw new ConflictException('Já existe um ônibus com este identificador.');
     }
 
+    // Prepara os universitySlots se vierem no DTO
+    let universitySlots = Array.isArray((dto as any).universitySlots) ? (dto as any).universitySlots : [];
+    // Garante que os slots tenham os campos necessários
+    universitySlots = universitySlots.map((slot: any, idx: number) => ({
+      universityId: slot.universityId,
+      priorityOrder: slot.priorityOrder ?? idx + 1,
+      filledSlots: 0,
+    }));
+
     const created = await this.repository.create({
       identifier: dto.identifier,
       ...(dto.shift !== undefined ? { shift: dto.shift } : {}),
       ...(dto.capacity !== undefined ? { capacity: dto.capacity } : {}),
-      universitySlots: [],
+      universitySlots,
     });
 
     await this.auditLog.record({
@@ -106,6 +115,8 @@ export class BusService {
       actor: { id: adminId, role: 'admin' },
       target: { busId: (created as any)._id?.toString?.() },
     });
+
+    // bus-route synchronization removed
 
     return created;
   }
@@ -306,7 +317,7 @@ export class BusService {
   }
 
   async update(id: string, dto: UpdateBusDto, adminId: string): Promise<Bus> {
-    await this.findOneOrFail(id);
+    const current = await this.findOneOrFail(id);
 
     if (dto.identifier) {
       const existing = await this.repository.findByIdentifier(dto.identifier);
@@ -325,6 +336,8 @@ export class BusService {
       throw new NotFoundException('Ônibus não encontrado.');
     }
 
+    // bus-route renaming/sync removed
+
     await this.auditLog.record({
       action: 'bus.update',
       outcome: 'success',
@@ -341,11 +354,9 @@ export class BusService {
     universityId: string,
     adminId: string,
   ): Promise<Bus> {
-    await this.findOneOrFail(busId);
-    await this.universityService.findOneOrFail(universityId);
-
-    // Adiciona a universidade ao final da lista de universitySlots com priorityOrder = max+1
+    // Carrega ônibus e universidade
     const bus = await this.findOneOrFail(busId);
+    const uni = await this.universityService.findOneOrFail(universityId);
     const exists = bus.universitySlots.find((s: any) => s.universityId?.toString() === universityId);
     if (exists) return bus;
 
@@ -368,6 +379,7 @@ export class BusService {
     });
 
     if (!updated) throw new NotFoundException('Ônibus não encontrado.');
+
     return updated;
   }
 
@@ -376,11 +388,9 @@ export class BusService {
     universityId: string,
     adminId: string,
   ): Promise<Bus> {
-    await this.findOneOrFail(busId);
-    await this.universityService.findOneOrFail(universityId);
-
-    // Remove o slot e reordena priorityOrder
+    // Carrega ônibus e universidade
     const bus = await this.findOneOrFail(busId);
+    const uni = await this.universityService.findOneOrFail(universityId);
     const newSlots = (bus.universitySlots || []).filter((s: any) => s.universityId?.toString() !== universityId)
       .map((s: any, index: number) => ({
         universityId: s.universityId,
@@ -398,6 +408,7 @@ export class BusService {
     });
 
     if (!updated) throw new NotFoundException('Ônibus não encontrado.');
+
     return updated;
   }
 
@@ -440,6 +451,7 @@ export class BusService {
     });
 
     if (!updated) throw new NotFoundException('Ônibus não encontrado.');
+
     return updated;
   }
 

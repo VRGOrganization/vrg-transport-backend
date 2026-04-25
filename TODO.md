@@ -30,64 +30,64 @@ Use este arquivo para retomar o trabalho amanhã e seguir a ordem dos TODOs.
 
 ## Job Agendado de Expiracao de Carteirinhas
 
-- [ ] Adicionar dependencia de scheduler com @nestjs/schedule.
-- [ ] Registrar ScheduleModule.forRoot() no modulo principal da aplicacao.
-- [ ] Criar servico LicenseExpirationJobService para executar varredura periodica.
-- [ ] Agendar execucao com cron para chamar LicenseService.deactivateExpiredLicenses().
-- [ ] Tornar o cron configuravel por variavel de ambiente LICENSE_EXPIRATION_CRON.
-- [ ] Permitir desabilitar o job por variavel de ambiente LICENSE_EXPIRATION_JOB_ENABLED.
-- [ ] Registrar auditoria por execucao: total de licencas desativadas, horario e status.
-- [ ] Evitar sobreposicao de execucoes concorrentes no mesmo processo com lock em memoria.
-- [ ] Cobrir com testes unitarios:
-  - [ ] Executa quando habilitado.
-  - [ ] Nao executa quando desabilitado.
-  - [ ] Trata erro sem derrubar o scheduler.
-  - [ ] Nao roda em paralelo quando ja existe execucao ativa.
-- [ ] Atualizar documentacao tecnica com cron e variaveis de ambiente.
+- [X] Adicionar dependencia de scheduler com @nestjs/schedule.
+- [X] Registrar ScheduleModule.forRoot() no modulo principal da aplicacao.
+- [X] Criar servico LicenseExpirationJobService para executar varredura periodica.
+- [X] Agendar execucao com cron para chamar LicenseService.deactivateExpiredLicenses().
+- [X] Tornar o cron configuravel por variavel de ambiente LICENSE_EXPIRATION_CRON.
+- [X] Permitir desabilitar o job por variavel de ambiente LICENSE_EXPIRATION_JOB_ENABLED.
+- [X] Registrar auditoria por execucao: total de licencas desativadas, horario e status.
+- [X] Evitar sobreposicao de execucoes concorrentes no mesmo processo com lock em memoria.
+- [X] Cobrir com testes unitarios:
+  - [X] Executa quando habilitado.
+  - [X] Nao executa quando desabilitado.
+  - [X] Trata erro sem derrubar o scheduler.
+  - [X] Nao roda em paralelo quando ja existe execucao ativa.
+- [X] Atualizar documentacao tecnica com cron e variaveis de ambiente.
 
 ## Criterios de Pronto
 
-- [ ] Job executa automaticamente sem depender de chamadas de API de periodo.
-- [ ] Licencas expiradas mudam para status expired e existing=false.
-- [ ] Testes unitarios do job passando.
-- [ ] Suite completa de testes do projeto passando.
+- [X] Job executa automaticamente sem depender de chamadas de API de periodo.
+- [X] Licencas expiradas mudam para status expired e existing=false.
+- [X] Testes unitarios do job passando.
+- [X] Suite completa de testes do projeto passando.
 
 ## Gestao de Faculdades e Cursos (Admin)
 
-- [ ] Criar modulo de dominio para instituicoes e cursos (ex.: InstitutionModule).
-- [ ] Modelar Institution com nome unico, status ativo/inativo e metadados de auditoria.
-- [ ] Modelar Course com vinculo obrigatorio a Institution e nome unico por instituicao.
-- [ ] Criar CRUD de Institution restrito a ADMIN:
-  - [ ] Criar instituicao.
-  - [ ] Listar instituicoes (com filtro por ativo).
-  - [ ] Atualizar instituicao.
-  - [ ] Inativar instituicao (soft delete).
-- [ ] Criar CRUD de Course restrito a ADMIN:
-  - [ ] Criar curso dentro de instituicao.
-  - [ ] Listar cursos por instituicao.
-  - [ ] Atualizar curso.
-  - [ ] Inativar curso (soft delete).
-- [ ] Impedir criacao de curso em instituicao inativa.
-- [ ] Impedir duplicidade de nomes considerando normalizacao (trim/lowercase).
-- [ ] Registrar auditoria para create/update/deactivate de instituicoes e cursos.
-- [ ] Atualizar DTOs/fluxos para usar IDs de instituicao/curso quando aplicavel (em vez de texto livre).
+- [X] Criar modulo de dominio para instituicoes e cursos (ex.: InstitutionModule).
+- [X] Modelar Institution com nome unico, status ativo/inativo e metadados de auditoria.
+- [X] Modelar Course com vinculo obrigatorio a Institution e nome unico por instituicao.
+- [X] Criar CRUD de Institution restrito a ADMIN:
+  - [X] Criar instituicao.
+  - [X] Listar instituicoes (com filtro por ativo).
+  - [X] Atualizar instituicao.
+  - [X] Inativar instituicao (soft delete).
+- [X] Criar CRUD de Course restrito a ADMIN:
+  - [X] Criar curso dentro de instituicao.
+  - [X] Listar cursos por instituicao.
+  - [X] Atualizar curso.
+  - [X] Inativar curso (soft delete).
+- [X] Impedir criacao de curso em instituicao inativa.
+- [X] Impedir duplicidade de nomes considerando normalizacao (trim/lowercase).
+- [X] Registrar auditoria para create/update/deactivate de instituicoes e cursos.
+- [X] Atualizar DTOs/fluxos para usar IDs de instituicao/curso quando aplicavel (em vez de texto livre).
 
 ## Gestao de Rotas de Onibus (Admin)
 
-- [ ] Criar modulo de dominio para rotas de onibus (ex.: BusRouteModule).
-- [ ] Modelar BusRoute com numero da linha e status ativo/inativo.
-- [ ] Modelar destinos da linha permitindo mais de um destino por rota.
-- [ ] Garantir unicidade do numero da linha por rota ativa.
-- [ ] Criar CRUD de BusRoute restrito a ADMIN:
-  - [ ] Criar rota com numero e lista de destinos.
-  - [ ] Listar rotas com destinos.
-  - [ ] Atualizar numero da linha.
-  - [ ] Adicionar/remover destinos da rota.
-  - [ ] Inativar rota (soft delete).
-  - [ ] Adicionar periodo aos onibus(Manhã, Tarde, Noite)
-- [ ] Validar regra: rota deve ter pelo menos 1 destino ativo.
-- [ ] Atualizar fluxo de aprovacao para selecionar rota cadastrada (linha + destino), evitando texto livre.
-- [ ] Registrar auditoria para create/update/deactivate de rotas e destinos.
+- [X] Criar modulo de dominio para rotas de onibus (ex.: BusRouteModule).
+- [X] Modelar BusRoute com numero da linha e status ativo/inativo.
+- [X] Modelar destinos da linha permitindo mais de um destino por rota.
+- [X] Garantir unicidade do numero da linha por rota ativa.
+- [X] Criar CRUD de BusRoute restrito a ADMIN:
+  - [X] Criar rota com numero e lista de destinos.
+  - [X] Listar rotas com destinos.
+  - [X] Atualizar numero da linha.
+  - [X] Adicionar/remover destinos da rota.
+  - [X] Inativar rota (soft delete).
+  - [X] Adicionar periodo aos onibus(Manhã, Tarde, Noite)
+- [X] Validar regra: rota deve ter pelo menos 1 destino ativo.
+- [X] Atualizar fluxo de aprovacao para selecionar rota cadastrada (linha + destino), evitando texto livre.
+- [X] Registrar auditoria para create/update/deactivate de rotas e destinos.
 
 
 ## Criar Licence-Request
@@ -97,11 +97,11 @@ Use este arquivo para retomar o trabalho amanhã e seguir a ordem dos TODOs.
 
 ## Criterios de Pronto (Catalogos de Negocio)
 
-- [ ] ADMIN consegue gerir instituicoes, cursos e rotas por endpoints dedicados.
-- [ ] Rotas aceitam 1..N destinos por linha.
-- [ ] Fluxos de aprovacao usam dados de catalogo validados.
-- [ ] Cobertura de testes unitarios e e2e dos novos modulos.
-- [ ] Documentacao de API e roteiro manual atualizados.
+- [X] ADMIN consegue gerir instituicoes, cursos e rotas por endpoints dedicados.
+- [X] Rotas aceitam 1..N destinos por linha.
+- [x] Fluxos de aprovacao usam dados de catalogo validados.
+- [X] Cobertura de testes unitarios e e2e dos novos modulos.
+- [X] Documentacao de API e roteiro manual atualizados.
 
 ## Auditoria: Lista priorizada de 25 tarefas
 
@@ -130,6 +130,6 @@ Use este arquivo para retomar o trabalho amanhã e seguir a ordem dos TODOs.
 - [x] 24. Centralizar validador de senhas
 - [x] 25. Criar UpdateLicenseDto
 
-
+[X] Corrigir concorrencia em LicenseRequest
 
 

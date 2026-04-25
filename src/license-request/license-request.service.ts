@@ -25,7 +25,6 @@ import { PhotoType } from '../image/types/photoType.enum';
 import { ImagesService } from '../image/image.service';
 import { Types } from 'mongoose';
 import { BusService } from '../bus/bus.service';
-import { BusRouteService } from '../bus-route/bus-route.service';
 import { Shift } from '../common/interfaces/student-attributes.enum';
 
 type UploadedImageFile = {
@@ -45,7 +44,6 @@ export class LicenseRequestService {
     private readonly enrollmentPeriodService: EnrollmentPeriodService,
     private readonly studentService: StudentService,
     private readonly busService: BusService,
-    private readonly busRouteService: BusRouteService,
     private readonly licenseService: LicenseService,
     private readonly imagesService: ImagesService,
     private readonly mailService: MailService,
@@ -132,24 +130,9 @@ export class LicenseRequestService {
 
   private async resolveApprovedBus(
     busInput?: string,
-    busRouteId?: string,
   ): Promise<{ _id: unknown; identifier?: string | null }> {
-    if (busRouteId) {
-      const route = await this.busRouteService.findOneOrFail(busRouteId);
-      const resolvedBusIdentifier = (route as any).lineNumber?.toString?.()?.trim();
-      if (resolvedBusIdentifier) {
-        const byRoute = await this.busService.findByIdentifier(resolvedBusIdentifier);
-        if (byRoute) {
-          return byRoute as any;
-        }
-        throw new BadRequestException(
-          `Nenhum ônibus cadastrado corresponde à rota ${resolvedBusIdentifier}.`,
-        );
-      }
-    }
-
     if (!busInput) {
-      throw new BadRequestException('Informe um ônibus ou uma rota para aprovar a solicitação.');
+      throw new BadRequestException('Informe um ônibus para aprovar a solicitação.');
     }
 
     const byIdentifier = await this.busService.findByIdentifier(busInput);
@@ -161,8 +144,8 @@ export class LicenseRequestService {
   }
 
   // Verifica elegibilidade e retorna o período de inscrição ativo (quando aplicável)
-  async assertInitialRequestEligibility(studentId: string): Promise<any> {
-    const requests = await this.repository.findByStudentId(studentId);
+  async assertInitialRequestEligibility(studentId: string, session?: ClientSession): Promise<any> {
+    const requests = await this.repository.findByStudentId(studentId, session);
     const existingPendingOrWaitlistedInitial = requests.find(
       (request) =>
         (request.status === LicenseRequestStatus.PENDING ||
@@ -196,7 +179,7 @@ export class LicenseRequestService {
   ): Promise<LicenseRequest> {
     // If caller provided the active period (to avoid duplicate checks), reuse it;
     // otherwise run the eligibility check which returns the active period.
-    const activePeriod = activePeriodParam ?? (await this.assertInitialRequestEligibility(studentId));
+    const activePeriod = activePeriodParam ?? (await this.assertInitialRequestEligibility(studentId, session));
 
     const enrollmentPeriodId = (activePeriod as any)._id?.toString?.();
     if (!enrollmentPeriodId) {
@@ -245,10 +228,10 @@ export class LicenseRequestService {
 
       for (const slot of higherPrioritySlots) {
         const uniIdStr = slot.universityId && slot.universityId.toString ? slot.universityId.toString() : slot.universityId;
-        const hasDemand = await this.repository.hasActiveDemandForBusAndUniversity(
-          (bus as any).identifier,
-          typeof uniIdStr === 'string' ? uniIdStr : uniIdStr?.toString?.(),
-        );
+        const uniIdArg = typeof uniIdStr === 'string' ? uniIdStr : uniIdStr?.toString?.();
+        const hasDemand = session
+          ? await this.repository.hasActiveDemandForBusAndUniversity((bus as any).identifier, uniIdArg, session)
+          : await this.repository.hasActiveDemandForBusAndUniversity((bus as any).identifier, uniIdArg);
         if (hasDemand) {
           return false;
         }
@@ -271,7 +254,7 @@ export class LicenseRequestService {
     ).then((results) => results.some(Boolean));
 
     if (!hasAnyAvailableBus) {
-      const filaCount = await this.repository.countWaitlistedByEnrollmentPeriod(enrollmentPeriodId);
+      const filaCount = await this.repository.countWaitlistedByEnrollmentPeriod(enrollmentPeriodId, session);
       const filaPosition = (filaCount || 0) + 1;
 
       const request = await this.createRequestRecord({
@@ -350,7 +333,7 @@ export class LicenseRequestService {
       try {
         let studentResult: any;
         await session.withTransaction(async () => {
-          const activePeriod = await this.assertInitialRequestEligibility(studentId);
+          const activePeriod = await this.assertInitialRequestEligibility(studentId, session);
           studentResult = await this.studentService.submitLicenseRequest(
             studentId,
             dto,
@@ -514,7 +497,7 @@ export class LicenseRequestService {
     let session: ClientSession | undefined = undefined;
     let usedSession = false;
     const cardContext = await this.resolveCardContextForApproval(request);
-    const approvedBus = await this.resolveApprovedBus(dto.bus, dto.busRouteId);
+    const approvedBus = await this.resolveApprovedBus(dto.bus);
     const approvedBusId = this.toStringId((approvedBus as any)._id);
     const approvedBusIdentifier =
       this.toStringId((approvedBus as any).identifier) ?? dto.bus;

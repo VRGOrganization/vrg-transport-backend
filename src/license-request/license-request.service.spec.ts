@@ -15,7 +15,6 @@ import { LicenseService } from '../license/license.service';
 import { MailService } from '../mail/mail.service';
 import { StudentService } from '../student/student.service';
 import { PhotoType } from '../image/types/photoType.enum';
-import { BusRouteService } from '../bus-route/bus-route.service';
 
 const mockRepository = {
   create: jest.fn(),
@@ -78,9 +77,6 @@ const mockBusService = {
   findOneOrFail: jest.fn(),
 };
 
-const mockBusRouteService = {
-  findOneOrFail: jest.fn(),
-};
 
 const setBusRouting = (bus: any, allBuses?: any[]) => {
   mockBusService.findAllByUniversityId.mockResolvedValue(allBuses ?? [bus]);
@@ -120,7 +116,6 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
           useValue: mockEnrollmentPeriodService,
         },
         { provide: BusService, useValue: mockBusService },
-        { provide: BusRouteService, useValue: mockBusRouteService },
         { provide: StudentService, useValue: mockStudentService },
         { provide: LicenseService, useValue: mockLicenseService },
         { provide: ImagesService, useValue: mockImagesService },
@@ -137,10 +132,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       identifier: 'A01',
       universitySlots: [],
     });
-    mockBusRouteService.findOneOrFail.mockResolvedValue({
-      _id: 'route-1',
-      lineNumber: 'A01',
-    });
+    // no bus-route service in this configuration
     mockStudentService.findOneOrFail.mockResolvedValue({ email: 'student@mail.com', name: 'Aluno Teste', universityId: null });
   });
 
@@ -465,7 +457,7 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
       );
     });
 
-    it('deve aprovar usando busRouteId e resolver o onibus pelo numero da rota', async () => {
+    it('deve aprovar usando identificador do ônibus', async () => {
       mockRepository.findById.mockResolvedValue(
         makeRequest({
           type: LicenseRequestType.INITIAL,
@@ -477,9 +469,9 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
         _id: 'period-1',
         licenseValidityMonths: 6,
       });
-      mockBusRouteService.findOneOrFail.mockResolvedValue({
-        _id: 'route-1',
-        lineNumber: 'A01',
+      mockBusService.findByIdentifier.mockResolvedValue({
+        _id: '0000000000000000000000aa',
+        identifier: 'A01',
       });
       mockLicenseService.create.mockResolvedValue({
         _id: { toString: () => 'license-1' },
@@ -493,10 +485,9 @@ describe('LicenseRequestService (TDD enrollment period rules)', () => {
 
       await service.approve('request-1', 'employee-1', {
         institution: 'IF',
-        busRouteId: 'route-1',
+        bus: 'A01',
       });
 
-      expect(mockBusRouteService.findOneOrFail).toHaveBeenCalledWith('route-1');
       expect(mockBusService.findByIdentifier).toHaveBeenCalledWith('A01');
       expect(mockLicenseService.create).toHaveBeenCalledWith(
         expect.objectContaining({
